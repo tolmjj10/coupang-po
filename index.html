@@ -1209,7 +1209,7 @@ async function saveResult(mode){
   const saved=await saveSharedState();
 
   if(mode==='save'){
-    if(saved) voarToast('저장되었습니다 · 모든 사람과 공유됨');
+    if(saved) voarToast('저장 완료');
     return;
   }
 
@@ -1225,7 +1225,7 @@ async function saveResult(mode){
   const _mm=String(_t.getMonth()+1).padStart(2,'0');
   const _dd=String(_t.getDate()).padStart(2,'0');
   XLSX.writeFile(wb,`쿠팡 발주 ${_mm}${_dd}.xlsx`);
-  if(saved) voarToast('저장 + 엑셀 다운로드 완료');
+  if(saved) voarToast('저장 완료 · 엑셀 다운로드됨');
 }
 </script>
 
