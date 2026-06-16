@@ -396,8 +396,9 @@ td { padding: 9px 11px; vertical-align: middle; }
 
 <!-- SAVE BAR -->
 <div class="save-bar" id="save-bar" style="display:none">
-  <button class="save-btn" onclick="saveResult()">💾 저장 및 엑셀 내보내기</button>
-  <span class="save-hint">입고수량 입력 후 저장하면 공유용 엑셀 파일이 생성됩니다</span>
+  <button class="save-btn" onclick="saveResult('save')">💾 저장</button>
+  <button class="save-btn" onclick="saveResult('export')">📊 엑셀 내보내기</button>
+  <span class="save-hint">저장: 입력값을 모든 사람과 공유 · 엑셀 내보내기: 저장 + 파일 다운로드</span>
   <span class="save-count" id="save-count"></span>
 </div>
 
@@ -1131,34 +1132,100 @@ function updateSaveCount(){
 }
 
 /* ═══════════════════════ SAVE ═══════════════════════ */
-function saveResult(){
-  const data=[];
-  let lastPO=null;
+function voarToast(msg, color){
+  let t=document.getElementById('__voar_toast__');
+  if(!t){
+    t=document.createElement('div');
+    t.id='__voar_toast__';
+    t.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;padding:10px 18px;border-radius:8px;font:14px system-ui;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.2);opacity:0;transition:opacity .2s;pointer-events:none;';
+    document.body.appendChild(t);
+  }
+  t.textContent=msg;
+  if(color) t.style.background=color;
+  t.style.opacity='1';
+  clearTimeout(t._timer);
+  t._timer=setTimeout(function(){ t.style.opacity='0'; }, 1800);
+}
 
-  matchedRows.forEach(r=>{
-    /* 발주번호가 바뀌면 빈 행 삽입 */
-    if(lastPO!==null && r.poNum!==lastPO){
-      data.push({'발주번호':'','SKU':'','제품명':'','발주수량':'','입고수량':''});
+async function saveSharedState(){
+  try{
+    const res=await fetch('/api/state',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        invValues:invValues,
+        dataFingerprint:window.__VOAR_FINGERPRINT__||'',
+        savedAt:Date.now()
+      })
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    return true;
+  }catch(e){
+    console.error('[VOAR] save state failed', e);
+    voarToast('저장 실패: '+e.message, '#dc2626');
+    return false;
+  }
+}
+
+function applySharedState(saved){
+  if(!saved||!saved.invValues) return;
+  if(saved.dataFingerprint && saved.dataFingerprint!==window.__VOAR_FINGERPRINT__){
+    console.log('[VOAR] saved state stale, ignoring');
+    return;
+  }
+  Object.keys(saved.invValues).forEach(function(k){ invValues[k]=saved.invValues[k]; });
+  document.querySelectorAll('input[data-sku]').forEach(function(el){
+    const sku=el.getAttribute('data-sku');
+    if(invValues[sku]!==undefined){
+      el.value=invValues[sku];
+      el.classList.add('modified');
+      el.classList.remove('filled');
     }
-    data.push({
+  });
+  if(typeof updateSaveCount==='function') updateSaveCount();
+}
+window.applySharedState=applySharedState;
+
+async function saveResult(mode){
+  mode=mode||'export';
+  const rowsWithGaps=[]; const rowsNoGaps=[];
+  let lastPO=null;
+  matchedRows.forEach(function(r){
+    if(lastPO!==null && r.poNum!==lastPO){
+      rowsWithGaps.push({'발주번호':'','SKU':'','제품명':'','발주수량':'','입고수량':''});
+    }
+    const row={
       '발주번호': r.poNum||'',
       'SKU':      r.orderSku,
       '제품명':   r.stockName||r.orderName,
       '발주수량': r.orderQty,
       '입고수량': invValues[r.orderSku]!==undefined ? Number(invValues[r.orderSku]) : Number(r.orderQty),
-    });
+    };
+    rowsWithGaps.push(row);
+    rowsNoGaps.push(row);
     lastPO=r.poNum;
   });
 
-  const ws=XLSX.utils.json_to_sheet(data);
-  ws['!cols']=[{wch:16},{wch:14},{wch:40},{wch:10},{wch:10}];
+  const saved=await saveSharedState();
+
+  if(mode==='save'){
+    if(saved) voarToast('저장되었습니다 · 모든 사람과 공유됨');
+    return;
+  }
+
+  const ws1=XLSX.utils.json_to_sheet(rowsWithGaps);
+  const ws2=XLSX.utils.json_to_sheet(rowsNoGaps);
+  const cols=[{wch:16},{wch:14},{wch:40},{wch:10},{wch:10}];
+  ws1['!cols']=cols; ws2['!cols']=cols;
 
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'발주재고매칭');
+  XLSX.utils.book_append_sheet(wb,ws1,'발주재고매칭1');
+  XLSX.utils.book_append_sheet(wb,ws2,'발주재고매칭2');
   const _t=new Date();
   const _mm=String(_t.getMonth()+1).padStart(2,'0');
   const _dd=String(_t.getDate()).padStart(2,'0');
   XLSX.writeFile(wb,`쿠팡 발주 ${_mm}${_dd}.xlsx`);
+  if(saved) voarToast('저장 + 엑셀 다운로드 완료');
 }
 </script>
 
@@ -1571,6 +1638,20 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
     applyMasterData(json, 'upload');
   }
 
+  function makeFingerprint(picks){
+    return ['order','sales','stock','master'].map(function(k){ return picks[k]?picks[k].sha:'_'; }).join(':');
+  }
+
+  function fetchSharedState(){
+    return fetch('/api/state').then(function(r){
+      if(!r.ok) throw new Error('state HTTP '+r.status);
+      return r.json();
+    }).catch(function(e){
+      console.warn('[VOAR] state fetch skipped:', e.message);
+      return null;
+    });
+  }
+
   function start(){
     listRepoFiles().then(function(files){
       var picks={};
@@ -1580,6 +1661,9 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
         return (picks[k]?'✓ '+k+': '+picks[k].name:'✗ '+k+': 없음');
       }).join(' / ');
       console.log('[VOAR] '+report);
+
+      window.__VOAR_FINGERPRINT__=makeFingerprint(picks);
+      console.log('[VOAR] fingerprint:', window.__VOAR_FINGERPRINT__);
 
       var jobs=[];
       ['order','sales','stock'].forEach(function(k){
@@ -1591,7 +1675,15 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
         setStatus('데이터 로드 완료');
         try{ checkReady(); }catch(e){}
         try{ document.getElementById('mapping-section').classList.add('show'); }catch(e){}
-        setTimeout(function(){ try{ runMatch(); }catch(e){ console.error('runMatch:',e); } }, 200);
+        setTimeout(function(){
+          try{ runMatch(); }catch(e){ console.error('runMatch:',e); }
+          fetchSharedState().then(function(saved){
+            if(saved && typeof window.applySharedState==='function'){
+              window.applySharedState(saved);
+              console.log('[VOAR] shared state applied');
+            }
+          });
+        }, 200);
       });
     }).catch(function(err){
       console.error('[VOAR] load error', err);
