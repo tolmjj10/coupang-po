@@ -233,7 +233,8 @@ td.td-doc { text-align: center; }
 .po-sep-cnt { font-size: 11px; color: #3b82f6; font-weight: 500; margin-left: 8px; }
 .po-sep-num { user-select: text; cursor: text; padding: 1px 4px; border-radius: 3px; }
 .po-sep-num:hover { background: rgba(255,255,255,0.6); }
-.qty-order-strong { display: inline-block; font-weight: 800; font-size: 15px; color: #1e40af; background: #dbeafe; padding: 3px 10px; border-radius: 6px; min-width: 36px; text-align: center; font-variant-numeric: tabular-nums; }
+.qty-order-strong { display: inline-block; font-weight: 700; color: #1e40af; background: #dbeafe; padding: 2px 8px; border-radius: 5px; min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
+.cur-stock-low { color: #b91c1c !important; background: #fee2e2 !important; }
 .po-sep-arrow { float: right; font-size: 11px; color: #3b82f6; transition: transform .2s; display: inline-block; }
 .po-sep-arrow.open { transform: rotate(180deg); }
 .col-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -263,7 +264,7 @@ td { padding: 9px 11px; vertical-align: middle; }
 /* 판매량 */
 .sales-cell { text-align: right; font-variant-numeric: tabular-nums; color: #065f46; font-weight: 500; }
 .sales-cell.zero { color: var(--text-hint); font-weight: 400; }
-.cur-stock-cell { display: inline-block; font-weight: 800; font-size: 15px; color: #0c4a6e; background: #bae6fd; padding: 3px 10px; border-radius: 6px; min-width: 36px; text-align: center; font-variant-numeric: tabular-nums; }
+.cur-stock-cell { display: inline-block; font-weight: 700; color: #0c4a6e; background: #bae6fd; padding: 2px 8px; border-radius: 5px; min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
 
 /* 재고 기입 */
 .inv-input { width: 78px; padding: 5px 7px; border: 1.5px solid var(--border-strong); border-radius: 5px; font-size: 12px; text-align: right; background: #fff; color: var(--text); transition: border-color .15s; }
@@ -810,17 +811,18 @@ function runMatch(){
     const dates=sp?.dates||[];
     /* 날짜별 판매량 배열 (최신→오래된, 최대 7개) */
     const dailySales=dates.map(d=>pivotEntry?.dates[d]?.out??null);
-    /* 평균판매량: 7일 기준, null 제외, 정수 */
+    /* 평균판매량: 7일 기준, null 제외 */
     const validSales=dailySales.filter(v=>v!==null);
-    const avgSales=validSales.length
-      ? Math.round(validSales.reduce((a,b)=>a+b,0)/validSales.length)
+    const avgSalesRaw=validSales.length
+      ? validSales.reduce((a,b)=>a+b,0)/validSales.length
       : null;
+    const avgSales=avgSalesRaw===null?null:Math.round(avgSalesRaw);
     /* 현재고: 가장 최신 날짜의 stock */
     const curStock=pivotEntry?.dates[dates[0]]?.stock??null;
-    /* DOC: 현재고 / 평균판매량 (정수, 평균=0이면 null) */
-    const doc=(curStock!==null&&avgSales!==null&&avgSales>0)
-      ? Math.round((curStock/avgSales)*10)/10
-      : null;
+    /* DOC: IFERROR(현재고/7일평균판매량, 0) — 0으로 나누거나 값 없으면 0 */
+    const doc=(curStock!==null && avgSalesRaw!==null && avgSalesRaw>0)
+      ? Math.round((curStock/avgSalesRaw)*10)/10
+      : 0;
 
     let status='unknown';
     if(stockQty!==null){
@@ -979,10 +981,8 @@ function renderAll(){
         }).join('');
         const curHtml=r.curStock===null
           ?`<span style="color:var(--text-hint)">—</span>`
-          :`<span class="cur-stock-cell">${r.curStock.toLocaleString()}</span>`;
-        const docDisp=r.doc===null
-          ?`<span style="color:var(--text-hint)">—</span>`
-          :`<span class="doc-cell">${r.doc.toFixed(1)}</span>`;
+          :`<span class="cur-stock-cell${r.curStock<=5?' cur-stock-low':''}">${r.curStock.toLocaleString()}</span>`;
+        const docDisp=`<span class="doc-cell">${(r.doc??0).toFixed(1)}</span>`;
         curStockCell=`<td class="col-num-u td-curstk">${curHtml}</td>`;
         salesCells=`
           ${dayCells}
@@ -1114,8 +1114,6 @@ function togglePO(header){
 }
 
 function togglePORows(gi,sepRow,evt){
-  /* 텍스트 드래그 선택 중이면 토글하지 않음 */
-  try{ if(window.getSelection && window.getSelection().toString().length>0) return; }catch(e){}
   const table=sepRow.closest('table');
   const dataRows=table.querySelectorAll(`tr[data-pg="${gi}"]`);
   const arrow=sepRow.querySelector('.po-sep-arrow');
