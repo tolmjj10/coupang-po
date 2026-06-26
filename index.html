@@ -985,9 +985,9 @@ function renderAll(){
         const docDisp=`<span class="doc-cell">${(r.doc??0).toFixed(1)}</span>`;
         curStockCell=`<td class="col-num-u td-curstk">${curHtml}</td>`;
         salesCells=`
-          ${dayCells}
           <td class="col-num-u td-doc">${docDisp}</td>
-          <td class="col-num-u td-avg">${avgHtml}</td>`;
+          <td class="col-num-u td-avg">${avgHtml}</td>
+          ${dayCells}`;
       }
 
       const _defQty=r.orderQty;
@@ -1014,15 +1014,15 @@ function renderAll(){
   const curStockTh =dl.hasSales?`<th class="col-num-u th-stock-cur">현재고</th>`:'';
 
   const salesCols=dl.hasSales?`
-    ${dispDates.map(()=>'<col style="width:48px">').join('')}
     <col style="width:52px">
     <col style="width:68px">
+    ${dispDates.map(()=>'<col style="width:48px">').join('')}
   `:'';
 
   const salesTh=dl.hasSales?`
-    ${dispDates.map(d=>`<th class="col-num-u th-sales">${fmtDateLabel(d)}</th>`).join('')}
     <th class="col-num-u th-doc">DOC</th>
     <th class="col-num-u th-avg">평균판매량</th>
+    ${dispDates.map(d=>`<th class="col-num-u th-sales">${fmtDateLabel(d)}</th>`).join('')}
   `:'';
 
   container.innerHTML=`
