@@ -756,16 +756,22 @@ function runMatch(){
     masterMap[sku]={procode:String(row[mPro]||'').trim(), name:mName?String(row[mName]||'').trim():''};
   });
 
-  /* ── Stock map ── */
+  /* ── Stock map ── 동일 상품코드(창고/로트별) 다중 행은 재고 수량 합산 */
   const stockMap={};
   stockData.forEach(row=>{
     const pro=norm(row[sPro]);
     if(!pro)return;
-    stockMap[pro]={
-      qty:parseNum(row[sQty])??0,
-      displayName:String(row[sName]||'').trim(),
-      rawProcode:String(row[sPro]||'').trim()
-    };
+    const q=parseNum(row[sQty])||0;
+    if(stockMap[pro]){
+      stockMap[pro].qty+=q;
+      if(!stockMap[pro].displayName && sName) stockMap[pro].displayName=String(row[sName]||'').trim();
+    } else {
+      stockMap[pro]={
+        qty:q,
+        displayName:String(row[sName]||'').trim(),
+        rawProcode:String(row[sPro]||'').trim()
+      };
+    }
   });
 
   /* ── 날짜 라벨 (전역) — salesProcessed 기반 ── */
