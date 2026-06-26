@@ -236,6 +236,9 @@ td.td-doc { text-align: center; }
 .qty-order-strong { display: inline-block; font-weight: 700; color: #1e40af; background: #dbeafe; padding: 2px 8px; border-radius: 5px; min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
 .cur-stock-low { color: #b91c1c !important; background: #fee2e2 !important; }
 .po-sep-arrow { float: right; font-size: 11px; color: #3b82f6; transition: transform .2s; display: inline-block; }
+.po-dl-btn { float: right; margin-right: 10px; background: #1e40af; color: #fff; border: none; padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 700; line-height: 1.4; }
+.po-dl-btn:hover { background: #1e3a8a; }
+.po-dl-btn:disabled { background: #94a3b8; cursor: not-allowed; }
 .po-sep-arrow.open { transform: rotate(180deg); }
 .col-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 tbody tr { border-bottom: 1px solid var(--border); }
@@ -755,10 +758,16 @@ function runMatch(){
 
   /* ── Master map ── */
   const masterMap={};
+  const mCols=Object.keys(masterData[0]||{});
+  const mPriceCol=mCols.find(c=>norm(c)==='매입가');
   masterData.forEach(row=>{
     const sku=norm(row[mSku]);
     if(!sku)return;
-    masterMap[sku]={procode:String(row[mPro]||'').trim(), name:mName?String(row[mName]||'').trim():''};
+    masterMap[sku]={
+      procode:String(row[mPro]||'').trim(),
+      name:mName?String(row[mName]||'').trim():'',
+      price:mPriceCol?(parseNum(row[mPriceCol])||0):0
+    };
   });
 
   /* ── Stock map ── 포항 창고 행만 취합, 동일 상품코드는 합산 */
@@ -846,7 +855,8 @@ function runMatch(){
       noStock:!!masterEntry&&!stockEntry,
       curStock, dailySales, avgSales, doc,
       hasSalesMatch:!!pivotEntry,
-      transit: transitQty
+      transit: transitQty,
+      price: masterEntry?.price||0
     };
   }).filter(r=>!isExcluded(r.stockName||r.orderName));
 
@@ -955,7 +965,8 @@ function renderAll(){
   groupKeys.forEach((poNum,gi)=>{
     const rows=groups[poNum];
     const open=allOpen;
-    tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt">${rows.length}개</span><span class="po-sep-arrow ${open?'open':''}">▼</span></td></tr>`;
+    const dlBtn=_dupMode?'':`<button class="po-dl-btn" data-po="${escHtml(poNum)}" onclick="event.stopPropagation();downloadPO(this.dataset.po)">📥 발주양식</button>`;
+    tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt">${rows.length}개</span><span class="po-sep-arrow ${open?'open':''}">▼</span>${dlBtn}</td></tr>`;
     rows.forEach(r=>{
       const isUnreg=r.noMaster||r.noStock;
       let stockCell;
@@ -1111,6 +1122,51 @@ function togglePO(header){
   const isOpen=body.classList.toggle('open');
   header.classList.toggle('open',isOpen);
   arrow.classList.toggle('open',isOpen);
+}
+
+/* ═══════════════════════ DOWNLOAD PO (발주양식 엑셀) ═══════════════════════ */
+function downloadPO(poNum){
+  if(!matchedRows || !matchedRows.length){ alert('데이터가 없습니다'); return; }
+  const rows=matchedRows.filter(r=>(r.poNum||'')===poNum);
+  if(!rows.length){ alert('해당 발주번호 행이 없습니다: '+poNum); return; }
+
+  /* D~I 고정값 */
+  const CONST={
+    수령인:'쿠팡벤더플렉스-오아',
+    연락처:'010-6844-6871',
+    우편번호:37876,
+    주소:'경상북도 포항시 남구 대송면 송덕로212번길 138 제8동호',
+    상세주소:'',
+    배송메시지:''
+  };
+
+  const header=['주문상품','옵션명','수량','수령인','연락처','우편번호','주소','상세주소','배송메시지','단가','주문금액'];
+  const aoa=[header];
+  rows.forEach(r=>{
+    const qty=invValues[r.orderSku]!==undefined?Number(invValues[r.orderSku]):Number(r.orderQty);
+    const price=Number(r.price)||0;
+    aoa.push([
+      r.masterName||r.stockName||r.orderName||'',
+      r.procode||'',
+      qty,
+      CONST.수령인,
+      CONST.연락처,
+      CONST.우편번호,
+      CONST.주소,
+      CONST.상세주소,
+      CONST.배송메시지,
+      price,
+      qty*price
+    ]);
+  });
+
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  /* 컬럼 폭 */
+  ws['!cols']=[{wch:24},{wch:10},{wch:6},{wch:18},{wch:14},{wch:8},{wch:50},{wch:10},{wch:12},{wch:10},{wch:12}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'발주양식');
+  const safePo=String(poNum).replace(/[\\/:*?"<>|]/g,'_');
+  XLSX.writeFile(wb,`발주_${safePo}.xlsx`);
 }
 
 function togglePORows(gi,sepRow,evt){
