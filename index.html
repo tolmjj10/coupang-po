@@ -946,6 +946,16 @@ function renderAll(){
     if(!groups[key]){ groups[key]=[]; groupKeys.push(key); }
     groups[key].push(r);
   });
+  /* 발주번호 그룹: SKU ID 오름차순 정렬 */
+  if(!_dupMode){
+    groupKeys.forEach(k=>{
+      groups[k].sort((a,b)=>{
+        const na=Number(a.orderSku), nb=Number(b.orderSku);
+        if(!isNaN(na)&&!isNaN(nb)) return na-nb;
+        return String(a.orderSku||'').localeCompare(String(b.orderSku||''));
+      });
+    });
+  }
 
   const badgeLabel={sufficient:'충분',partial:'부족',shortage:'없음',unknown:'미매칭'};
   const badgeCls={sufficient:'sufficient',partial:'partial',shortage:'shortage',unknown:'unknown'};
@@ -1126,7 +1136,11 @@ function togglePO(header){
 /* ═══════════════════════ DOWNLOAD PO (발주양식 엑셀) ═══════════════════════ */
 function downloadPO(poNum){
   if(!matchedRows || !matchedRows.length){ alert('데이터가 없습니다'); return; }
-  const rows=matchedRows.filter(r=>(r.poNum||'')===poNum);
+  const rows=matchedRows.filter(r=>(r.poNum||'')===poNum).sort((a,b)=>{
+    const na=Number(a.orderSku), nb=Number(b.orderSku);
+    if(!isNaN(na)&&!isNaN(nb)) return na-nb;
+    return String(a.orderSku||'').localeCompare(String(b.orderSku||''));
+  });
   if(!rows.length){ alert('해당 발주번호 행이 없습니다: '+poNum); return; }
 
   /* D~I 고정값 */
