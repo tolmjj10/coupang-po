@@ -165,7 +165,8 @@ body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif
 table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 thead th { background: #f2f1ed; padding: 9px 11px; text-align: left; font-size: 10.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; }
 thead th.th-sales { background: #bbf7d0; color: #065f46; }
-thead th.th-stock-cur { background: #bfdbfe; color: #1e40af; }
+thead th.th-stock-cur { background: #7dd3fc; color: #0c4a6e; font-size: 11.5px; font-weight: 800; text-align: center; }
+td.td-curstk { background: #f0f9ff; text-align: center; }
 thead th.th-stock-oaa { background: #f1efeb; color: var(--text-muted); }
 thead th.th-avg { background: #fef08a; color: #854d0e; text-align: center; }
 thead th.th-doc { background: #ddd6fe; color: #5b21b6; text-align: center; }
@@ -262,7 +263,7 @@ td { padding: 9px 11px; vertical-align: middle; }
 /* 판매량 */
 .sales-cell { text-align: right; font-variant-numeric: tabular-nums; color: #065f46; font-weight: 500; }
 .sales-cell.zero { color: var(--text-hint); font-weight: 400; }
-.cur-stock-cell { text-align: right; font-variant-numeric: tabular-nums; color: #075985; font-weight: 600; }
+.cur-stock-cell { display: inline-block; font-weight: 800; font-size: 15px; color: #0c4a6e; background: #bae6fd; padding: 3px 10px; border-radius: 6px; min-width: 36px; text-align: center; font-variant-numeric: tabular-nums; }
 
 /* 재고 기입 */
 .inv-input { width: 78px; padding: 5px 7px; border: 1.5px solid var(--border-strong); border-radius: 5px; font-size: 12px; text-align: right; background: #fff; color: var(--text); transition: border-color .15s; }
