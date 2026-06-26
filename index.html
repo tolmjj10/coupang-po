@@ -649,7 +649,7 @@ function loadFile(type,input){
       /* 상품코드 기본 */
       fillSelect('m-stock-procode',cols,'stock-procode',false,'상품코드');
       fillSelect('m-stock-name',cols,'stock-name');
-      fillSelect('m-stock-qty',cols,'stock-qty');
+      fillSelect('m-stock-qty',cols,'stock-qty',false,'발송 가능 재고');
       /* 운송 중 컬럼이 있으면 같이 추출 */
       transitMap={};
       const tCol=cols.find(h=>norm(h)==='운송중'||norm(h)==='운송 중');
@@ -756,9 +756,12 @@ function runMatch(){
     masterMap[sku]={procode:String(row[mPro]||'').trim(), name:mName?String(row[mName]||'').trim():''};
   });
 
-  /* ── Stock map ── 동일 상품코드(창고/로트별) 다중 행은 재고 수량 합산 */
+  /* ── Stock map ── 포항 창고 행만 취합, 동일 상품코드는 합산 */
   const stockMap={};
+  const stockCols=Object.keys(stockData[0]||{});
+  const whCol=stockCols.find(c=>norm(c)==='창고명');
   stockData.forEach(row=>{
+    if(whCol && norm(row[whCol])!=='포항창고') return;
     const pro=norm(row[sPro]);
     if(!pro)return;
     const q=parseNum(row[sQty])||0;
