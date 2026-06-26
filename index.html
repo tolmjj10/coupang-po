@@ -218,26 +218,27 @@ td.td-doc { text-align: center; }
 .col-num-u { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* PO 구분 행 */
 .po-sep-row td {
-  background: #dbeafe;
+  background: #f1f5f9;
   font-size: 12px;
   font-weight: 700;
-  color: #1e3a5f;
+  color: #334155;
   padding: 6px 11px;
-  border-top: 2px solid #93c5fd;
+  border-top: 2px solid #cbd5e1;
   white-space: nowrap;
   overflow: visible;
   cursor: pointer;
   user-select: none;
 }
-.po-sep-row:hover td { background: #bfdbfe; }
-.po-sep-cnt { font-size: 11px; color: #3b82f6; font-weight: 500; margin-left: 8px; }
+.po-sep-row:hover td { background: #e2e8f0; }
+.po-sep-cnt { font-size: 11px; color: #64748b; font-weight: 500; margin-left: 8px; }
 .po-sep-num { user-select: text; cursor: text; padding: 1px 4px; border-radius: 3px; }
 .po-sep-num:hover { background: rgba(255,255,255,0.6); }
 .qty-order-strong { display: inline-block; font-weight: 700; color: #1e40af; background: #dbeafe; padding: 2px 8px; border-radius: 5px; min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
 .cur-stock-low { color: #b91c1c !important; background: #fee2e2 !important; }
-.po-sep-arrow { float: right; font-size: 11px; color: #3b82f6; transition: transform .2s; display: inline-block; }
-.po-dl-btn { float: right; margin-right: 10px; background: transparent; color: #3b82f6; border: none; padding: 1px 4px; border-radius: 3px; cursor: pointer; font-size: 13px; line-height: 1; opacity: 0.55; }
-.po-dl-btn:hover { opacity: 1; background: rgba(255,255,255,0.5); }
+.po-sep-arrow { float: right; font-size: 11px; color: #64748b; transition: transform .2s; display: inline-block; }
+.po-dl-btn { float: right; margin-right: 40px; background: transparent; color: #475569; border: none; padding: 1px 4px; border-radius: 3px; cursor: pointer; line-height: 0; opacity: 0.7; display: inline-flex; align-items: center; }
+.po-dl-btn:hover { opacity: 1; background: rgba(0,0,0,0.05); color: #1e293b; }
+.po-dl-btn svg { display: block; }
 .po-sep-arrow.open { transform: rotate(180deg); }
 .col-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 tbody tr { border-bottom: 1px solid var(--border); }
@@ -974,7 +975,7 @@ function renderAll(){
   groupKeys.forEach((poNum,gi)=>{
     const rows=groups[poNum];
     const open=allOpen;
-    const dlBtn=_dupMode?'':`<button class="po-dl-btn" data-po="${escHtml(poNum)}" onclick="event.stopPropagation();downloadPO(this.dataset.po)" title="발주양식 다운로드">⬇</button>`;
+    const dlBtn=_dupMode?'':`<button class="po-dl-btn" data-po="${escHtml(poNum)}" onclick="event.stopPropagation();downloadPO(this.dataset.po)" title="발주양식 다운로드"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`;
     tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt">${rows.length}개</span><span class="po-sep-arrow ${open?'open':''}">▼</span>${dlBtn}</td></tr>`;
     rows.forEach(r=>{
       const isUnreg=r.noMaster||r.noStock;
