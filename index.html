@@ -760,8 +760,10 @@ function runMatch(){
   const stockMap={};
   const stockCols=Object.keys(stockData[0]||{});
   const whCol=stockCols.find(c=>norm(c)==='창고명');
+  const stCol=stockCols.find(c=>norm(c)==='저장고명');
   stockData.forEach(row=>{
     if(whCol && norm(row[whCol])!=='포항창고') return;
+    if(stCol && norm(row[stCol])!=='포항물류') return;
     const pro=norm(row[sPro]);
     if(!pro)return;
     const q=parseNum(row[sQty])||0;
