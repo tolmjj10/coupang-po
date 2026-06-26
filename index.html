@@ -230,6 +230,9 @@ td.td-doc { text-align: center; }
 }
 .po-sep-row:hover td { background: #bfdbfe; }
 .po-sep-cnt { font-size: 11px; color: #3b82f6; font-weight: 500; margin-left: 8px; }
+.po-sep-num { user-select: text; cursor: text; padding: 1px 4px; border-radius: 3px; }
+.po-sep-num:hover { background: rgba(255,255,255,0.6); }
+.qty-order-strong { display: inline-block; font-weight: 800; font-size: 15px; color: #1e40af; background: #dbeafe; padding: 3px 10px; border-radius: 6px; min-width: 36px; text-align: center; font-variant-numeric: tabular-nums; }
 .po-sep-arrow { float: right; font-size: 11px; color: #3b82f6; transition: transform .2s; display: inline-block; }
 .po-sep-arrow.open { transform: rotate(180deg); }
 .col-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -781,11 +784,11 @@ function runMatch(){
 
   /* ── 날짜 라벨 (전역) — salesProcessed 기반 ── */
   const sp=salesProcessed;
-  /* displayDates: 최근 3일을 오래된순→최신순으로 */
-  const dl3=(sp?.dateLabels||[]).slice(0,3);
+  /* displayDates: 최근 5일을 오래된순→최신순으로 */
+  const dl5=(sp?.dateLabels||[]).slice(0,5);
   window.dateLabels={
     dates: sp?.dateLabels||[],           // 7개 전체, 최신→오래된
-    displayDates: [...dl3].reverse(),    // 3개, 오래된→최신 (표시용)
+    displayDates: [...dl5].reverse(),    // 5개, 오래된→최신 (표시용)
     hasSales: !!(salesData&&sp)
   };
 
@@ -935,12 +938,12 @@ function renderAll(){
   const badgeLabel={sufficient:'충분',partial:'부족',shortage:'없음',unknown:'미매칭'};
   const badgeCls={sufficient:'sufficient',partial:'partial',shortage:'shortage',unknown:'unknown'};
 
-  /* displayDates: 오래된→최신 3개 */
+  /* displayDates: 오래된→최신 5개 */
   const dispDates=dl.displayDates||[];
   const numDisp=dispDates.length;
 
-  /* 총 컬럼 수 */
-  const totalCols=dl.hasSales?(2+1+1+numDisp+1+1+1+1+1):(2+1+1+1+1);
+  /* 총 컬럼 수: SKU + 제품명 + 현재고(sales시) + [일별 + DOC + 평균] + 발주수량 + 오아재고 + 상태 + 입고수량 */
+  const totalCols=dl.hasSales?(2+1+numDisp+1+1+1+1+1+1):(2+1+1+1+1);
 
   const fmtSales=v=>v===null?`<span style="color:var(--text-hint)">—</span>`
     :`<span class="sales-cell${v===0?' zero':''}">${v.toLocaleString()}</span>`;
@@ -949,7 +952,7 @@ function renderAll(){
   groupKeys.forEach((poNum,gi)=>{
     const rows=groups[poNum];
     const open=allOpen;
-    tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this)"><td colspan="${totalCols}">${_dupMode?'SKU ':'발주번호 '}${escHtml(poNum)}<span class="po-sep-cnt">${rows.length}개</span><span class="po-sep-arrow ${open?'open':''}">▼</span></td></tr>`;
+    tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt">${rows.length}개</span><span class="po-sep-arrow ${open?'open':''}">▼</span></td></tr>`;
     rows.forEach(r=>{
       const isUnreg=r.noMaster||r.noStock;
       let stockCell;
@@ -964,6 +967,7 @@ function renderAll(){
       }
 
       let salesCells='';
+      let curStockCell='';
       if(dl.hasSales){
         const avgHtml=r.avgSales===null
           ?`<span style="color:var(--text-hint)">—</span>`
@@ -978,11 +982,11 @@ function renderAll(){
         const docDisp=r.doc===null
           ?`<span style="color:var(--text-hint)">—</span>`
           :`<span class="doc-cell">${r.doc.toFixed(1)}</span>`;
+        curStockCell=`<td class="col-num-u td-curstk">${curHtml}</td>`;
         salesCells=`
           ${dayCells}
           <td class="col-num-u td-doc">${docDisp}</td>
-          <td class="col-num-u td-avg">${avgHtml}</td>
-          <td class="col-num-u td-curstk">${curHtml}</td>`;
+          <td class="col-num-u td-avg">${avgHtml}</td>`;
       }
 
       const _defQty=r.orderQty;
@@ -994,28 +998,30 @@ function renderAll(){
       tbody+=`<tr class="${isUnreg?'tr-unreg':''}" data-pg="${gi}" style="${allOpen?'':'display:none'}">
         <td class="mono" style="white-space:nowrap">${r.orderSku||'—'}</td>
         <td class="col-name" title="${escHtml(r.stockName||r.orderName)}">${(r.stockName||r.orderName)||'—'}</td>
+        ${curStockCell}
         ${salesCells}
-        <td class="col-num-u" style="font-weight:700;font-size:13px">${r.orderQty.toLocaleString()}</td>
+        <td class="col-num-u"><span class="qty-order-strong">${r.orderQty.toLocaleString()}</span></td>
         <td class="col-num-u td-stock-oaa">${stockCell}</td>
         <td><span class="badge ${badgeCls[r.status]}">${badgeLabel[r.status]}</span>${r.isDup?`<span class="badge duplicate">중복</span>`:''}${r.status==='shortage'&&r.transit>0?`<span class="transit-badge">운송 중 ${r.transit.toLocaleString()}</span>`:''}</td>
         <td><input type="number" class="inv-input ${filledCls}" data-sku="${escHtml(r.orderSku)}" data-default="${_defQty}"
-            value="${invVal}" placeholder="" oninput="onInvInput(this)" min="0"></td>
+            value="${invVal}" placeholder="" oninput="onInvInput(this)" onwheel="this.blur()" min="0"></td>
       </tr>`;
     });
   });
+
+  const curStockCol=dl.hasSales?`<col style="width:62px">`:'';
+  const curStockTh =dl.hasSales?`<th class="col-num-u th-stock-cur">현재고</th>`:'';
 
   const salesCols=dl.hasSales?`
     ${dispDates.map(()=>'<col style="width:48px">').join('')}
     <col style="width:52px">
     <col style="width:68px">
-    <col style="width:62px">
   `:'';
 
   const salesTh=dl.hasSales?`
     ${dispDates.map(d=>`<th class="col-num-u th-sales">${fmtDateLabel(d)}</th>`).join('')}
     <th class="col-num-u th-doc">DOC</th>
     <th class="col-num-u th-avg">평균판매량</th>
-    <th class="col-num-u th-stock-cur">현재고</th>
   `:'';
 
   container.innerHTML=`
@@ -1024,8 +1030,9 @@ function renderAll(){
         <colgroup>
           <col style="width:108px">
           <col style="width:210px">
+          ${curStockCol}
           ${salesCols}
-          <col style="width:66px">
+          <col style="width:76px">
           <col style="width:66px">
           <col style="width:60px">
           <col style="width:82px">
@@ -1034,6 +1041,7 @@ function renderAll(){
           <tr>
             <th>SKU</th>
             <th>제품명</th>
+            ${curStockTh}
             ${salesTh}
             <th class="col-num-u">발주수량</th>
             <th class="col-num-u th-stock-oaa">오아 재고</th>
@@ -1104,7 +1112,9 @@ function togglePO(header){
   arrow.classList.toggle('open',isOpen);
 }
 
-function togglePORows(gi,sepRow){
+function togglePORows(gi,sepRow,evt){
+  /* 텍스트 드래그 선택 중이면 토글하지 않음 */
+  try{ if(window.getSelection && window.getSelection().toString().length>0) return; }catch(e){}
   const table=sepRow.closest('table');
   const dataRows=table.querySelectorAll(`tr[data-pg="${gi}"]`);
   const arrow=sepRow.querySelector('.po-sep-arrow');
