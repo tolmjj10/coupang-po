@@ -236,9 +236,8 @@ td.td-doc { text-align: center; }
 .qty-order-strong { display: inline-block; font-weight: 700; color: #1e40af; background: #dbeafe; padding: 2px 8px; border-radius: 5px; min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
 .cur-stock-low { color: #b91c1c !important; background: #fee2e2 !important; }
 .po-sep-arrow { float: right; font-size: 11px; color: #3b82f6; transition: transform .2s; display: inline-block; }
-.po-dl-btn { float: right; margin-right: 10px; background: #1e40af; color: #fff; border: none; padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 700; line-height: 1.4; }
-.po-dl-btn:hover { background: #1e3a8a; }
-.po-dl-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+.po-dl-btn { float: right; margin-right: 10px; background: transparent; color: #3b82f6; border: none; padding: 1px 4px; border-radius: 3px; cursor: pointer; font-size: 13px; line-height: 1; opacity: 0.55; }
+.po-dl-btn:hover { opacity: 1; background: rgba(255,255,255,0.5); }
 .po-sep-arrow.open { transform: rotate(180deg); }
 .col-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 tbody tr { border-bottom: 1px solid var(--border); }
@@ -965,7 +964,7 @@ function renderAll(){
   groupKeys.forEach((poNum,gi)=>{
     const rows=groups[poNum];
     const open=allOpen;
-    const dlBtn=_dupMode?'':`<button class="po-dl-btn" data-po="${escHtml(poNum)}" onclick="event.stopPropagation();downloadPO(this.dataset.po)">📥 발주양식</button>`;
+    const dlBtn=_dupMode?'':`<button class="po-dl-btn" data-po="${escHtml(poNum)}" onclick="event.stopPropagation();downloadPO(this.dataset.po)" title="발주양식 다운로드">⬇</button>`;
     tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt">${rows.length}개</span><span class="po-sep-arrow ${open?'open':''}">▼</span>${dlBtn}</td></tr>`;
     rows.forEach(r=>{
       const isUnreg=r.noMaster||r.noStock;
@@ -1142,9 +1141,12 @@ function downloadPO(poNum){
 
   const header=['주문상품','옵션명','수량','수령인','연락처','우편번호','주소','상세주소','배송메시지','단가','주문금액'];
   const aoa=[header];
+  let included=0;
   rows.forEach(r=>{
     const qty=invValues[r.orderSku]!==undefined?Number(invValues[r.orderSku]):Number(r.orderQty);
+    if(!qty || qty<=0) return; /* 수량 0 제외 */
     const price=Number(r.price)||0;
+    included++;
     aoa.push([
       r.masterName||r.stockName||r.orderName||'',
       r.procode||'',
@@ -1160,6 +1162,7 @@ function downloadPO(poNum){
     ]);
   });
 
+  if(!included){ alert('수량 0 제외 후 다운로드할 항목이 없습니다'); return; }
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   /* 컬럼 폭 */
   ws['!cols']=[{wch:24},{wch:10},{wch:6},{wch:18},{wch:14},{wch:8},{wch:50},{wch:10},{wch:12},{wch:10},{wch:12}];
