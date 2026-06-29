@@ -759,7 +759,7 @@ function runMatch(){
   /* ── Master map ── */
   const masterMap={};
   const mCols=Object.keys(masterData[0]||{});
-  const mPriceCol=mCols.find(c=>norm(c)==='매입가');
+  const mPriceCol=mCols.find(c=>norm(c)==='매입가(수식)') || mCols.find(c=>norm(c)==='매입가');
   masterData.forEach(row=>{
     const sku=norm(row[mSku]);
     if(!sku)return;
