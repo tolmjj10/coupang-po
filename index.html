@@ -1177,55 +1177,25 @@ async function downloadPO(poNum){
     배송메시지:''
   };
 
-  /* 단가-매입가 불일치 행 식별 */
-  const mismatch=rows.map(r=>{
-    const price=Number(r.price)||0;
-    const op=(r.orderPrice==null||r.orderPrice==='')?null:Number(r.orderPrice);
-    return op!==null && op!==price;
-  });
-  const anyMismatch=mismatch.some(Boolean);
-
   const header=['주문상품','옵션명','수량','수령인','연락처','우편번호','주소','상세주소','배송메시지','단가','주문금액'];
-  if(anyMismatch) header.push('매입가');
 
   const aoa=[header];
-  rows.forEach((r,i)=>{
+  rows.forEach(r=>{
     const qty=invValues[r.orderSku]!==undefined?Number(invValues[r.orderSku]):Number(r.orderQty);
     const price=Number(r.price)||0;
-    const line=[
+    aoa.push([
       r.masterName||r.stockName||r.orderName||'',
       r.procode||'',
       qty,
       CONST.수령인,CONST.연락처,CONST.우편번호,CONST.주소,CONST.상세주소,CONST.배송메시지,
       price,
       qty*price
-    ];
-    if(anyMismatch) line.push(mismatch[i]?Number(r.orderPrice):'');
-    aoa.push(line);
+    ]);
   });
 
-  /* 스타일 라이브러리 필요한 경우만 동적 로드 */
-  let XL=window.XLSX;
-  if(anyMismatch){
-    try{ XL=await loadStyleXLSX(); }
-    catch(e){ console.warn('xlsx-js-style 로드 실패, 색상 없이 다운로드',e); XL=window.XLSX; }
-  }
-
+  const XL=window.XLSX;
   const ws=XL.utils.aoa_to_sheet(aoa);
-  const cols=[{wch:24},{wch:10},{wch:6},{wch:18},{wch:14},{wch:8},{wch:50},{wch:10},{wch:12},{wch:10},{wch:12}];
-  if(anyMismatch) cols.push({wch:12});
-  ws['!cols']=cols;
-
-  /* L열 빨간 글씨 적용 (스타일 라이브러리 로드된 경우) */
-  if(anyMismatch && XL!==window.XLSX){
-    mismatch.forEach((mm,i)=>{
-      if(!mm) return;
-      const cellRef=XL.utils.encode_cell({r:i+1,c:11}); /* L = 11 */
-      if(ws[cellRef]){
-        ws[cellRef].s={ font:{ color:{rgb:'FFFF0000'}, bold:true } };
-      }
-    });
-  }
+  ws['!cols']=[{wch:24},{wch:10},{wch:6},{wch:18},{wch:14},{wch:8},{wch:50},{wch:10},{wch:12},{wch:10},{wch:12}];
 
   const wb=XL.utils.book_new();
   XL.utils.book_append_sheet(wb,ws,'발주양식');
