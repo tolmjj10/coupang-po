@@ -435,9 +435,9 @@ function applyMasterData(json, source){
     sel.innerHTML=isOpt?'<option value="">— 없음 —</option>':'';
     cols.forEach(c=>{ const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o); });
   });
-  fillSelect('m-master-sku',cols,'master-sku',false,'skuid(입력란)');
+  fillSelect('m-master-sku',cols,'master-sku',false,'SKU#');
   fillSelect('m-master-procode',cols,'master-procode',false,'프로코드');
-  fillSelect('m-master-name',cols,'master-name',true,'제품명(수식)');
+  fillSelect('m-master-name',cols,'master-name',true,'상품명');
   /* 배지 표시 */
   const badge=document.getElementById('master-badge');
   const cnt=document.getElementById('master-cnt');
@@ -487,7 +487,7 @@ const guesses={
   'master-sku':    ['sku','옵션코드','vendoritemid','상품코드','코드','itemno'],
   'master-procode':['프로코드','procode','pro_code','pro코드','관리코드','내부코드','erp코드','프로'],
   'master-name':   ['상품명','제품명','품명','name','product'],
-  'stock-procode': ['상품코드','프로코드','procode','pro_code','pro코드','관리코드','코드','프로'],
+  'stock-procode': ['상품코드(단품)','상품코드','프로코드','procode','pro_code','pro코드','관리코드','코드','프로'],
   'stock-name':    ['상품명','제품명','품명','name','product','상품'],
   'stock-qty':     ['재고','재고수량','수량','qty','quantity','stock','available','가용'],
   'sales-sku':     ['sku id','skuid','sku_id','옵션코드','vendoritemid','상품코드'],
@@ -663,8 +663,8 @@ function loadFile(type,input){
       document.getElementById('stock-cnt').textContent=json.length+'행';
       document.getElementById('stock-badge').style.display='inline-flex';
       document.getElementById('card-stock').classList.add('loaded');
-      /* 상품코드 기본 */
-      fillSelect('m-stock-procode',cols,'stock-procode',false,'상품코드');
+      /* 상품코드 기본 — 신규 파일은 '상품코드(단품)', 구파일은 '상품코드' */
+      fillSelect('m-stock-procode',cols,'stock-procode',false,'상품코드(단품)');
       fillSelect('m-stock-name',cols,'stock-name');
       fillSelect('m-stock-qty',cols,'stock-qty',false,'발송 가능 재고');
       /* 운송 중 컬럼이 있으면 같이 추출 */
@@ -768,7 +768,7 @@ function runMatch(){
   /* ── Master map ── */
   const masterMap={};
   const mCols=Object.keys(masterData[0]||{});
-  const mPriceCol=mCols.find(c=>norm(c)==='매입가(수식)') || mCols.find(c=>norm(c)==='매입가');
+  const mPriceCol=mCols.find(c=>norm(c)==='매입가') || mCols.find(c=>norm(c)==='매입가(수식)');
   masterData.forEach(row=>{
     const sku=norm(row[mSku]);
     if(!sku)return;
@@ -784,9 +784,18 @@ function runMatch(){
   const stockCols=Object.keys(stockData[0]||{});
   const whCol=stockCols.find(c=>norm(c)==='창고명');
   const stCol=stockCols.find(c=>norm(c)==='저장고명');
+  /* 필터 사전 검사: 포항창고/포항물류 매칭이 0건이면 필터 무시 (파일 스키마 변경 대비) */
+  const _phCnt=stockData.reduce((n,row)=>{
+    const wOk=!whCol || norm(row[whCol])==='포항창고';
+    const sOk=!stCol || norm(row[stCol])==='포항물류';
+    return n + (wOk && sOk ? 1 : 0);
+  },0);
+  const _useWhFilter = _phCnt>0;
   stockData.forEach(row=>{
-    if(whCol && norm(row[whCol])!=='포항창고') return;
-    if(stCol && norm(row[stCol])!=='포항물류') return;
+    if(_useWhFilter){
+      if(whCol && norm(row[whCol])!=='포항창고') return;
+      if(stCol && norm(row[stCol])!=='포항물류') return;
+    }
     const pro=norm(row[sPro]);
     if(!pro)return;
     const q=parseNum(row[sQty])||0;
@@ -1526,9 +1535,9 @@ async function saveResult(mode){
       document.getElementById('stock-cnt').textContent = json.length + '행';
       document.getElementById('stock-badge').style.display = 'inline-flex';
       document.getElementById('card-stock').classList.add('loaded');
-      fillSelect('m-stock-procode', cols, 'stock-procode', false, '상품코드');
+      fillSelect('m-stock-procode', cols, 'stock-procode', false, '상품코드(단품)');
       fillSelect('m-stock-name',    cols, 'stock-name');
-      fillSelect('m-stock-qty',     cols, 'stock-qty');
+      fillSelect('m-stock-qty',     cols, 'stock-qty', false, '발송 가능 재고');
       transitMap = {};
       var tCol = cols.find(function(h){ return norm(h)==='운송중' || norm(h)==='운송 중'; });
       var cCol = cols.find(function(h){ return norm(h)==='상품코드'; });
