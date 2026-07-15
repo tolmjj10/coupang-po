@@ -532,7 +532,7 @@ function processSalesFile(json, dateCol, skuCol, outCol, stockCol){
     const nb=parseInt(b.replace(/\D/g,''))||0;
     return nb-na;
   });
-  const recentDates=allDates.slice(0,14); // 최근 14일 (평균계산용, 표시는 5일)
+  const recentDates=allDates.slice(0,7); // 최근 7일 (평균계산용, 표시는 5일)
 
   /* SKU ID별·날짜별 집계 (센터 합산) */
   const pivot={};
@@ -841,9 +841,9 @@ function runMatch(){
     /* 판매재고 매칭: SKU ID로 피벗에서 조회 */
     const pivotEntry=sp?.pivot[norm(orderSku)]||null;
     const dates=sp?.dates||[];
-    /* 날짜별 판매량 배열 (최신→오래된, 최대 14개) */
+    /* 날짜별 판매량 배열 (최신→오래된, 최대 7개) */
     const dailySales=dates.map(d=>pivotEntry?.dates[d]?.out??null);
-    /* 평균판매량: 14일 기준, null 제외 */
+    /* 평균판매량: 7일 기준, null 제외, 반올림 */
     const validSales=dailySales.filter(v=>v!==null);
     const avgSalesRaw=validSales.length
       ? validSales.reduce((a,b)=>a+b,0)/validSales.length
@@ -851,9 +851,9 @@ function runMatch(){
     const avgSales=avgSalesRaw===null?null:Math.round(avgSalesRaw);
     /* 현재고: 가장 최신 날짜의 stock */
     const curStock=pivotEntry?.dates[dates[0]]?.stock??null;
-    /* DOC: IFERROR(현재고/14일평균판매량, 0) — 0으로 나누거나 값 없으면 0 */
-    const doc=(curStock!==null && avgSalesRaw!==null && avgSalesRaw>0)
-      ? Math.round((curStock/avgSalesRaw)*10)/10
+    /* DOC: 현재고/표시평균(반올림) — 화면 값과 정확히 일치하도록 avgSales 사용 */
+    const doc=(curStock!==null && avgSales!==null && avgSales>0)
+      ? Math.round((curStock/avgSales)*10)/10
       : 0;
 
     let status='unknown';
