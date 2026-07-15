@@ -1284,6 +1284,7 @@ async function saveSharedState(){
       body:JSON.stringify({
         invValues:invValues,
         dataFingerprint:window.__VOAR_FINGERPRINT__||'',
+        orderSha:window.__VOAR_ORDER_SHA__||'',
         savedAt:Date.now()
       })
     });
@@ -1298,8 +1299,12 @@ async function saveSharedState(){
 
 function applySharedState(saved){
   if(!saved||!saved.invValues) return;
-  if(saved.dataFingerprint && saved.dataFingerprint!==window.__VOAR_FINGERPRINT__){
-    console.log('[VOAR] saved state stale, ignoring');
+  /* 발주리스트 파일이 바뀌면(orderSha 불일치) 저장값 무시 + 서버 값도 리셋 */
+  if(saved.orderSha && window.__VOAR_ORDER_SHA__ && saved.orderSha!==window.__VOAR_ORDER_SHA__){
+    console.log('[VOAR] 발주리스트 변경 감지 → 입고수량 리셋');
+    Object.keys(invValues).forEach(k=>delete invValues[k]);
+    if(typeof saveSharedState==='function') saveSharedState();
+    if(typeof updateSaveCount==='function') updateSaveCount();
     return;
   }
   Object.keys(saved.invValues).forEach(function(k){ invValues[k]=saved.invValues[k]; });
@@ -1876,7 +1881,8 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
       console.log('[VOAR] '+report);
 
       window.__VOAR_FINGERPRINT__=makeFingerprint(picks);
-      console.log('[VOAR] fingerprint:', window.__VOAR_FINGERPRINT__);
+      window.__VOAR_ORDER_SHA__=picks.order?picks.order.sha:'';
+      console.log('[VOAR] fingerprint:', window.__VOAR_FINGERPRINT__, 'orderSha:', window.__VOAR_ORDER_SHA__);
 
       var jobs=[];
       ['order','stock'].forEach(function(k){
