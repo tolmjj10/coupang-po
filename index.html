@@ -532,7 +532,7 @@ function processSalesFile(json, dateCol, skuCol, outCol, stockCol){
     const nb=parseInt(b.replace(/\D/g,''))||0;
     return nb-na;
   });
-  const recentDates=allDates.slice(0,7); // 최근 7일
+  const recentDates=allDates.slice(0,14); // 최근 14일 (평균계산용, 표시는 5일)
 
   /* SKU ID별·날짜별 집계 (센터 합산) */
   const pivot={};
@@ -841,9 +841,9 @@ function runMatch(){
     /* 판매재고 매칭: SKU ID로 피벗에서 조회 */
     const pivotEntry=sp?.pivot[norm(orderSku)]||null;
     const dates=sp?.dates||[];
-    /* 날짜별 판매량 배열 (최신→오래된, 최대 7개) */
+    /* 날짜별 판매량 배열 (최신→오래된, 최대 14개) */
     const dailySales=dates.map(d=>pivotEntry?.dates[d]?.out??null);
-    /* 평균판매량: 7일 기준, null 제외 */
+    /* 평균판매량: 14일 기준, null 제외 */
     const validSales=dailySales.filter(v=>v!==null);
     const avgSalesRaw=validSales.length
       ? validSales.reduce((a,b)=>a+b,0)/validSales.length
@@ -851,7 +851,7 @@ function runMatch(){
     const avgSales=avgSalesRaw===null?null:Math.round(avgSalesRaw);
     /* 현재고: 가장 최신 날짜의 stock */
     const curStock=pivotEntry?.dates[dates[0]]?.stock??null;
-    /* DOC: IFERROR(현재고/7일평균판매량, 0) — 0으로 나누거나 값 없으면 0 */
+    /* DOC: IFERROR(현재고/14일평균판매량, 0) — 0으로 나누거나 값 없으면 0 */
     const doc=(curStock!==null && avgSalesRaw!==null && avgSalesRaw>0)
       ? Math.round((curStock/avgSalesRaw)*10)/10
       : 0;
@@ -1675,12 +1675,12 @@ async function saveResult(mode){
 })();
 </script>
 <script id="__VOAR_AUTOLOAD__">
-window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data"};
+window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data",salesDir:"data/daily"};
 (function(){
   var CFG=window.__VOAR_REPO__;
   var PATTERNS={
     order:  /^발주리스트/,
-    sales:  /^일일판매/,
+    sales:  /^(일일판매|\d{8})/,
     stock:  /^전산재고/,
     master: /^매입가/
   };
@@ -1691,11 +1691,24 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
 
   function setStatus(msg, color){ console.log('[VOAR]', msg); }
 
-  function listRepoFiles(){
-    var url='https://api.github.com/repos/'+CFG.owner+'/'+CFG.repo+'/contents/'+CFG.dir+'?ref='+CFG.branch;
+  function listOneDir(dir){
+    var url='https://api.github.com/repos/'+CFG.owner+'/'+CFG.repo+'/contents/'+encodeURI(dir)+'?ref='+CFG.branch;
     return fetch(url, {headers:{'Accept':'application/vnd.github+json'}}).then(function(r){
-      if(!r.ok) throw new Error('GitHub API '+r.status+' '+r.statusText);
+      if(!r.ok){
+        console.warn('[VOAR] listDir skip '+dir+': '+r.status);
+        return [];
+      }
       return r.json();
+    }).catch(function(e){ console.warn('[VOAR] listDir err '+dir+':', e.message); return []; });
+  }
+
+  function listRepoFiles(){
+    var dirs=[CFG.dir];
+    if(CFG.salesDir && CFG.salesDir!==CFG.dir) dirs.push(CFG.salesDir);
+    return Promise.all(dirs.map(listOneDir)).then(function(lists){
+      var all=[];
+      lists.forEach(function(list){ if(Array.isArray(list)) all=all.concat(list); });
+      return all;
     });
   }
 
@@ -1704,6 +1717,77 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
     if(hits.length===0) return null;
     hits.sort(function(a,b){ return a.name<b.name?1:a.name>b.name?-1:0; });
     return hits[0];
+  }
+
+  /* daily/ 폴더의 날짜 파일 필터: basic_operation_rocket_<digits>.xlsx 또는 단순 YYYYMMDD.xlsx */
+  var DAILY_NAME_RE=/^(basic_operation_rocket_)?\d{8,}\.(xlsx|xls|csv)$/i;
+  function pickDailySales(files){
+    return files.filter(function(f){
+      return f.type==='file' && DAILY_NAME_RE.test(f.name)
+             && f.path && f.path.indexOf(CFG.salesDir+'/')===0;
+    }).sort(function(a,b){ return a.name<b.name?-1:a.name>b.name?1:0; }); // 오름차순 (오래된→최신)
+  }
+
+  /* 파일명에서 날짜 8자리 추출 (마지막 8자리 = 종료일) */
+  function extractDailyDate(name){
+    var base=name.replace(/\.(xlsx|xls|csv)$/i,'');
+    var digits=(base.match(/\d+/g)||[]).join('');
+    return digits.length>=8 ? digits.slice(-8) : base;
+  }
+
+  /* 날짜 파일 하나를 fetch·파싱해서 rows에 '날짜' 컬럼 주입 후 반환 */
+  function fetchDailyFile(file){
+    var dateStr=extractDailyDate(file.name); // "20260714"
+    var isCsv=/\.csv$/i.test(file.name);
+    return fetchBinary(file.download_url).then(function(ab){
+      var wb;
+      if(isCsv){
+        /* CSV는 UTF-8 텍스트로 디코드해서 파싱 (binary string 경로는 한글 깨짐) */
+        var text=new TextDecoder('utf-8').decode(ab).replace(/^﻿/,'');
+        wb=XLSX.read(text,{type:'string'});
+      } else {
+        wb=XLSX.read(abToBinaryString(ab),{type:'binary'});
+      }
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var raw=XLSX.utils.sheet_to_json(ws,{defval:'',blankrows:false});
+      return raw.map(function(row){
+        var r={'날짜':dateStr};
+        Object.keys(row).forEach(function(k){
+          var key=k.replace(/^﻿/,'').trim();
+          if(key==='날짜') return; // 파일명 날짜가 우선
+          r[key]=row[k];
+        });
+        return r;
+      });
+    }).catch(function(e){ console.warn('[VOAR] daily skip '+file.name+':', e.message); return []; });
+  }
+
+  /* daily 파일 여러 개를 병합해서 salesData로 로드 (loadFile의 sales 분기와 동일한 UI 갱신) */
+  function loadDailyMerged(files){
+    return Promise.all(files.map(fetchDailyFile)).then(function(rowsArr){
+      var merged=[]; rowsArr.forEach(function(rs){ merged=merged.concat(rs); });
+      if(merged.length===0) return;
+      salesData=merged;
+      salesProcessed=null;
+      var cols=Object.keys(merged[0]||{});
+      document.getElementById('sales-cnt').textContent=merged.length+'행 ('+files.length+'일)';
+      document.getElementById('sales-badge').style.display='inline-flex';
+      document.getElementById('card-sales').classList.add('loaded');
+      ['m-sales-date-col','m-sales-sku','m-sales-out','m-sales-stock'].forEach(function(id){
+        var sel=document.getElementById(id); if(!sel) return;
+        sel.innerHTML='';
+        cols.forEach(function(c){ var o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o); });
+      });
+      var gDate=guess(cols,'sales-date'); if(gDate) document.getElementById('m-sales-date-col').value=gDate;
+      var gSku =guess(cols,'sales-sku');  if(gSku)  document.getElementById('m-sales-sku').value=gSku;
+      var gOut =guess(cols,'sales-out');  if(gOut)  document.getElementById('m-sales-out').value=gOut;
+      var gSt  =guess(cols,'sales-stock');if(gSt)   document.getElementById('m-sales-stock').value=gSt;
+      var sm=document.getElementById('sales-mapping'); if(sm) sm.style.display='block';
+      updateSalesInfo();
+      try{ checkReady(); }catch(e){}
+      console.log('[VOAR] daily merged: '+files.length+'files, '+merged.length+' rows, cols=['+cols.join(',')+']');
+      console.log('[VOAR] auto-picked date='+document.getElementById('m-sales-date-col').value+' sku='+document.getElementById('m-sales-sku').value+' out='+document.getElementById('m-sales-out').value+' stock='+document.getElementById('m-sales-stock').value);
+    });
   }
 
   function fetchBinary(url){
@@ -1795,9 +1879,17 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
       console.log('[VOAR] fingerprint:', window.__VOAR_FINGERPRINT__);
 
       var jobs=[];
-      ['order','sales','stock'].forEach(function(k){
+      ['order','stock'].forEach(function(k){
         if(picks[k]) jobs.push(fetchBinary(picks[k].download_url).then(function(ab){ dispatchToLoadFile(k, ab, picks[k].name); }));
       });
+      /* sales: daily/ 폴더의 YYYYMMDD 파일 우선 병합, 없으면 기존 방식 */
+      var dailyFiles=pickDailySales(files);
+      if(dailyFiles.length>0){
+        console.log('[VOAR] daily files: '+dailyFiles.map(function(f){return f.name;}).join(', '));
+        jobs.push(loadDailyMerged(dailyFiles));
+      } else if(picks.sales){
+        jobs.push(fetchBinary(picks.sales.download_url).then(function(ab){ dispatchToLoadFile('sales', ab, picks.sales.name); }));
+      }
       if(picks.master) jobs.push(fetchBinary(picks.master.download_url).then(loadMasterFromAB));
 
       return Promise.all(jobs).then(function(){
