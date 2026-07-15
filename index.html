@@ -435,9 +435,9 @@ function applyMasterData(json, source){
     sel.innerHTML=isOpt?'<option value="">— 없음 —</option>':'';
     cols.forEach(c=>{ const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o); });
   });
-  fillSelect('m-master-sku',cols,'master-sku');
-  fillSelect('m-master-procode',cols,'master-procode');
-  fillSelect('m-master-name',cols,'master-name',true);
+  fillSelect('m-master-sku',cols,'master-sku',false,'skuid(입력란)');
+  fillSelect('m-master-procode',cols,'master-procode',false,'프로코드');
+  fillSelect('m-master-name',cols,'master-name',true,'제품명(수식)');
   /* 배지 표시 */
   const badge=document.getElementById('master-badge');
   const cnt=document.getElementById('master-cnt');
@@ -618,7 +618,16 @@ function loadFile(type,input){
   const reader=new FileReader();
   reader.onload=e=>{
     const wb=XLSX.read(e.target.result,{type:'binary'});
-    const ws=wb.Sheets[wb.SheetNames[0]];
+    let sheetName=wb.SheetNames[0];
+    if(type==='master'){
+      const re=/프로코드|procode/i;
+      for(const name of wb.SheetNames){
+        const aoa=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:'',blankrows:false});
+        const found=aoa.slice(0,5).some(row=>row.some(c=>re.test(String(c||''))));
+        if(found){ sheetName=name; break; }
+      }
+    }
+    const ws=wb.Sheets[sheetName];
     const rawJson=XLSX.utils.sheet_to_json(ws,{defval:''});
     /* BOM 및 공백을 컬럼명에서 제거 */
     const json=rawJson.map(row=>{
@@ -1182,6 +1191,7 @@ async function downloadPO(poNum){
   const aoa=[header];
   rows.forEach(r=>{
     const qty=invValues[r.orderSku]!==undefined?Number(invValues[r.orderSku]):Number(r.orderQty);
+    if(!qty || qty<=0) return;
     const price=Number(r.price)||0;
     aoa.push([
       r.masterName||r.stockName||r.orderName||'',
