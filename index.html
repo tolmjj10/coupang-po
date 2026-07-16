@@ -52,8 +52,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 80px; }
 
 /* ── HEADER ── */
-.header { background: var(--accent); color: #fff; padding: 18px 28px; display: flex; align-items: center; gap: 14px; }
-.header-icon { width: 38px; height: 38px; background: rgba(255,255,255,0.15); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.header { background: #fff; color: var(--text); padding: 10px 28px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); min-height: 44px; }
+.header h1 { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; margin: 0; color: var(--text); }
+.header-icon { width: 26px; height: 26px; background: transparent; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; color: var(--accent); }
 .header h1 { font-size: 17px; font-weight: 600; }
 .header p { font-size: 12px; opacity: 0.65; margin-top: 2px; }
 
@@ -233,6 +234,7 @@ td.td-doc { text-align: center; }
 }
 .po-sep-row:hover td { background: #e2e8f0; }
 .po-sep-cnt { font-size: 11px; color: #64748b; font-weight: 500; margin-left: 8px; }
+.po-sep-amt { font-size: 11.5px; color: #1e40af; font-weight: 700; margin-left: 10px; font-variant-numeric: tabular-nums; }
 .po-sep-num { user-select: text; cursor: text; padding: 1px 4px; border-radius: 3px; }
 .po-sep-num:hover { background: rgba(255,255,255,0.6); }
 .qty-order-strong { display: inline-block; font-weight: 700; color: #1e40af; background: #dbeafe; padding: 2px 8px; border-radius: 5px; min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
@@ -305,7 +307,7 @@ td { padding: 9px 11px; vertical-align: middle; }
 <body>
 
 <div class="header">
-  <div class="header-icon">📦</div>
+  <div class="header-icon">🚀</div>
   <div>
     <h1>쿠팡 발주리스트</h1>
   </div>
@@ -1012,7 +1014,8 @@ function renderAll(){
     const rows=groups[poNum];
     const open=allOpen;
     const dlBtn=_dupMode?'':`<button class="po-dl-btn" data-po="${escHtml(poNum)}" onclick="event.stopPropagation();downloadPO(this.dataset.po)" title="발주양식 다운로드"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`;
-    tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt">${rows.length}개</span><span class="po-sep-arrow ${open?'open':''}">▼</span>${dlBtn}</td></tr>`;
+    const amtSpan=_dupMode?'':`<span class="po-sep-amt" data-po-amt="${escHtml(poNum)}"></span>`;
+    tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt">${rows.length}개</span>${amtSpan}<span class="po-sep-arrow ${open?'open':''}">▼</span>${dlBtn}</td></tr>`;
     rows.forEach(r=>{
       const isUnreg=r.noMaster||r.noStock;
       let stockCell;
@@ -1109,6 +1112,7 @@ function renderAll(){
       </table>
     </div>`;
   requestAnimationFrame(()=>initColResize(container.querySelector('.unified-table')));
+  updateAllPoAmounts();
 }
 /* ── 컬럼 리사이즈 초기화 ── */
 function initColResize(table){
@@ -1263,7 +1267,28 @@ function onInvInput(el){
     el.classList.add('filled');
   }
   updateSaveCount();
+  updateAllPoAmounts();
 }
+
+function computePoAmount(poNum){
+  if(!Array.isArray(matchedRows)) return 0;
+  let sum=0;
+  matchedRows.forEach(function(r){
+    if(String(r.poNum)!==String(poNum)) return;
+    const qty=invValues[r.orderSku]!==undefined?Number(invValues[r.orderSku]):Number(r.orderQty);
+    if(!qty || qty<=0) return;
+    sum += qty * (Number(r.price)||0);
+  });
+  return sum;
+}
+function updateAllPoAmounts(){
+  document.querySelectorAll('[data-po-amt]').forEach(function(el){
+    const po=el.getAttribute('data-po-amt');
+    const amt=computePoAmount(po);
+    el.textContent = amt>0 ? ('₩'+amt.toLocaleString()) : '';
+  });
+}
+window.updateAllPoAmounts=updateAllPoAmounts;
 
 function updateSaveCount(){
   const cnt=Object.keys(invValues).length;
