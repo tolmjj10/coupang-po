@@ -1061,8 +1061,8 @@ function renderAll(){
       const _defQty=r.orderQty;
       const _hasInv=invValues[r.orderSku]!==undefined;
       const invVal=_hasInv?invValues[r.orderSku]:_defQty;
-      const _isZero=_hasInv && (String(invValues[r.orderSku])==='0' || Number(invValues[r.orderSku])===0);
-      const _modified=_hasInv && (_isZero || String(invValues[r.orderSku])!==String(_defQty));
+      const _shownIsZero=Number(invVal)===0;
+      const _modified=_shownIsZero || (_hasInv && String(invValues[r.orderSku])!==String(_defQty));
       const filledCls=_modified?'modified':'filled';
 
       const skuHtml=r.orderSku?(r.isDup?`<span class="sku-dup">${r.orderSku}</span>`:r.orderSku):'—';
@@ -1290,13 +1290,16 @@ function onInvInput(el){
   const sku=el.getAttribute('data-sku');
   const def=el.getAttribute('data-default')||'';
   const val=el.value.trim();
-  const isZero=val==='0' || Number(val)===0;
+  const isZero=val!=='' && Number(val)===0;
   if(val!=='' && (isZero || val!==String(def))){
     invValues[sku]=val;
+  } else {
+    delete invValues[sku];
+  }
+  if(isZero || (val!=='' && val!==String(def))){
     el.classList.add('modified');
     el.classList.remove('filled');
   } else {
-    delete invValues[sku];
     el.classList.remove('modified');
     el.classList.add('filled');
   }
