@@ -620,22 +620,11 @@ async function tryFetchXlsx(url, dateKey) {
   }
 }
 
-/** 한 날짜에 대해 여러 URL을 순차 시도 후 rows 반환 (실패 시 null)
- *  Pages Function이 있으면 1회 요청으로 밀리초 단위 완료.
+/** 한 날짜에 대해 Pages Function만 호출 (500ms 이내 응답)
+ *  Function이 404면 파일 없음 — 폴백 시도로 시간 낭비하지 않고 즉시 종료
  */
 async function fetchOneDay(key, ymd) {
-  const directUrl = `${REMOTE_DIRECT}${ymd}.xlsx`;
-  const urls = [
-    `${API_BASE}${ymd}`,                       // Cloudflare Pages Function (최우선, 초고속)
-    `${REMOTE_BASE}${ymd}.xlsx`,               // 같은 origin 정적 파일
-    directUrl,                                 // KSK Pages 직접
-    ...CORS_PROXIES.map(p => p(directUrl)),    // CORS 프록시 폴백
-  ];
-  for (const u of urls) {
-    const rows = await tryFetchXlsx(u, key);
-    if (rows) return rows;
-  }
-  return null;
+  return await tryFetchXlsx(`${API_BASE}${ymd}`, key);
 }
 
 /** 최근 N일 원격 XLSX 병렬 훑기
@@ -645,7 +634,7 @@ async function fetchOneDay(key, ymd) {
 async function fetchRemote() {
   const allRows = [];
   const dates = new Set();
-  const BATCH = 15; // Pages Function은 동시 요청 부담 적어 크게 잡음
+  const BATCH = 20; // Pages Function만 사용 — 대역폭 여유 충분
 
   // 로딩 UI 초기화
   const fb = document.getElementById('fallbackActions');
