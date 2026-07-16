@@ -165,11 +165,14 @@ body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif
 table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 thead th { background: #f2f1ed; padding: 9px 11px; text-align: left; font-size: 10.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; }
 thead th.th-sales { background: #bbf7d0; color: #065f46; }
-thead th.th-stock-cur { background: #f1efeb; color: var(--text-muted); text-align: center; }
+thead th.th-stock-cur { background: #efece5; color: #6b5f47; text-align: center; }
 td.td-curstk { text-align: center; background: #faf9f7; }
 thead th.th-stock-oaa { background: #f2f1ed; color: var(--text-muted); }
 thead th.th-avg { background: #fef08a; color: #854d0e; text-align: center; }
-thead th.th-doc { background: #ddd6fe; color: #5b21b6; text-align: center; }
+thead th.th-doc { background: #efece5; color: #6b5f47; text-align: center; }
+td.td-doc { background: #faf9f7; }
+td.td-order-key { background: #faf9f7; text-align: center; }
+thead th.th-order-key { background: #efece5; color: #6b5f47; text-align: center; }
 td.td-avg { text-align: center; }
 td.td-doc { text-align: center; }
 .avg-cell { font-weight: 700; color: #854d0e; font-variant-numeric: tabular-nums; }
@@ -1059,7 +1062,7 @@ function renderAll(){
         ${salesCells}
         <td class="col-num-u td-stock-oaa" style="text-align:center">${stockCell}</td>
         ${curStockCell}
-        <td class="col-num-u" style="text-align:center"><span class="qty-order-strong">${r.orderQty.toLocaleString()}</span></td>
+        <td class="col-num-u td-order-key"><span class="qty-order-strong">${r.orderQty.toLocaleString()}</span></td>
         <td><input type="number" class="inv-input ${filledCls}" data-sku="${escHtml(r.orderSku)}" data-default="${_defQty}"
             value="${invVal}" placeholder="" oninput="onInvInput(this)" onwheel="this.blur()" min="0"></td>
       </tr>`;
@@ -1098,7 +1101,7 @@ function renderAll(){
             ${salesTh}
             <th class="col-num-u th-stock-oaa" style="text-align:center">오아 재고</th>
             ${curStockTh}
-            <th class="col-num-u" style="text-align:center">발주수량</th>
+            <th class="col-num-u th-order-key">발주수량</th>
             <th>입고수량</th>
           </tr>
         </thead>
