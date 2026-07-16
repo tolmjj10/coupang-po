@@ -1120,6 +1120,7 @@ function renderAll(){
     </div>`;
   requestAnimationFrame(()=>initColResize(container.querySelector('.unified-table')));
   updateAllPoAmounts();
+  if(typeof applyDownloadedMarkers==='function') applyDownloadedMarkers();
 }
 /* ── 컬럼 리사이즈 초기화 ── */
 function initColResize(table){
@@ -1244,7 +1245,7 @@ async function downloadPO(poNum,btnEl){
   markPoDownloaded(poNum, btnEl);
 }
 
-function markPoDownloaded(poNum, btnEl){
+function markPoDownloaded(poNum, btnEl, silent){
   const btns = btnEl ? [btnEl] : Array.from(document.querySelectorAll(`.po-dl-btn[data-po="${CSS.escape(String(poNum))}"]`));
   btns.forEach(function(btn){
     let tag = btn.previousElementSibling;
@@ -1254,10 +1255,18 @@ function markPoDownloaded(poNum, btnEl){
       tag.textContent = '✓ 완료';
       btn.parentNode.insertBefore(tag, btn);
     }
-    tag.classList.remove('flash');
-    void tag.offsetWidth;
-    tag.classList.add('flash');
+    if(!silent){
+      tag.classList.remove('flash');
+      void tag.offsetWidth;
+      tag.classList.add('flash');
+    }
   });
+  if(!silent){
+    window.__VOAR_DOWNLOADED_POS__=window.__VOAR_DOWNLOADED_POS__||{};
+    window.__VOAR_DOWNLOADED_POS__[poNum]=Date.now();
+    window.__VOAR_DIRTY__=true;
+    if(typeof saveSharedState==='function') saveSharedState();
+  }
 }
 
 function togglePORows(gi,sepRow,evt){
@@ -1373,6 +1382,7 @@ function voarToast(msg, color){
   t._timer=setTimeout(function(){ t.style.opacity='0'; }, 1800);
 }
 
+window.__VOAR_DOWNLOADED_POS__=window.__VOAR_DOWNLOADED_POS__||{};
 async function saveSharedState(){
   try{
     const res=await fetch('/api/state',{
@@ -1380,6 +1390,7 @@ async function saveSharedState(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         invValues:invValues,
+        downloadedPOs:window.__VOAR_DOWNLOADED_POS__||{},
         dataFingerprint:window.__VOAR_FINGERPRINT__||'',
         orderSha:window.__VOAR_ORDER_SHA__||'',
         savedAt:Date.now()
@@ -1395,26 +1406,40 @@ async function saveSharedState(){
 }
 
 function applySharedState(saved){
-  if(!saved||!saved.invValues) return;
+  if(!saved) return;
   /* 발주리스트 파일이 바뀌면(orderSha 불일치) 저장값 무시 + 서버 값도 리셋 */
   if(saved.orderSha && window.__VOAR_ORDER_SHA__ && saved.orderSha!==window.__VOAR_ORDER_SHA__){
-    console.log('[VOAR] 발주리스트 변경 감지 → 입고수량 리셋');
+    console.log('[VOAR] 발주리스트 변경 감지 → 입고수량/다운로드 표시 리셋');
     Object.keys(invValues).forEach(k=>delete invValues[k]);
+    window.__VOAR_DOWNLOADED_POS__={};
     if(typeof saveSharedState==='function') saveSharedState();
     if(typeof updateSaveCount==='function') updateSaveCount();
     return;
   }
-  Object.keys(saved.invValues).forEach(function(k){ invValues[k]=saved.invValues[k]; });
-  document.querySelectorAll('input[data-sku]').forEach(function(el){
-    const sku=el.getAttribute('data-sku');
-    if(invValues[sku]!==undefined){
-      el.value=invValues[sku];
-      el.classList.add('modified');
-      el.classList.remove('filled');
-    }
-  });
+  if(saved.invValues){
+    Object.keys(saved.invValues).forEach(function(k){ invValues[k]=saved.invValues[k]; });
+    document.querySelectorAll('input[data-sku]').forEach(function(el){
+      const sku=el.getAttribute('data-sku');
+      if(invValues[sku]!==undefined){
+        el.value=invValues[sku];
+        el.classList.add('modified');
+        el.classList.remove('filled');
+      }
+    });
+  }
+  if(saved.downloadedPOs && typeof saved.downloadedPOs==='object'){
+    window.__VOAR_DOWNLOADED_POS__=Object.assign({},saved.downloadedPOs);
+    applyDownloadedMarkers();
+  }
   if(typeof updateSaveCount==='function') updateSaveCount();
+  if(typeof updateAllPoAmounts==='function') updateAllPoAmounts();
 }
+
+function applyDownloadedMarkers(){
+  const map=window.__VOAR_DOWNLOADED_POS__||{};
+  Object.keys(map).forEach(function(po){ markPoDownloaded(po, null, /*silent*/true); });
+}
+window.applyDownloadedMarkers=applyDownloadedMarkers;
 window.applySharedState=applySharedState;
 
 async function saveResult(mode){
