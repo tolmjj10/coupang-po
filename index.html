@@ -49,7 +49,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   --sales-light: #f0fdf4;
   --radius: 10px;
 }
-body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 80px; }
+body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; padding-bottom: 60px; }
 
 /* ── HEADER ── */
 .header { background: #fff; color: var(--text); padding: 10px 28px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); min-height: 44px; }
@@ -58,7 +58,7 @@ body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif
 .header h1 { font-size: 17px; font-weight: 600; }
 .header p { font-size: 12px; opacity: 0.65; margin-top: 2px; }
 
-.main { max-width: 1340px; margin: 0 auto; padding: 24px 20px; }
+.main { max-width: 1340px; margin: 0 auto; padding: 14px 20px; }
 
 /* ── FLOW ── */
 .flow { display: flex; align-items: center; gap: 0; margin-bottom: 22px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 20px; overflow-x: auto; }
@@ -187,8 +187,8 @@ td.td-doc { text-align: center; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: auto;
-  height: calc(100vh - 280px);
-  min-height: 360px;
+  height: calc(100vh - 250px);
+  min-height: 300px;
 }
 .unified-table {
   width: 100%;
@@ -1020,7 +1020,8 @@ function renderAll(){
     const open=allOpen;
     const dlBtn=_dupMode?'':`<button class="po-dl-btn" data-po="${escHtml(poNum)}" onclick="event.stopPropagation();downloadPO(this.dataset.po,this)" title="발주양식 다운로드"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`;
     const amtSpan=_dupMode?'':`<span class="po-sep-amt" data-po-amt="${escHtml(poNum)}"></span>`;
-    tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt">${rows.length}개</span>${amtSpan}<span class="po-sep-arrow ${open?'open':''}">▼</span>${dlBtn}</td></tr>`;
+    const cntAttr=_dupMode?'':` data-po-cnt="${escHtml(poNum)}"`;
+    tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt"${cntAttr}>${rows.length}개</span>${amtSpan}<span class="po-sep-arrow ${open?'open':''}">▼</span>${dlBtn}</td></tr>`;
     rows.forEach(r=>{
       const isUnreg=r.noMaster||r.noStock;
       let stockCell;
@@ -1333,6 +1334,18 @@ function updateAllPoAmounts(){
     const po=el.getAttribute('data-po-amt');
     const amt=computePoAmount(po);
     el.textContent = amt>0 ? ('₩'+amt.toLocaleString()) : '';
+  });
+  document.querySelectorAll('[data-po-cnt]').forEach(function(el){
+    const po=el.getAttribute('data-po-cnt');
+    let cnt=0;
+    if(Array.isArray(matchedRows)){
+      matchedRows.forEach(function(r){
+        if(String(r.poNum)!==String(po)) return;
+        const qty=invValues[r.orderSku]!==undefined?Number(invValues[r.orderSku]):Number(r.orderQty);
+        if(qty>0) cnt++;
+      });
+    }
+    el.textContent = cnt+'개';
   });
 }
 window.updateAllPoAmounts=updateAllPoAmounts;
