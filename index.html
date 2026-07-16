@@ -270,14 +270,13 @@ td { padding: 9px 11px; vertical-align: middle; }
 /* 현재고: 발주 판단의 핵심 → 크고 굵게 */
 .cur-stock-cell { display: inline-block; font-size: 14px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -0.2px; }
 .cur-stock-cell.cur-stock-low { color: #b91c1c; }
-/* 오아 재고: 보조 정보 → 작고 가볍게 */
-.qty-stock { font-size: 11.5px; font-weight: 500; color: var(--text-muted); font-variant-numeric: tabular-nums; letter-spacing: 0.2px; }
-.qty-stock.oaa-low { background: #fef08a; color: #854d0e; font-weight: 600; padding: 2px 8px; border-radius: 5px; }
+/* 오아 재고: 보조 정보 (현재고보다 낮은 위계지만 가독성 확보) */
+.qty-stock { font-size: 12.5px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: 0.1px; }
+.qty-stock.oaa-low { background: #fef08a; color: #854d0e; font-weight: 700; padding: 2px 8px; border-radius: 5px; }
 /* DOC 강조: 10일 미만 */
 .doc-cell.doc-low { color: #dc2626; font-weight: 800; }
-/* 중복 SKU 행: 약한 빨강 배경 (미매칭 톤과 통일) */
-.unified-table tbody tr.tr-dup { background: #fff5f5; }
-.unified-table tbody tr.tr-dup:hover { background: #ffecec; }
+/* 중복 SKU: 셀 자체만 약한 빨강 배경 */
+.sku-dup { background: #fff1f1; color: #b91c1c; border-radius: 4px; padding: 2px 6px; }
 
 /* 재고 기입 */
 .inv-input { width: 78px; padding: 5px 7px; border: 1.5px solid var(--border-strong); border-radius: 5px; font-size: 12px; text-align: right; background: #fff; color: var(--text); transition: border-color .15s; }
@@ -1054,9 +1053,10 @@ function renderAll(){
       const _modified=_hasInv && String(invValues[r.orderSku])!==String(_defQty);
       const filledCls=_modified?'modified':'filled';
 
-      const rowCls=[isUnreg?'tr-unreg':'',r.isDup?'tr-dup':''].filter(Boolean).join(' ');
+      const rowCls=isUnreg?'tr-unreg':'';
+      const skuHtml=r.orderSku?(r.isDup?`<span class="sku-dup">${r.orderSku}</span>`:r.orderSku):'—';
       tbody+=`<tr class="${rowCls}" data-pg="${gi}" style="${allOpen?'':'display:none'}">
-        <td class="mono" style="white-space:nowrap">${r.orderSku||'—'}</td>
+        <td class="mono" style="white-space:nowrap">${skuHtml}</td>
         <td class="col-name" title="${escHtml(r.stockName||r.orderName)}">${(r.stockName||r.orderName)||'—'}</td>
         ${salesCells}
         <td class="col-num-u td-stock-oaa">${stockCell}</td>
