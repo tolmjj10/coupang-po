@@ -24,7 +24,15 @@ const state = {
   period: 7,             // 최근 N일 필터
   brand: '전체',
   selectedGroup: null,   // 선택된 광고그룹 (null = 전체)
+  searchQuery: '',       // 상품 검색어
 };
+
+// 브랜드 키워드 판정 — 이런 키워드는 이미 검색 잘 되고 있어서
+// ROAS 높다고 입찰가 올려도 확장 여지가 적음 → 입찰가 상승 추천에서 제외
+const BRAND_PREFIX_RE = /^(오아|보아르|VOAR|OA-|OOR)/i;
+function isBrandKeyword(kw) {
+  return BRAND_PREFIX_RE.test((kw || '').trim());
+}
 
 // ---------- 유틸 ----------
 const toNum = (v) => {
@@ -188,22 +196,59 @@ function aggregateByGroup(rows) {
    ⑥ 등급  : 종합 점수 → A~F
 */
 
-/** ① 입찰가 올릴 키워드 */
+/** ① 입찰가 올릴 키워드 — 객관적 시장 확장성 분석
+ *
+ *  판정 기준 (모두 통과해야 추천):
+ *   (a) 브랜드 키워드 제외 — '오아/보아르/VOAR/OA-/OOR' 로 시작하면 핵심 확장 대상 아님
+ *       (이미 브랜드 검색으로 유입되고 있어 입찰 올려도 신규 고객 확보 어려움)
+ *   (b) 실제 전환 있음 — clicks ≥ 5, directQty ≥ 1 (우연이 아닌 실증)
+ *   (c) 수익성 확보 — ROAS ≥ 200% (증액 후에도 흑자 유지)
+ *   (d) 전환력 우수 — CVR ≥ 평균 CVR × 1.2 (상세페이지가 팔림)
+ *   (e) 확장 여지 — 노출수가 전체 평균 이하 (더 많이 노출되면 매출 성장 여력)
+ *
+ *  증액 폭: 데이터 강도(전환력·수익성·확장여지) 기반 스코어링 5~20%
+ */
 function ruleBidUp(rows, avgCvr) {
+  // 확장 여지 판정용 노출 중앙값
+  const impList = rows.filter(g => g.clicks >= 3).map(g => g.impressions).sort((a, b) => a - b);
+  const impMedian = impList[Math.floor(impList.length / 2)] || 0;
+
   return rows
     .filter(g => g.keyword && g.keyword !== '(자동노출)')
-    .filter(g => g.roas >= 300 && g.cvr >= Math.max(3, avgCvr * 1.2) && g.clicks >= 5)
+    .filter(g => !isBrandKeyword(g.keyword))       // (a) 브랜드 키워드 제외
+    .filter(g => g.clicks >= 5 && g.directQty >= 1) // (b) 실증 데이터
+    .filter(g => g.roas >= 200)                     // (c) 수익성
+    .filter(g => g.cvr >= Math.max(2, avgCvr * 1.2))// (d) 전환력
     .map(g => {
-      // 증액 폭: ROAS 값에 따라 5~15%
+      // 확장 여지 = 노출이 중앙값보다 낮을수록 높음
+      const hasRoom = impMedian > 0 && g.impressions < impMedian;
+      // 강도 점수: ROAS + CVR + 확장여지
       let pct = 5;
-      if (g.roas >= 800) pct = 15;
-      else if (g.roas >= 500) pct = 10;
+      const reasons = [];
+
+      // ROAS 강도
+      if (g.roas >= 800) { pct += 6; reasons.push(`ROAS ${fmtPct(g.roas, 0)} 매우 우수`); }
+      else if (g.roas >= 500) { pct += 4; reasons.push(`ROAS ${fmtPct(g.roas, 0)} 우수`); }
+      else { pct += 2; reasons.push(`ROAS ${fmtPct(g.roas, 0)} 양호`); }
+
+      // CVR 강도
+      if (g.cvr >= avgCvr * 2) { pct += 4; reasons.push(`CVR ${fmtPct(g.cvr)} 평균 2배 (강한 구매 의도)`); }
+      else if (g.cvr >= avgCvr * 1.5) { pct += 2; reasons.push(`CVR ${fmtPct(g.cvr)} 평균 대비 우수`); }
+      else { reasons.push(`CVR ${fmtPct(g.cvr)}`); }
+
+      // 확장 여지
+      if (hasRoom) { pct += 3; reasons.push(`노출 ${fmtInt(g.impressions)}회로 확장 여지 큼`); }
+
+      pct = Math.min(20, pct);
+
       const cur = Math.round(g.cpc);
       const rec = Math.round(cur * (1 + pct / 100));
-      const reason = `ROAS ${fmtPct(g.roas, 0)} · CVR ${fmtPct(g.cvr)} → +${pct}%`;
-      return { ...g, curBid: cur, recBid: rec, reason };
+      const reason = `${reasons.join(' · ')} → +${pct}%`;
+      // 우선순위 점수: 확장 여지 + 전환력
+      const priority = (g.roas / 100) * g.cvr * (hasRoom ? 1.5 : 1);
+      return { ...g, curBid: cur, recBid: rec, reason, priority };
     })
-    .sort((a, b) => b.roas - a.roas)
+    .sort((a, b) => b.priority - a.priority)
     .slice(0, 20);
 }
 
@@ -327,28 +372,6 @@ function ruleGrade(groups) {
   return items.sort((a, b) => b.score - a.score);
 }
 
-/** ⑦ AI 코멘트 자동 생성 */
-function makeComment(rows, bidUp, bidDown, killList, kpi) {
-  const parts = [];
-  const best = [...rows].filter(g => g.clicks >= 5).sort((a, b) => b.roas - a.roas)[0];
-  const worst = [...rows].filter(g => g.clicks >= 10 && g.directQty === 0).sort((a, b) => b.adCost - a.adCost)[0];
-
-  parts.push(`이번 기간 총 광고비 <strong>${fmtWon(kpi.adCost)}</strong>, ROAS <strong>${fmtPct(kpi.roas, 0)}</strong>, 전환수 ${fmtInt(kpi.directQty)}건이었어요.`);
-  if (best && best.roas > 200) {
-    const upPct = best.roas >= 800 ? 15 : best.roas >= 500 ? 10 : 5;
-    parts.push(`특히 <strong>‘${best.keyword}’</strong> 키워드가 ROAS ${fmtPct(best.roas, 0)}로 매우 좋은 효율을 보이고 있어, 입찰가를 <strong>+${upPct}%</strong> 인상하는 것을 추천합니다.`);
-  }
-  if (worst) {
-    parts.push(`반대로 <strong>‘${worst.keyword}’</strong>는 클릭 ${worst.clicks}회 대비 구매가 0건이라 예산 축소 또는 소재/상세페이지 점검이 필요합니다.`);
-  }
-  if (killList.length >= 3) {
-    parts.push(`광고비 낭비로 분류된 키워드가 <strong>${killList.length}개</strong>입니다. 우선 상위 3개(<strong>${killList.slice(0,3).map(k => k.keyword).join(', ')}</strong>) 확인 후 삭제 검토를 권장합니다.`);
-  }
-  if (bidUp.length === 0 && bidDown.length === 0 && killList.length === 0) {
-    parts.push(`전반적으로 안정적인 성과를 유지하고 있어, 현재 세팅을 유지하시면 됩니다.`);
-  }
-  return parts.join('\n\n');
-}
 
 // =========================================================
 // 4) 렌더링
@@ -467,62 +490,118 @@ function renderGrade(list) {
   }, '점수 산정에 필요한 노출 데이터가 부족합니다.');
 }
 
-function renderComment(html) {
-  document.getElementById('aiComment').innerHTML = html;
-}
-
 // =========================================================
-// 상품 선택 (광고그룹 리스트)
+// 상품 검색 (광고그룹 리스트)
 // =========================================================
-/** 브랜드 필터를 통과한 rows에서 광고그룹별 요약 → 칩 렌더 */
+/** 브랜드 필터를 통과한 rows에서 광고그룹별 요약 → 검색 필터 후 렌더 */
 function renderProductPicker() {
-  const picker = document.getElementById('productPicker');
+  const listEl = document.getElementById('productList');
   const countEl = document.getElementById('productCount');
-  if (!picker) return;
+  const selectedInfo = document.getElementById('selectedInfo');
+  const selectedName = document.getElementById('selectedName');
+  if (!listEl) return;
 
-  // 광고그룹별 광고비 합산 (브랜드 필터 적용)
+  // 광고그룹별 지표 합산 (브랜드 필터 적용)
   const groupMap = new Map();
   for (const r of state.rows) {
     if (!passBrand(r)) continue;
     if (!r.adGroup) continue;
-    const g = groupMap.get(r.adGroup) || { adGroup: r.adGroup, adCost: 0, clicks: 0, directQty: 0 };
-    g.adCost += r.adCost;
+    const g = groupMap.get(r.adGroup) || {
+      adGroup: r.adGroup,
+      impressions: 0, clicks: 0, adCost: 0,
+      directQty: 0, directRevenue: 0,
+    };
+    g.impressions += r.impressions;
     g.clicks += r.clicks;
+    g.adCost += r.adCost;
     g.directQty += r.directQty;
+    g.directRevenue += r.directRevenue;
     groupMap.set(r.adGroup, g);
   }
-  const groups = [...groupMap.values()].sort((a, b) => b.adCost - a.adCost);
+  const allGroups = [...groupMap.values()].map(g => ({
+    ...g,
+    roas: g.adCost > 0 ? g.directRevenue / g.adCost * 100 : 0,
+  })).sort((a, b) => b.adCost - a.adCost);
 
-  countEl.textContent = `${groups.length}개`;
+  // 검색어 필터
+  const q = state.searchQuery.trim().toLowerCase();
+  const filtered = q
+    ? allGroups.filter(g => g.adGroup.toLowerCase().includes(q))
+    : allGroups;
 
-  if (groups.length === 0) {
-    picker.innerHTML = `<div class="picker-empty">데이터가 없습니다.</div>`;
+  countEl.textContent = `총 ${allGroups.length}개${q ? ` (검색 ${filtered.length})` : ''}`;
+
+  // 선택 배너
+  if (state.selectedGroup) {
+    selectedInfo.hidden = false;
+    selectedName.textContent = state.selectedGroup;
+  } else {
+    selectedInfo.hidden = true;
+  }
+
+  if (allGroups.length === 0) {
+    listEl.innerHTML = `<div class="picker-empty">데이터가 없습니다.</div>`;
+    return;
+  }
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<div class="picker-empty">검색 결과가 없습니다.</div>`;
     return;
   }
 
-  // '전체' 칩 + 그룹별 칩
-  const allActive = state.selectedGroup == null;
-  const chips = [
-    `<button class="product-chip ${allActive ? 'active' : ''}" data-group="__all__">전체 <span class="chip-meta">${groups.length}개</span></button>`,
-    ...groups.map(g => {
-      const active = state.selectedGroup === g.adGroup;
-      const short = g.adGroup.length > 24 ? g.adGroup.slice(0, 24) + '…' : g.adGroup;
-      return `<button class="product-chip ${active ? 'active' : ''}" data-group="${g.adGroup.replace(/"/g,'&quot;')}" title="${g.adGroup}">${short} <span class="chip-meta">${fmtWon(g.adCost)}</span></button>`;
-    }),
-  ];
-  picker.innerHTML = chips.join('');
+  const roasClass = (roas) => roas >= 300 ? 'high' : roas >= 100 ? 'mid' : 'low';
+  listEl.innerHTML = filtered.slice(0, 200).map(g => {
+    const active = state.selectedGroup === g.adGroup;
+    const escaped = g.adGroup.replace(/"/g, '&quot;');
+    return `
+      <div class="product-item ${active ? 'active' : ''}" data-group="${escaped}">
+        <div class="name">${g.adGroup}</div>
+        <div class="metric">광고비 <strong>${fmtWon(g.adCost)}</strong></div>
+        <div class="metric">전환 <strong>${fmtInt(g.directQty)}</strong></div>
+        <div class="roas-tag ${roasClass(g.roas)}">ROAS ${fmtPct(g.roas, 0)}</div>
+      </div>`;
+  }).join('');
 }
 
 function bindProductPicker() {
-  document.getElementById('productPicker').addEventListener('click', (e) => {
-    const btn = e.target.closest('.product-chip');
-    if (!btn) return;
-    const group = btn.dataset.group;
-    state.selectedGroup = (group === '__all__') ? null : group;
+  const listEl = document.getElementById('productList');
+  const searchEl = document.getElementById('productSearch');
+  const clearBtn = document.getElementById('clearSearch');
+  const clearSel = document.getElementById('clearSelection');
+
+  // 리스트 클릭 → 광고그룹 선택
+  listEl.addEventListener('click', (e) => {
+    const item = e.target.closest('.product-item');
+    if (!item) return;
+    state.selectedGroup = item.dataset.group;
     renderProductPicker();
     runAnalysis();
-    // 선택 후 KPI로 스크롤
     document.querySelector('.kpi-row')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  // 검색어 입력 → 필터
+  let debounceTimer = null;
+  searchEl.addEventListener('input', (e) => {
+    clearBtn.hidden = !e.target.value;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      state.searchQuery = e.target.value;
+      renderProductPicker();
+    }, 150);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    searchEl.value = '';
+    state.searchQuery = '';
+    clearBtn.hidden = true;
+    renderProductPicker();
+    searchEl.focus();
+  });
+
+  // 선택 해제
+  clearSel.addEventListener('click', () => {
+    state.selectedGroup = null;
+    renderProductPicker();
+    runAnalysis();
   });
 }
 
@@ -541,7 +620,6 @@ function runAnalysis() {
   const keepList = ruleKeep(rows);
   const newKws = ruleNewKeywords(rows);
   const grades = ruleGrade(groupRows);
-  const commentHtml = makeComment(rows, bidUp, bidDown, killList, kpi);
 
   renderKpi(kpi);
   renderBidUp(bidUp);
@@ -550,7 +628,6 @@ function runAnalysis() {
   renderKeep(keepList);
   renderNewKeywords(newKws);
   renderGrade(grades);
-  renderComment(commentHtml);
 
   const scopeText = state.selectedGroup ? `선택: ${state.selectedGroup}` : '전체 상품';
   document.getElementById('loadInfo').textContent =

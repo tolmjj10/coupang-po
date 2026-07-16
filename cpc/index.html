@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="ai-dashboard.css?v=4">
+<link rel="stylesheet" href="ai-dashboard.css?v=5">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -37,14 +37,23 @@
 <!-- ========== Main Dashboard ========== -->
 <main id="dashboard" class="dashboard">
 
-  <!-- 상품 선택 -->
+  <!-- 상품 검색 -->
   <section class="card product-picker-card">
     <div class="card-head">
-      <h3>📦 분석할 상품(광고그룹) 선택</h3>
+      <h3>🔍 분석할 상품 검색</h3>
       <span id="productCount" class="badge">로딩 중...</span>
     </div>
-    <div id="productPicker" class="product-picker">
+    <div class="search-wrap">
+      <input type="text" id="productSearch" class="search-input" placeholder="광고그룹명 검색 (예: 미니고데기, 안마기)" autocomplete="off">
+      <button id="clearSearch" class="clear-btn" hidden>×</button>
+    </div>
+    <div id="productList" class="product-list">
       <div class="picker-empty">데이터를 불러오는 중입니다...</div>
+    </div>
+    <div id="selectedInfo" class="selected-info" hidden>
+      <span class="selected-label">선택됨:</span>
+      <span id="selectedName" class="selected-name"></span>
+      <button id="clearSelection" class="btn ghost small">전체 보기</button>
     </div>
   </section>
 
@@ -56,12 +65,6 @@
     <div class="kpi"><div class="kpi-label">전환 (CVR)</div><div class="kpi-value" id="kpiConv">-</div></div>
     <div class="kpi accent"><div class="kpi-label">ROAS</div><div class="kpi-value" id="kpiRoas">-</div></div>
     <div class="kpi"><div class="kpi-label">평균 CPC</div><div class="kpi-value" id="kpiCpc">-</div></div>
-  </section>
-
-  <!-- AI 코멘트 -->
-  <section class="card ai-comment">
-    <div class="card-head"><h3>🤖 AI 코멘트</h3></div>
-    <div id="aiComment" class="ai-body">상품을 선택하면 분석 결과가 표시됩니다.</div>
   </section>
 
   <!-- ① 입찰가 올릴 키워드 -->
@@ -166,6 +169,6 @@
   <span id="loadInfo"></span>
 </footer>
 
-<script src="ai-dashboard.js?v=4"></script>
+<script src="ai-dashboard.js?v=5"></script>
 </body>
 </html>
