@@ -267,7 +267,17 @@ td { padding: 9px 11px; vertical-align: middle; }
 /* 판매량 */
 .sales-cell { text-align: right; font-variant-numeric: tabular-nums; color: #065f46; font-weight: 500; }
 .sales-cell.zero { color: var(--text-hint); font-weight: 400; }
-.cur-stock-cell { display: inline-block; font-weight: 700; color: #0c4a6e; background: #bae6fd; padding: 2px 8px; border-radius: 5px; min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
+/* 현재고: 발주 판단의 핵심 → 크고 굵게 */
+.cur-stock-cell { display: inline-block; font-size: 14px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -0.2px; }
+.cur-stock-cell.cur-stock-low { color: #b91c1c; }
+/* 오아 재고: 보조 정보 → 작고 가볍게 */
+.qty-stock { font-size: 11.5px; font-weight: 500; color: var(--text-muted); font-variant-numeric: tabular-nums; letter-spacing: 0.2px; }
+.qty-stock.oaa-low { background: #fef08a; color: #854d0e; font-weight: 600; padding: 2px 8px; border-radius: 5px; }
+/* DOC 강조: 10일 미만 */
+.doc-cell.doc-low { color: #dc2626; font-weight: 800; }
+/* 중복 SKU 행: 약한 빨강 배경 (미매칭 톤과 통일) */
+.unified-table tbody tr.tr-dup { background: #fff5f5; }
+.unified-table tbody tr.tr-dup:hover { background: #ffecec; }
 
 /* 재고 기입 */
 .inv-input { width: 78px; padding: 5px 7px; border: 1.5px solid var(--border-strong); border-radius: 5px; font-size: 12px; text-align: right; background: #fff; color: var(--text); transition: border-color .15s; }
@@ -989,8 +999,8 @@ function renderAll(){
   const dispDates=dl.displayDates||[];
   const numDisp=dispDates.length;
 
-  /* 총 컬럼 수: SKU + 제품명 + 현재고(sales시) + [일별 + DOC + 평균] + 발주수량 + 오아재고 + 상태 + 입고수량 */
-  const totalCols=dl.hasSales?(2+1+numDisp+1+1+1+1+1+1):(2+1+1+1+1);
+  /* 총 컬럼 수: SKU + 제품명 + [일별 + 평균 + DOC] + 오아재고 + 현재고(sales시) + 발주수량 + 입고수량 */
+  const totalCols=dl.hasSales?(2+numDisp+1+1+1+1+1+1):(2+1+1+1);
 
   const fmtSales=v=>v===null?`<span style="color:var(--text-hint)">—</span>`
     :`<span class="sales-cell${v===0?' zero':''}">${v.toLocaleString()}</span>`;
@@ -1005,7 +1015,8 @@ function renderAll(){
       const isUnreg=r.noMaster||r.noStock;
       let stockCell;
       if(r.stockQty!==null){
-        stockCell=`<span class="qty-stock ${r.status}">${r.stockQty.toLocaleString()}</span>`;
+        const oaaLow=r.stockQty<500?' oaa-low':'';
+        stockCell=`<span class="qty-stock ${r.status}${oaaLow}">${r.stockQty.toLocaleString()}</span>`;
       } else if(r.noMaster){
         stockCell=`<span class="qty-stock unmatched">마스터 없음</span>`;
       } else if(r.noStock){
@@ -1017,9 +1028,6 @@ function renderAll(){
       let salesCells='';
       let curStockCell='';
       if(dl.hasSales){
-        const avgHtml=r.avgSales===null
-          ?`<span style="color:var(--text-hint)">—</span>`
-          :`<span class="avg-cell">${r.avgSales}</span>`;
         const dayCells=dispDates.map((_,i)=>{
           const val=(r.dailySales||[])[numDisp-1-i]??null;
           return `<td class="col-num-u td-sales">${fmtSales(val)}</td>`;
@@ -1027,12 +1035,17 @@ function renderAll(){
         const curHtml=r.curStock===null
           ?`<span style="color:var(--text-hint)">—</span>`
           :`<span class="cur-stock-cell${r.curStock<=5?' cur-stock-low':''}">${r.curStock.toLocaleString()}</span>`;
-        const docDisp=`<span class="doc-cell">${(r.doc??0).toFixed(1)}</span>`;
+        const avgHtml=r.avgSales===null
+          ?`<span style="color:var(--text-hint)">—</span>`
+          :`<span class="avg-cell">${r.avgSales}</span>`;
+        const docVal=r.doc??0;
+        const docLow=(r.doc!==null && r.doc!==undefined && r.doc<10)?' doc-low':'';
+        const docDisp=`<span class="doc-cell${docLow}">${docVal.toFixed(1)}</span>`;
         curStockCell=`<td class="col-num-u td-curstk">${curHtml}</td>`;
         salesCells=`
-          <td class="col-num-u td-doc">${docDisp}</td>
+          ${dayCells}
           <td class="col-num-u td-avg">${avgHtml}</td>
-          ${dayCells}`;
+          <td class="col-num-u td-doc">${docDisp}</td>`;
       }
 
       const _defQty=r.orderQty;
@@ -1041,14 +1054,14 @@ function renderAll(){
       const _modified=_hasInv && String(invValues[r.orderSku])!==String(_defQty);
       const filledCls=_modified?'modified':'filled';
 
-      tbody+=`<tr class="${isUnreg?'tr-unreg':''}" data-pg="${gi}" style="${allOpen?'':'display:none'}">
+      const rowCls=[isUnreg?'tr-unreg':'',r.isDup?'tr-dup':''].filter(Boolean).join(' ');
+      tbody+=`<tr class="${rowCls}" data-pg="${gi}" style="${allOpen?'':'display:none'}">
         <td class="mono" style="white-space:nowrap">${r.orderSku||'—'}</td>
         <td class="col-name" title="${escHtml(r.stockName||r.orderName)}">${(r.stockName||r.orderName)||'—'}</td>
-        ${curStockCell}
         ${salesCells}
-        <td class="col-num-u"><span class="qty-order-strong">${r.orderQty.toLocaleString()}</span></td>
         <td class="col-num-u td-stock-oaa">${stockCell}</td>
-        <td><span class="badge ${badgeCls[r.status]}">${badgeLabel[r.status]}</span>${r.isDup?`<span class="badge duplicate">중복</span>`:''}${r.status==='shortage'&&r.transit>0?`<span class="transit-badge">운송 중 ${r.transit.toLocaleString()}</span>`:''}</td>
+        ${curStockCell}
+        <td class="col-num-u"><span class="qty-order-strong">${r.orderQty.toLocaleString()}</span></td>
         <td><input type="number" class="inv-input ${filledCls}" data-sku="${escHtml(r.orderSku)}" data-default="${_defQty}"
             value="${invVal}" placeholder="" oninput="onInvInput(this)" onwheel="this.blur()" min="0"></td>
       </tr>`;
@@ -1059,15 +1072,15 @@ function renderAll(){
   const curStockTh =dl.hasSales?`<th class="col-num-u th-stock-cur">현재고</th>`:'';
 
   const salesCols=dl.hasSales?`
-    <col style="width:52px">
-    <col style="width:68px">
     ${dispDates.map(()=>'<col style="width:48px">').join('')}
+    <col style="width:68px">
+    <col style="width:56px">
   `:'';
 
   const salesTh=dl.hasSales?`
-    <th class="col-num-u th-doc">DOC</th>
-    <th class="col-num-u th-avg">평균판매량</th>
     ${dispDates.map(d=>`<th class="col-num-u th-sales">${fmtDateLabel(d)}</th>`).join('')}
+    <th class="col-num-u th-avg">평균판매량</th>
+    <th class="col-num-u th-doc">DOC</th>
   `:'';
 
   container.innerHTML=`
@@ -1076,22 +1089,20 @@ function renderAll(){
         <colgroup>
           <col style="width:108px">
           <col style="width:210px">
-          ${curStockCol}
           ${salesCols}
+          <col style="width:78px">
+          ${curStockCol}
           <col style="width:76px">
-          <col style="width:66px">
-          <col style="width:60px">
           <col style="width:82px">
         </colgroup>
         <thead>
           <tr>
             <th>SKU</th>
             <th>제품명</th>
-            ${curStockTh}
             ${salesTh}
-            <th class="col-num-u">발주수량</th>
             <th class="col-num-u th-stock-oaa">오아 재고</th>
-            <th>상태</th>
+            ${curStockTh}
+            <th class="col-num-u">발주수량</th>
             <th>입고수량</th>
           </tr>
         </thead>
