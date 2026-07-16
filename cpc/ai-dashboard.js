@@ -19,10 +19,11 @@
 
 // ---------- 상태 ----------
 const state = {
-  rows: [],          // 파일에서 파싱한 원본 rows (날짜 포함)
-  dates: new Set(),  // 데이터가 있는 날짜들
-  period: 7,         // 최근 N일 필터 (사용자가 다중 파일 업로드 시 유효)
+  rows: [],              // 파일에서 파싱한 원본 rows (날짜 포함)
+  dates: new Set(),      // 데이터가 있는 날짜들
+  period: 7,             // 최근 N일 필터
   brand: '전체',
+  selectedGroup: null,   // 선택된 광고그룹 (null = 전체)
 };
 
 // ---------- 유틸 ----------
@@ -92,13 +93,6 @@ function parseWorkbook(wb, fileName) {
   return out;
 }
 
-/** File 객체를 읽어 rows 반환 */
-async function readFile(file) {
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: 'array' });
-  return parseWorkbook(wb, file.name);
-}
-
 // =========================================================
 // 2) 집계: 광고그룹 × 키워드 단위
 // =========================================================
@@ -109,11 +103,12 @@ function passBrand(row) {
   return classifyBrand(blob) === state.brand;
 }
 
-/** rows → 광고그룹×키워드 집계된 배열 */
+/** rows → 광고그룹×키워드 집계된 배열 (선택된 그룹만 or 전체) */
 function aggregate() {
   const map = new Map();
   for (const r of state.rows) {
     if (!passBrand(r)) continue;
+    if (state.selectedGroup && r.adGroup !== state.selectedGroup) continue;
     const key = `${r.adGroup}||${r.keywordNorm || '(자동노출)'}`;
     let g = map.get(key);
     if (!g) {
@@ -477,6 +472,61 @@ function renderComment(html) {
 }
 
 // =========================================================
+// 상품 선택 (광고그룹 리스트)
+// =========================================================
+/** 브랜드 필터를 통과한 rows에서 광고그룹별 요약 → 칩 렌더 */
+function renderProductPicker() {
+  const picker = document.getElementById('productPicker');
+  const countEl = document.getElementById('productCount');
+  if (!picker) return;
+
+  // 광고그룹별 광고비 합산 (브랜드 필터 적용)
+  const groupMap = new Map();
+  for (const r of state.rows) {
+    if (!passBrand(r)) continue;
+    if (!r.adGroup) continue;
+    const g = groupMap.get(r.adGroup) || { adGroup: r.adGroup, adCost: 0, clicks: 0, directQty: 0 };
+    g.adCost += r.adCost;
+    g.clicks += r.clicks;
+    g.directQty += r.directQty;
+    groupMap.set(r.adGroup, g);
+  }
+  const groups = [...groupMap.values()].sort((a, b) => b.adCost - a.adCost);
+
+  countEl.textContent = `${groups.length}개`;
+
+  if (groups.length === 0) {
+    picker.innerHTML = `<div class="picker-empty">데이터가 없습니다.</div>`;
+    return;
+  }
+
+  // '전체' 칩 + 그룹별 칩
+  const allActive = state.selectedGroup == null;
+  const chips = [
+    `<button class="product-chip ${allActive ? 'active' : ''}" data-group="__all__">전체 <span class="chip-meta">${groups.length}개</span></button>`,
+    ...groups.map(g => {
+      const active = state.selectedGroup === g.adGroup;
+      const short = g.adGroup.length > 24 ? g.adGroup.slice(0, 24) + '…' : g.adGroup;
+      return `<button class="product-chip ${active ? 'active' : ''}" data-group="${g.adGroup.replace(/"/g,'&quot;')}" title="${g.adGroup}">${short} <span class="chip-meta">${fmtWon(g.adCost)}</span></button>`;
+    }),
+  ];
+  picker.innerHTML = chips.join('');
+}
+
+function bindProductPicker() {
+  document.getElementById('productPicker').addEventListener('click', (e) => {
+    const btn = e.target.closest('.product-chip');
+    if (!btn) return;
+    const group = btn.dataset.group;
+    state.selectedGroup = (group === '__all__') ? null : group;
+    renderProductPicker();
+    runAnalysis();
+    // 선택 후 KPI로 스크롤
+    document.querySelector('.kpi-row')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+// =========================================================
 // 5) 파이프라인 실행
 // =========================================================
 function runAnalysis() {
@@ -502,39 +552,14 @@ function runAnalysis() {
   renderGrade(grades);
   renderComment(commentHtml);
 
-  // 표시 전환
-  document.getElementById('emptyState').hidden = true;
-  document.getElementById('dashboard').hidden = false;
+  const scopeText = state.selectedGroup ? `선택: ${state.selectedGroup}` : '전체 상품';
   document.getElementById('loadInfo').textContent =
-    `${state.rows.length.toLocaleString()}건 · ${state.dates.size}일 · 브랜드 ${state.brand} · 그룹 ${groupRows.length}`;
+    `${state.rows.length.toLocaleString()}건 · ${state.dates.size}일 · 브랜드 ${state.brand} · ${scopeText}`;
 }
 
 // =========================================================
 // 6) 이벤트 바인딩
 // =========================================================
-async function handleFiles(fileList) {
-  const files = [...fileList];
-  if (files.length === 0) return;
-  const allRows = [];
-  const dates = new Set();
-  for (const f of files) {
-    try {
-      const rs = await readFile(f);
-      allRows.push(...rs);
-      rs.forEach(r => dates.add(r.date));
-    } catch (e) {
-      alert(`${f.name} 파싱 실패: ${e.message}`);
-    }
-  }
-  if (allRows.length === 0) {
-    alert('데이터를 읽을 수 없습니다. 쿠팡 CPC 광고 XLSX인지 확인하세요.');
-    return;
-  }
-  state.rows = allRows;
-  state.dates = dates;
-  runAnalysis();
-}
-
 /** 브랜드/기간 탭 클릭 */
 function bindTabs() {
   document.getElementById('brandTabs').addEventListener('click', (e) => {
@@ -543,7 +568,8 @@ function bindTabs() {
     document.querySelectorAll('#brandTabs .btag').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
     state.brand = b.dataset.brand;
-    if (state.rows.length > 0) runAnalysis();
+    state.selectedGroup = null; // 브랜드 변경 시 선택 해제
+    if (state.rows.length > 0) { renderProductPicker(); runAnalysis(); }
   });
   document.getElementById('periodTabs').addEventListener('click', (e) => {
     const b = e.target.closest('.period');
@@ -554,15 +580,6 @@ function bindTabs() {
     // 다중 파일이 아니면 기간은 표시용
     if (state.rows.length > 0) runAnalysis();
   });
-}
-
-function bindFiles() {
-  const on = (id) => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('change', (e) => handleFiles(e.target.files));
-  };
-  on('fileInput');
-  on('fileInput2');
 }
 
 // =========================================================
@@ -594,11 +611,20 @@ function dateKeyMinus(days) {
   return { key: `${y}-${m}-${dd}`, ymd: `${y}${m}${dd}` };
 }
 
-function setRemoteStatus(msg, isErr = false) {
-  const el = document.getElementById('remoteStatus');
+/** 상단 헤더의 로딩/상태 배지 갱신
+ *  status: 'loading' | 'ok' | 'err'
+ */
+function setHeaderStatus(msg, status = 'loading') {
+  const el = document.getElementById('headerStatus');
   if (!el) return;
   el.textContent = msg;
-  el.classList.toggle('err', isErr);
+  el.classList.remove('ok', 'err');
+  if (status === 'ok') el.classList.add('ok');
+  if (status === 'err') el.classList.add('err');
+}
+// 하위호환: 기존 setRemoteStatus 콜은 헤더 배지로 리디렉트
+function setRemoteStatus(msg, isErr = false) {
+  setHeaderStatus(msg, isErr ? 'err' : 'loading');
 }
 
 /** 단일 URL에서 XLSX 시도. 성공 시 rows 배열, 실패 시 null */
@@ -636,12 +662,8 @@ async function fetchRemote() {
   const dates = new Set();
   const BATCH = 20; // Pages Function만 사용 — 대역폭 여유 충분
 
-  // 로딩 UI 초기화
-  const fb = document.getElementById('fallbackActions');
-  if (fb) fb.hidden = true;
-
   let scanned = 0;
-  setRemoteStatus(`원격 데이터 스캔 중... (0/${REMOTE_LOOKBACK_DAYS}일)`);
+  setHeaderStatus(`데이터 로딩 중... (0/${REMOTE_LOOKBACK_DAYS}일)`, 'loading');
 
   // 배치 병렬 실행 — i=1(어제)부터 i=60(60일 전)까지
   for (let start = 1; start <= REMOTE_LOOKBACK_DAYS; start += BATCH) {
@@ -658,86 +680,27 @@ async function fetchRemote() {
         dates.add(key);
       }
     }
-    setRemoteStatus(`원격 데이터 스캔 중... (${scanned}/${REMOTE_LOOKBACK_DAYS}일, 발견 ${dates.size}일)`);
+    setHeaderStatus(`데이터 로딩 중... (${scanned}/${REMOTE_LOOKBACK_DAYS}일, ${dates.size}일 수집)`, 'loading');
     // 원하는 만큼 모였으면 조기 종료
     if (dates.size >= 30) break;
   }
 
   if (allRows.length === 0) {
-    setRemoteStatus('원격 데이터를 찾을 수 없습니다. CORS 프록시가 응답 안 하거나 파일이 없을 수 있어요. XLSX 업로드를 이용하세요.', true);
-    if (fb) fb.hidden = false;
+    setHeaderStatus('데이터를 찾을 수 없습니다', 'err');
     return;
   }
 
   state.rows = allRows;
   state.dates = dates;
-  setRemoteStatus(`원격 로드 완료: ${dates.size}일 · ${allRows.length.toLocaleString()}건`);
+  setHeaderStatus(`${dates.size}일 · ${allRows.length.toLocaleString()}건 로드됨`, 'ok');
+  renderProductPicker();
   runAnalysis();
-}
-
-function bindRemote() {
-  const btn = document.getElementById('remoteBtn');
-  const btn2 = document.getElementById('remoteBtn2');
-  if (btn) btn.addEventListener('click', fetchRemote);
-  if (btn2) btn2.addEventListener('click', fetchRemote);
-}
-
-function bindSample() {
-  const load = () => { state.rows = buildSampleData(); state.dates = new Set(state.rows.map(r => r.date)); runAnalysis(); };
-  document.getElementById('sampleBtn').addEventListener('click', load);
-  document.getElementById('sampleBtn2').addEventListener('click', load);
-}
-
-// =========================================================
-// 7) 샘플 데이터 (미리보기용)
-// =========================================================
-function buildSampleData() {
-  const samples = [
-    // adGroup, keyword, imp, click, cost, dqty, drev
-    ['보아르 미니고데기', '미니고데기',    12000,  480,  144000,  0,       0],
-    ['보아르 미니고데기', '휴대용고데기',    8000,  260,   78000,  2,   36000],
-    ['보아르 빗고데기',   '빗고데기',      18000, 1050,  315000, 42,  1180000],
-    ['보아르 빗고데기',   '빗형고데기',    10500,  620,  186000, 22,   630000],
-    ['보아르 빗고데기',   '보아르 빗고데기', 6200,  380,  114000, 30,   870000],
-    ['오아 안마기',       '오아안마기',    22000,  980,  244000, 55,   980000],
-    ['오아 안마기',       '전신안마기',    15500,  610,  152000,  8,   210000],
-    ['오아 종아리 마사지기','종아리마사지기',9800,  340,   85000,  0,       0],
-    ['오아 온열매트',     '온열매트',      13400,  520,  130000, 18,   540000],
-    ['오아 온열매트',     '전기매트',       9800,  310,   77500,  6,   170000],
-    ['보아르 헤어드라이어','고속드라이어',  11200,  430,  129000, 12,   380000],
-    ['보아르 헤어드라이어','저소음드라이어', 4300,   90,   27000,  0,       0],
-    ['오아 정수기',        '미니정수기',   28000,  790,  197000,  4,   120000],
-    ['오아 정수기',        '휴대용정수기',  6100,  180,   45000,  9,   240000],
-    ['보아르 매직기',      '매직기',       17800,  980,  294000, 51,  1470000],
-    ['보아르 매직기',      '스팀매직기',    9400,  520,  156000, 14,   420000],
-  ];
-  const today = new Date().toISOString().slice(0, 10);
-  return samples.map(([adGroup, keyword, imp, click, cost, dqty, drev]) => ({
-    date: today,
-    campaignName: adGroup,
-    adGroup,
-    productName: adGroup,
-    placement: '검색영역',
-    keyword,
-    keywordNorm: normKw(keyword),
-    chargeMethod: 'cpc',
-    adType: '매출최적화',
-    impressions: imp,
-    clicks: click,
-    adCost: cost,
-    directQty: dqty,
-    directRevenue: drev,
-    totalQty: dqty + Math.floor(dqty * 0.3),
-    totalRevenue: drev * 1.3,
-  }));
 }
 
 // ---------- 부팅 ----------
 document.addEventListener('DOMContentLoaded', () => {
   bindTabs();
-  bindFiles();
-  bindSample();
-  bindRemote();
-  // 페이지 진입 시 원격 데이터 자동 로드 시도
+  bindProductPicker();
+  // 페이지 진입 시 원격 데이터 자동 로드
   fetchRemote();
 });

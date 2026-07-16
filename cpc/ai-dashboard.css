@@ -60,13 +60,72 @@ body {
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand-bar { width: 3px; height: 28px; background: var(--red); border-radius: 2px; }
 .brand-title { font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
-.brand-sub {
+.header-status {
   font-size: 12px;
   color: var(--text-dim);
-  padding: 3px 9px;
+  padding: 4px 10px;
   background: var(--surface-alt);
   border-radius: 9px;
   font-weight: 500;
+  font-family: var(--mono);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-status::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.header-status.ok::before { background: var(--good); animation: none; }
+.header-status.err::before { background: var(--bad); animation: none; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Product Picker */
+.product-picker-card { padding: 18px 22px; }
+.product-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.product-chip {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.product-chip:hover { border-color: var(--red); background: var(--red-soft); }
+.product-chip.active { background: var(--red); color: #fff; border-color: var(--red); }
+.product-chip .chip-meta {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  opacity: 0.75;
+  font-weight: 500;
+}
+.product-chip.active .chip-meta { opacity: 0.9; }
+.picker-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+  width: 100%;
 }
 .top-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
@@ -112,48 +171,6 @@ body {
 .btn.primary:hover { background: #c8172a; }
 .btn.ghost { background: var(--surface-alt); }
 
-/* ---------- Empty State ---------- */
-.empty {
-  min-height: calc(100vh - 120px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-}
-.empty-card {
-  max-width: 520px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 40px;
-  text-align: center;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.04);
-}
-.empty-icon { font-size: 48px; margin-bottom: 12px; }
-
-/* Loading Spinner */
-.spinner {
-  width: 40px;
-  height: 40px;
-  margin: 0 auto 18px;
-  border: 3px solid var(--surface-alt);
-  border-top-color: var(--red);
-  border-radius: 50%;
-  animation: spin 0.9s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.empty-card h2 { margin: 0 0 8px; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-.empty-card p { color: var(--text-dim); font-size: 13.5px; line-height: 1.6; margin: 0 0 24px; }
-.empty-card code { background: var(--surface-alt); padding: 2px 6px; border-radius: 4px; font-family: var(--mono); font-size: 11.5px; }
-.empty-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-.remote-status {
-  margin-top: 18px;
-  min-height: 20px;
-  font-size: 12px;
-  color: var(--text-dim);
-  font-family: var(--mono);
-}
-.remote-status.err { color: var(--bad); }
 
 /* ---------- Dashboard ---------- */
 .dashboard { padding: 24px 28px 40px; max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }

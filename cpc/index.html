@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VOAR · AI 광고 분석 대시보드</title>
+<title>Coupang CPC 광고 분석</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="ai-dashboard.css?v=3">
+<link rel="stylesheet" href="ai-dashboard.css?v=4">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -16,8 +16,8 @@
 <header class="topbar">
   <div class="brand">
     <div class="brand-bar"></div>
-    <span class="brand-title">VOAR</span>
-    <span class="brand-sub">AI 광고 분석</span>
+    <span class="brand-title">Coupang CPC 광고 분석</span>
+    <span id="headerStatus" class="header-status">데이터 로딩 중...</span>
   </div>
   <div class="top-actions">
     <div class="period-tabs" id="periodTabs">
@@ -31,36 +31,24 @@
       <button class="btag" data-brand="보아르">보아르</button>
       <button class="btag" data-brand="기타">기타</button>
     </div>
-    <button class="btn primary" id="remoteBtn">원격 데이터 자동 로드</button>
-    <label class="btn">
-      <input id="fileInput" type="file" accept=".xlsx,.xls" multiple hidden>
-      XLSX 업로드
-    </label>
-    <button class="btn ghost" id="sampleBtn">샘플</button>
   </div>
 </header>
 
-<!-- ========== Loading State ========== -->
-<section id="emptyState" class="empty">
-  <div class="empty-card">
-    <div class="spinner"></div>
-    <h2>광고 데이터를 불러오는 중입니다</h2>
-    <p id="remoteStatus" class="remote-status">원격 데이터 확인 중...</p>
-    <div class="empty-actions" id="fallbackActions" hidden>
-      <button class="btn primary" id="remoteBtn2">다시 시도</button>
-      <label class="btn">
-        <input id="fileInput2" type="file" accept=".xlsx,.xls" multiple hidden>
-        XLSX 업로드
-      </label>
-      <button class="btn ghost" id="sampleBtn2">샘플 데이터</button>
-    </div>
-  </div>
-</section>
-
 <!-- ========== Main Dashboard ========== -->
-<main id="dashboard" class="dashboard" hidden>
+<main id="dashboard" class="dashboard">
 
-  <!-- KPI 카드 -->
+  <!-- 상품 선택 -->
+  <section class="card product-picker-card">
+    <div class="card-head">
+      <h3>📦 분석할 상품(광고그룹) 선택</h3>
+      <span id="productCount" class="badge">로딩 중...</span>
+    </div>
+    <div id="productPicker" class="product-picker">
+      <div class="picker-empty">데이터를 불러오는 중입니다...</div>
+    </div>
+  </section>
+
+  <!-- 선택된 상품 KPI -->
   <section class="kpi-row">
     <div class="kpi"><div class="kpi-label">광고비</div><div class="kpi-value" id="kpiCost">-</div></div>
     <div class="kpi"><div class="kpi-label">노출</div><div class="kpi-value" id="kpiImp">-</div></div>
@@ -70,10 +58,10 @@
     <div class="kpi"><div class="kpi-label">평균 CPC</div><div class="kpi-value" id="kpiCpc">-</div></div>
   </section>
 
-  <!-- AI 코멘트 (⑦) -->
+  <!-- AI 코멘트 -->
   <section class="card ai-comment">
     <div class="card-head"><h3>🤖 AI 코멘트</h3></div>
-    <div id="aiComment" class="ai-body">분석 중...</div>
+    <div id="aiComment" class="ai-body">상품을 선택하면 분석 결과가 표시됩니다.</div>
   </section>
 
   <!-- ① 입찰가 올릴 키워드 -->
@@ -174,10 +162,10 @@
 </main>
 
 <footer class="footer">
-  <span>VOAR · AI Ad Dashboard</span>
+  <span>Coupang CPC AI 분석</span>
   <span id="loadInfo"></span>
 </footer>
 
-<script src="ai-dashboard.js?v=3"></script>
+<script src="ai-dashboard.js?v=4"></script>
 </body>
 </html>
