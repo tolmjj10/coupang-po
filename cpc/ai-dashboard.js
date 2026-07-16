@@ -23,10 +23,7 @@ const state = {
   dates: new Set(),  // 데이터가 있는 날짜들
   period: 7,         // 최근 N일 필터 (사용자가 다중 파일 업로드 시 유효)
   brand: '전체',
-  chartMetric: 'roas',
 };
-
-let mainChart = null;
 
 // ---------- 유틸 ----------
 const toNum = (v) => {
@@ -479,51 +476,6 @@ function renderComment(html) {
   document.getElementById('aiComment').innerHTML = html;
 }
 
-/** 차트 렌더링: 상위 광고그룹의 선택 지표를 막대 그래프로 */
-function renderChart(groups) {
-  const metric = state.chartMetric;
-  const top = [...groups]
-    .filter(g => g.impressions >= 100)
-    .sort((a, b) => b.adCost - a.adCost)
-    .slice(0, 8);
-  const labels = top.map(g => g.adGroup.length > 14 ? g.adGroup.slice(0, 14) + '…' : g.adGroup);
-  const data = top.map(g => Number((g[metric] || 0).toFixed(1)));
-  const color = { roas: '#E11D2E', ctr: '#2563EB', cvr: '#16A34A' }[metric];
-  const label = { roas: 'ROAS (%)', ctr: 'CTR (%)', cvr: 'CVR (%)' }[metric];
-
-  if (mainChart) mainChart.destroy();
-  const ctx = document.getElementById('mainChart').getContext('2d');
-  mainChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label, data,
-        backgroundColor: color + '99',
-        borderColor: color,
-        borderWidth: 1.5,
-        borderRadius: 6,
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (c) => ` ${label}: ${c.parsed.y.toFixed(1)}%`,
-          }
-        }
-      },
-      scales: {
-        y: { beginAtZero: true, ticks: { callback: v => v + '%' } },
-        x: { ticks: { maxRotation: 40, minRotation: 0, font: { size: 11 } } },
-      }
-    }
-  });
-}
-
 // =========================================================
 // 5) 파이프라인 실행
 // =========================================================
@@ -549,7 +501,6 @@ function runAnalysis() {
   renderNewKeywords(newKws);
   renderGrade(grades);
   renderComment(commentHtml);
-  renderChart(groupRows);
 
   // 표시 전환
   document.getElementById('emptyState').hidden = true;
@@ -602,15 +553,6 @@ function bindTabs() {
     state.period = Number(b.dataset.period);
     // 다중 파일이 아니면 기간은 표시용
     if (state.rows.length > 0) runAnalysis();
-  });
-  document.querySelectorAll('.chart-toggle .chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      document.querySelectorAll('.chart-toggle .chip').forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-      state.chartMetric = chip.dataset.metric;
-      const groupRows = aggregateByGroup(state.rows.filter(passBrand));
-      renderChart(groupRows);
-    });
   });
 }
 
@@ -679,55 +621,66 @@ async function tryFetchXlsx(url, dateKey) {
   }
 }
 
-/** 최근 N일 원격 XLSX 훑기 */
+/** 한 날짜에 대해 여러 URL을 순차 시도 후 rows 반환 (실패 시 null) */
+async function fetchOneDay(key, ymd) {
+  const directUrl = `${REMOTE_DIRECT}${ymd}.xlsx`;
+  const urls = [
+    `${REMOTE_BASE}${ymd}.xlsx`,               // 같은 origin (같은 저장소 배포 시)
+    directUrl,                                 // KSK Pages 직접 (CORS 통과 시)
+    ...CORS_PROXIES.map(p => p(directUrl)),    // CORS 프록시 폴백
+  ];
+  for (const u of urls) {
+    const rows = await tryFetchXlsx(u, key);
+    if (rows) return rows;
+  }
+  return null;
+}
+
+/** 최근 N일 원격 XLSX 병렬 훑기
+ *  - 60일 범위를 배치 10개씩 병렬 처리 → 총 6회 왕복
+ *  - 어느 날짜에 파일이 있든 없든 모두 시도 (연속 누락으로 조기 종료 안 함)
+ */
 async function fetchRemote() {
   const allRows = [];
   const dates = new Set();
-  let consecMiss = 0;
-  let hit = 0;
+  const BATCH = 8;
 
-  // period 필터 기준 며칠 훑을지: state.period 값 우선, 없으면 30일
-  const targetDays = Math.max(state.period || 7, 30);
+  // 로딩 UI 초기화
+  const fb = document.getElementById('fallbackActions');
+  if (fb) fb.hidden = true;
 
-  for (let i = 1; i <= REMOTE_LOOKBACK_DAYS; i++) {
-    const { key, ymd } = dateKeyMinus(i);
-    const directUrl = `${REMOTE_DIRECT}${ymd}.xlsx`;
-    const urls = [
-      `${REMOTE_BASE}${ymd}.xlsx`,     // 같은 origin 상대경로
-      directUrl,                        // KSK 저장소 직접
-      ...CORS_PROXIES.map(p => p(directUrl)), // CORS 프록시 폴백
-    ];
-    setRemoteStatus(`원격 ${key} 확인 중... (${hit}일 수집)`);
-    let rows = null;
-    for (const u of urls) {
-      rows = await tryFetchXlsx(u, key);
-      if (rows) break;
+  let scanned = 0;
+  setRemoteStatus(`원격 데이터 스캔 중... (0/${REMOTE_LOOKBACK_DAYS}일)`);
+
+  // 배치 병렬 실행 — i=1(어제)부터 i=60(60일 전)까지
+  for (let start = 1; start <= REMOTE_LOOKBACK_DAYS; start += BATCH) {
+    const jobs = [];
+    for (let i = start; i < start + BATCH && i <= REMOTE_LOOKBACK_DAYS; i++) {
+      const { key, ymd } = dateKeyMinus(i);
+      jobs.push(fetchOneDay(key, ymd).then(rows => ({ key, rows })));
     }
-    if (rows && rows.length > 0) {
-      allRows.push(...rows);
-      dates.add(key);
-      hit++;
-      consecMiss = 0;
-      // 목표 일수 도달 시 종료
-      if (hit >= targetDays) break;
-    } else {
-      consecMiss++;
-      if (consecMiss >= REMOTE_MAX_CONSEC_MISS && hit === 0) {
-        setRemoteStatus('원격 데이터를 찾을 수 없습니다. XLSX 업로드나 샘플을 이용하세요.', true);
-        return;
+    const results = await Promise.all(jobs);
+    for (const { key, rows } of results) {
+      scanned++;
+      if (rows && rows.length > 0) {
+        allRows.push(...rows);
+        dates.add(key);
       }
-      if (consecMiss >= REMOTE_MAX_CONSEC_MISS) break;
     }
+    setRemoteStatus(`원격 데이터 스캔 중... (${scanned}/${REMOTE_LOOKBACK_DAYS}일, 발견 ${dates.size}일)`);
+    // 원하는 만큼 모였으면 조기 종료
+    if (dates.size >= 30) break;
   }
 
   if (allRows.length === 0) {
-    setRemoteStatus('원격 데이터 로드 실패. CORS 프록시가 응답 안 하거나 파일이 없습니다. XLSX 업로드를 이용하세요.', true);
+    setRemoteStatus('원격 데이터를 찾을 수 없습니다. CORS 프록시가 응답 안 하거나 파일이 없을 수 있어요. XLSX 업로드를 이용하세요.', true);
+    if (fb) fb.hidden = false;
     return;
   }
 
   state.rows = allRows;
   state.dates = dates;
-  setRemoteStatus(`원격 로드 완료: ${hit}일 · ${allRows.length.toLocaleString()}건`);
+  setRemoteStatus(`원격 로드 완료: ${dates.size}일 · ${allRows.length.toLocaleString()}건`);
   runAnalysis();
 }
 
@@ -794,4 +747,6 @@ document.addEventListener('DOMContentLoaded', () => {
   bindFiles();
   bindSample();
   bindRemote();
+  // 페이지 진입 시 원격 데이터 자동 로드 시도
+  fetchRemote();
 });
