@@ -115,11 +115,11 @@ body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif
 .run-btn:disabled { background: var(--border-strong); cursor: not-allowed; }
 
 /* ── STATS ── */
-.stats-bar { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin-bottom: 16px; }
-@media(max-width:700px){ .stats-bar { grid-template-columns: repeat(3,1fr); } }
-.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
-.stat-label { font-size: 10px; color: var(--text-hint); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
-.stat-value { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+.stats-bar { display: grid; grid-template-columns: repeat(6,1fr); gap: 8px; margin-bottom: 14px; }
+@media(max-width:900px){ .stats-bar { grid-template-columns: repeat(3,1fr); } }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 11px; }
+.stat-label { font-size: 9.5px; color: var(--text-hint); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-value { font-size: 18px; font-weight: 700; letter-spacing: -0.4px; }
 .stat-value.ok { color: var(--ok); }
 .stat-value.warn { color: var(--warn); }
 .stat-value.danger { color: var(--danger); }
@@ -241,6 +241,9 @@ td.td-doc { text-align: center; }
 .cur-stock-low { color: #b91c1c !important; }
 .po-sep-arrow { float: right; font-size: 11px; color: #64748b; transition: transform .2s; display: inline-block; }
 .po-dl-btn { float: right; margin-right: 40px; background: transparent; color: #475569; border: none; padding: 1px 4px; border-radius: 3px; cursor: pointer; line-height: 0; opacity: 0.7; display: inline-flex; align-items: center; }
+.po-dl-done { float: right; margin-right: 6px; font-size: 11px; font-weight: 700; color: #15803d; background: #dcfce7; padding: 2px 8px; border-radius: 10px; display: inline-flex; align-items: center; letter-spacing: 0.2px; }
+.po-dl-done.flash { animation: poDlFlash .35s ease-out; }
+@keyframes poDlFlash { 0% { transform: scale(0.7); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
 .po-dl-btn:hover { opacity: 1; background: rgba(0,0,0,0.05); color: #1e293b; }
 .po-dl-btn svg { display: block; }
 .po-sep-arrow.open { transform: rotate(180deg); }
@@ -1013,7 +1016,7 @@ function renderAll(){
   groupKeys.forEach((poNum,gi)=>{
     const rows=groups[poNum];
     const open=allOpen;
-    const dlBtn=_dupMode?'':`<button class="po-dl-btn" data-po="${escHtml(poNum)}" onclick="event.stopPropagation();downloadPO(this.dataset.po)" title="발주양식 다운로드"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`;
+    const dlBtn=_dupMode?'':`<button class="po-dl-btn" data-po="${escHtml(poNum)}" onclick="event.stopPropagation();downloadPO(this.dataset.po,this)" title="발주양식 다운로드"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`;
     const amtSpan=_dupMode?'':`<span class="po-sep-amt" data-po-amt="${escHtml(poNum)}"></span>`;
     tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt">${rows.length}개</span>${amtSpan}<span class="po-sep-arrow ${open?'open':''}">▼</span>${dlBtn}</td></tr>`;
     rows.forEach(r=>{
@@ -1190,7 +1193,7 @@ function loadStyleXLSX(){
   return window.__STYLE_XLSX_LOAD__;
 }
 
-async function downloadPO(poNum){
+async function downloadPO(poNum,btnEl){
   if(!matchedRows || !matchedRows.length){ alert('데이터가 없습니다'); return; }
   const rows=matchedRows.filter(r=>(r.poNum||'')===poNum).sort((a,b)=>{
     const na=Number(a.orderSku), nb=Number(b.orderSku);
@@ -1215,7 +1218,7 @@ async function downloadPO(poNum){
   rows.forEach(r=>{
     const qty=invValues[r.orderSku]!==undefined?Number(invValues[r.orderSku]):Number(r.orderQty);
     if(!qty || qty<=0) return;
-    const price=Number(r.price)||0;
+    const price=(r.orderPrice!=null && !isNaN(r.orderPrice))?Number(r.orderPrice):(Number(r.price)||0);
     aoa.push([
       r.masterName||r.stockName||r.orderName||'',
       r.procode||'',
@@ -1234,6 +1237,23 @@ async function downloadPO(poNum){
   XL.utils.book_append_sheet(wb,ws,'발주양식');
   const safePo=String(poNum).replace(/[\\/:*?"<>|]/g,'_');
   XL.writeFile(wb,`발주_${safePo}.xlsx`);
+  markPoDownloaded(poNum, btnEl);
+}
+
+function markPoDownloaded(poNum, btnEl){
+  const btns = btnEl ? [btnEl] : Array.from(document.querySelectorAll(`.po-dl-btn[data-po="${CSS.escape(String(poNum))}"]`));
+  btns.forEach(function(btn){
+    let tag = btn.previousElementSibling;
+    if(!tag || !tag.classList || !tag.classList.contains('po-dl-done')){
+      tag = document.createElement('span');
+      tag.className = 'po-dl-done';
+      tag.textContent = '✓ 완료';
+      btn.parentNode.insertBefore(tag, btn);
+    }
+    tag.classList.remove('flash');
+    void tag.offsetWidth;
+    tag.classList.add('flash');
+  });
 }
 
 function togglePORows(gi,sepRow,evt){
@@ -1277,7 +1297,8 @@ function computePoAmount(poNum){
     if(String(r.poNum)!==String(poNum)) return;
     const qty=invValues[r.orderSku]!==undefined?Number(invValues[r.orderSku]):Number(r.orderQty);
     if(!qty || qty<=0) return;
-    sum += qty * (Number(r.price)||0);
+    const unit=(r.orderPrice!=null && !isNaN(r.orderPrice))?Number(r.orderPrice):(Number(r.price)||0);
+    sum += qty * unit;
   });
   return sum;
 }
