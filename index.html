@@ -1041,11 +1041,10 @@ function renderAll(){
         const docVal=r.doc??0;
         const docLow=(r.doc!==null && r.doc!==undefined && r.doc<10)?' doc-low':'';
         const docDisp=`<span class="doc-cell${docLow}">${docVal.toFixed(1)}</span>`;
-        curStockCell=`<td class="col-num-u td-curstk">${curHtml}</td>`;
+        curStockCell=`<td class="col-num-u td-curstk">${curHtml}</td><td class="col-num-u td-doc">${docDisp}</td>`;
         salesCells=`
           ${dayCells}
-          <td class="col-num-u td-avg">${avgHtml}</td>
-          <td class="col-num-u td-doc">${docDisp}</td>`;
+          <td class="col-num-u td-avg">${avgHtml}</td>`;
       }
 
       const _defQty=r.orderQty;
@@ -1069,19 +1068,17 @@ function renderAll(){
     });
   });
 
-  const curStockCol=dl.hasSales?`<col style="width:62px">`:'';
-  const curStockTh =dl.hasSales?`<th class="col-num-u th-stock-cur">현재고</th>`:'';
+  const curStockCol=dl.hasSales?`<col style="width:62px"><col style="width:56px">`:'';
+  const curStockTh =dl.hasSales?`<th class="col-num-u th-stock-cur">현재고</th><th class="col-num-u th-doc">DOC</th>`:'';
 
   const salesCols=dl.hasSales?`
     ${dispDates.map(()=>'<col style="width:48px">').join('')}
     <col style="width:68px">
-    <col style="width:56px">
   `:'';
 
   const salesTh=dl.hasSales?`
     ${dispDates.map(d=>`<th class="col-num-u th-sales">${fmtDateLabel(d)}</th>`).join('')}
     <th class="col-num-u th-avg">평균판매량</th>
-    <th class="col-num-u th-doc">DOC</th>
   `:'';
 
   container.innerHTML=`
