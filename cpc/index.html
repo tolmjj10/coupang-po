@@ -41,21 +41,20 @@
   </div>
 </header>
 
-<!-- ========== Empty State ========== -->
+<!-- ========== Loading State ========== -->
 <section id="emptyState" class="empty">
   <div class="empty-card">
-    <div class="empty-icon">🤖</div>
-    <h2>AI가 광고 데이터를 분석해 드립니다</h2>
-    <p>같은 저장소의 <code>./data/cpc/YYYYMMDD.xlsx</code>에서 최근 데이터를 자동으로 불러오거나, 파일을 직접 업로드하세요.</p>
-    <div class="empty-actions">
-      <button class="btn primary" id="remoteBtn2">원격 데이터 자동 로드</button>
+    <div class="spinner"></div>
+    <h2>광고 데이터를 불러오는 중입니다</h2>
+    <p id="remoteStatus" class="remote-status">원격 데이터 확인 중...</p>
+    <div class="empty-actions" id="fallbackActions" hidden>
+      <button class="btn primary" id="remoteBtn2">다시 시도</button>
       <label class="btn">
         <input id="fileInput2" type="file" accept=".xlsx,.xls" multiple hidden>
         XLSX 업로드
       </label>
       <button class="btn ghost" id="sampleBtn2">샘플 데이터</button>
     </div>
-    <div id="remoteStatus" class="remote-status"></div>
   </div>
 </section>
 
