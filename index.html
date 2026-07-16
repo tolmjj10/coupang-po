@@ -165,12 +165,11 @@ body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif
 table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 thead th { background: #f2f1ed; padding: 9px 11px; text-align: left; font-size: 10.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; }
 thead th.th-sales { background: #bbf7d0; color: #065f46; }
-thead th.th-stock-cur { background: #7dd3fc; color: #0c4a6e; font-size: 11.5px; font-weight: 800; text-align: center; }
-td.td-curstk { text-align: center; }
-thead th.th-stock-oaa { background: #f1efeb; color: var(--text-muted); }
+thead th.th-stock-cur { background: #f1efeb; color: var(--text-muted); text-align: center; }
+td.td-curstk { text-align: center; background: #faf9f7; }
+thead th.th-stock-oaa { background: #f2f1ed; color: var(--text-muted); }
 thead th.th-avg { background: #fef08a; color: #854d0e; text-align: center; }
 thead th.th-doc { background: #ddd6fe; color: #5b21b6; text-align: center; }
-td.td-stock-oaa { background: #faf9f7; }
 td.td-avg { text-align: center; }
 td.td-doc { text-align: center; }
 .avg-cell { font-weight: 700; color: #854d0e; font-variant-numeric: tabular-nums; }
@@ -278,8 +277,6 @@ td { padding: 9px 11px; vertical-align: middle; }
 .doc-cell.doc-low { color: #dc2626; font-weight: 800; }
 /* 중복 SKU: 셀 자체만 약한 빨강 배경 */
 .sku-dup { background: #fff1f1; color: #b91c1c; border-radius: 4px; padding: 2px 6px; }
-/* 미등록 제품: 제품명에만 얕은 회색 배경 */
-.col-name.name-unreg { background: #eeece8; color: var(--text-muted); }
 
 /* 재고 기입 */
 .inv-input { width: 78px; padding: 5px 7px; border: 1.5px solid var(--border-strong); border-radius: 5px; font-size: 12px; text-align: right; background: #fff; color: var(--text); transition: border-color .15s; }
@@ -1056,10 +1053,9 @@ function renderAll(){
       const filledCls=_modified?'modified':'filled';
 
       const skuHtml=r.orderSku?(r.isDup?`<span class="sku-dup">${r.orderSku}</span>`:r.orderSku):'—';
-      const nameCls='col-name'+(isUnreg?' name-unreg':'');
       tbody+=`<tr data-pg="${gi}" style="${allOpen?'':'display:none'}">
         <td class="mono" style="white-space:nowrap">${skuHtml}</td>
-        <td class="${nameCls}" title="${escHtml(r.stockName||r.orderName)}">${(r.stockName||r.orderName)||'—'}</td>
+        <td class="col-name" title="${escHtml(r.stockName||r.orderName)}">${(r.stockName||r.orderName)||'—'}</td>
         ${salesCells}
         <td class="col-num-u td-stock-oaa" style="text-align:center">${stockCell}</td>
         ${curStockCell}
