@@ -1061,7 +1061,7 @@ function renderAll(){
         ${salesCells}
         <td class="col-num-u td-stock-oaa">${stockCell}</td>
         ${curStockCell}
-        <td class="col-num-u"><span class="qty-order-strong">${r.orderQty.toLocaleString()}</span></td>
+        <td class="col-num-u" style="text-align:center"><span class="qty-order-strong">${r.orderQty.toLocaleString()}</span></td>
         <td><input type="number" class="inv-input ${filledCls}" data-sku="${escHtml(r.orderSku)}" data-default="${_defQty}"
             value="${invVal}" placeholder="" oninput="onInvInput(this)" onwheel="this.blur()" min="0"></td>
       </tr>`;
@@ -1102,7 +1102,7 @@ function renderAll(){
             ${salesTh}
             <th class="col-num-u th-stock-oaa">오아 재고</th>
             ${curStockTh}
-            <th class="col-num-u">발주수량</th>
+            <th class="col-num-u" style="text-align:center">발주수량</th>
             <th>입고수량</th>
           </tr>
         </thead>
