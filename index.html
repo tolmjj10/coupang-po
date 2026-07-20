@@ -1059,10 +1059,15 @@ function renderAll(){
       }
 
       const _defQty=r.orderQty;
-      const _hasInv=invValues[r.orderSku]!==undefined;
-      const invVal=_hasInv?invValues[r.orderSku]:_defQty;
+      const _rid='r_'+r.idx;
+      let _hasInv=invValues[_rid]!==undefined;
+      if(!_hasInv && r.stockQty===0){
+        invValues[_rid]=0;
+        _hasInv=true;
+      }
+      const invVal=_hasInv?invValues[_rid]:_defQty;
       const _shownIsZero=Number(invVal)===0;
-      const _modified=_shownIsZero || (_hasInv && String(invValues[r.orderSku])!==String(_defQty));
+      const _modified=_shownIsZero || (_hasInv && String(invValues[_rid])!==String(_defQty));
       const filledCls=_modified?'modified':'filled';
 
       const skuHtml=r.orderSku?(r.isDup?`<span class="sku-dup">${r.orderSku}</span>`:r.orderSku):'—';
@@ -1073,7 +1078,7 @@ function renderAll(){
         <td class="col-num-u td-stock-oaa" style="text-align:center">${stockCell}</td>
         ${curStockCell}
         <td class="col-num-u td-order-key"><span class="qty-order-strong">${r.orderQty.toLocaleString()}</span></td>
-        <td><input type="number" class="inv-input ${filledCls}" data-sku="${escHtml(r.orderSku)}" data-default="${_defQty}"
+        <td><input type="number" class="inv-input ${filledCls}" data-rid="${_rid}" data-sku="${escHtml(r.orderSku)}" data-default="${_defQty}"
             value="${invVal}" placeholder="" oninput="onInvInput(this)" onwheel="this.blur()" min="0"></td>
       </tr>`;
     });
@@ -1221,12 +1226,15 @@ async function downloadPO(poNum,btnEl){
 
   const aoa=[header];
   rows.forEach(r=>{
-    const qty=invValues[r.orderSku]!==undefined?Number(invValues[r.orderSku]):Number(r.orderQty);
+    const _rid='r_'+r.idx;
+    const qty=invValues[_rid]!==undefined?Number(invValues[_rid]):Number(r.orderQty);
     if(!qty || qty<=0) return;
     const price=(r.orderPrice!=null && !isNaN(r.orderPrice))?Number(r.orderPrice):(Number(r.price)||0);
+    const procodeRaw=r.procode||'';
+    const procodeVal=(procodeRaw!=='' && !isNaN(Number(procodeRaw))) ? Number(procodeRaw) : procodeRaw;
     aoa.push([
       r.masterName||r.stockName||r.orderName||'',
-      r.procode||'',
+      procodeVal,
       qty,
       CONST.수령인,CONST.연락처,CONST.우편번호,CONST.주소,CONST.상세주소,CONST.배송메시지,
       price,
@@ -1241,7 +1249,7 @@ async function downloadPO(poNum,btnEl){
   const wb=XL.utils.book_new();
   XL.utils.book_append_sheet(wb,ws,'발주양식');
   const safePo=String(poNum).replace(/[\\/:*?"<>|]/g,'_');
-  XL.writeFile(wb,`발주_${safePo}.xlsx`);
+  XL.writeFile(wb,`발주_${safePo}.xlsx`,{bookType:'xlsx'});
   markPoDownloaded(poNum, btnEl);
 }
 
@@ -1287,14 +1295,14 @@ function toggleAllPO(){
 
 /* ── 재고 기입 ── */
 function onInvInput(el){
-  const sku=el.getAttribute('data-sku');
+  const rid=el.getAttribute('data-rid') || ('r_sku_'+el.getAttribute('data-sku'));
   const def=el.getAttribute('data-default')||'';
   const val=el.value.trim();
   const isZero=val!=='' && Number(val)===0;
   if(val!=='' && (isZero || val!==String(def))){
-    invValues[sku]=val;
+    invValues[rid]=val;
   } else {
-    delete invValues[sku];
+    delete invValues[rid];
   }
   if(isZero || (val!=='' && val!==String(def))){
     el.classList.add('modified');
@@ -1336,7 +1344,8 @@ function computePoAmount(poNum){
   let sum=0;
   matchedRows.forEach(function(r){
     if(String(r.poNum)!==String(poNum)) return;
-    const qty=invValues[r.orderSku]!==undefined?Number(invValues[r.orderSku]):Number(r.orderQty);
+    const _rid='r_'+r.idx;
+    const qty=invValues[_rid]!==undefined?Number(invValues[_rid]):Number(r.orderQty);
     if(!qty || qty<=0) return;
     const unit=(r.orderPrice!=null && !isNaN(r.orderPrice))?Number(r.orderPrice):(Number(r.price)||0);
     sum += qty * unit;
@@ -1355,7 +1364,8 @@ function updateAllPoAmounts(){
     if(Array.isArray(matchedRows)){
       matchedRows.forEach(function(r){
         if(String(r.poNum)!==String(po)) return;
-        const qty=invValues[r.orderSku]!==undefined?Number(invValues[r.orderSku]):Number(r.orderQty);
+        const _rid='r_'+r.idx;
+        const qty=invValues[_rid]!==undefined?Number(invValues[_rid]):Number(r.orderQty);
         if(qty>0) cnt++;
       });
     }
@@ -1420,11 +1430,22 @@ function applySharedState(saved){
     return;
   }
   if(saved.invValues){
-    Object.keys(saved.invValues).forEach(function(k){ invValues[k]=saved.invValues[k]; });
-    document.querySelectorAll('input[data-sku]').forEach(function(el){
-      const sku=el.getAttribute('data-sku');
-      if(invValues[sku]!==undefined){
-        el.value=invValues[sku];
+    Object.keys(saved.invValues).forEach(function(k){
+      if(/^r_/.test(k)){
+        invValues[k]=saved.invValues[k];
+      } else if(Array.isArray(matchedRows)) {
+        /* legacy: SKU-keyed → 해당 SKU의 모든 행에 동일값 복원(하위 호환) */
+        matchedRows.forEach(function(r){
+          if(String(r.orderSku)===String(k)) invValues['r_'+r.idx]=saved.invValues[k];
+        });
+      } else {
+        invValues[k]=saved.invValues[k];
+      }
+    });
+    document.querySelectorAll('input[data-rid]').forEach(function(el){
+      const rid=el.getAttribute('data-rid');
+      if(invValues[rid]!==undefined){
+        el.value=invValues[rid];
         el.classList.add('modified');
         el.classList.remove('filled');
       }
@@ -1453,12 +1474,15 @@ async function saveResult(mode){
     if(lastPO!==null && r.poNum!==lastPO){
       rowsWithGaps.push({'발주번호':'','SKU':'','제품명':'','발주수량':'','입고수량':''});
     }
+    const skuRaw=r.orderSku;
+    const skuVal=(skuRaw!=='' && skuRaw!=null && !isNaN(Number(skuRaw))) ? Number(skuRaw) : skuRaw;
+    const _rid='r_'+r.idx;
     const row={
       '발주번호': r.poNum||'',
-      'SKU':      r.orderSku,
+      'SKU':      skuVal,
       '제품명':   r.stockName||r.orderName,
       '발주수량': r.orderQty,
-      '입고수량': invValues[r.orderSku]!==undefined ? Number(invValues[r.orderSku]) : Number(r.orderQty),
+      '입고수량': invValues[_rid]!==undefined ? Number(invValues[_rid]) : Number(r.orderQty),
     };
     rowsWithGaps.push(row);
     rowsNoGaps.push(row);
@@ -1483,7 +1507,7 @@ async function saveResult(mode){
   const _t=new Date();
   const _mm=String(_t.getMonth()+1).padStart(2,'0');
   const _dd=String(_t.getDate()).padStart(2,'0');
-  XLSX.writeFile(wb,`쿠팡 발주 ${_mm}${_dd}.xlsx`);
+  XLSX.writeFile(wb,`쿠팡 발주 ${_mm}${_dd}.xlsx`,{bookType:'xlsx'});
   if(saved) voarToast('저장 완료 · 엑셀 다운로드됨');
 }
 </script>
