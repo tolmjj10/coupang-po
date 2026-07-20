@@ -23,8 +23,8 @@ const state = {
   dates: new Set(),      // 데이터가 있는 날짜들
   period: 7,             // 최근 N일 필터
   brand: '전체',
-  selectedGroup: null,   // 선택된 광고그룹 (null = 전체)
-  searchQuery: '',       // 상품 검색어
+  selectedCategory: null,// 선택된 카테고리 (캠페인명, null = 카테고리 목록 표시)
+  selectedGroup: null,   // 선택된 광고그룹 (null = 카테고리 내 그룹 목록)
 };
 
 // 브랜드 키워드 판정 — 이런 키워드는 이미 검색 잘 되고 있어서
@@ -54,6 +54,31 @@ function classifyBrand(blob) {
   if (/보아르|voar/i.test(blob)) return '보아르';
   if (/오아|OA-|OOR/i.test(blob)) return '오아';
   return '기타';
+}
+
+/** 자사 광고그룹 판정
+ *  광고그룹명이 "오아" 또는 "보아르"로 시작해야 자사 광고.
+ *  삼대오백/메시브/뉴트리커먼 등 다른 브랜드가 먼저 오는 그룹은 자동 제외.
+ */
+// 광고그룹명의 "첫 실제 단어"를 뽑는다.
+// 앞부분의 대괄호/공백/특수문자([], (), {}, /, -, _, 공백, 숫자, . 등)는 건너뛴다.
+// 예: "[오아] 미니고데기" → "오아",  "(보아르) 안마기" → "보아르",
+//     "삼대오백 프로틴" → "삼대오백",  "01. 오아 무선고데기" → "오아"
+const LEADING_JUNK_RE = /^[\s\[\]\(\)\{\}\/\-_.,·|:;\d]+/;
+function firstToken(name) {
+  const trimmed = (name || '').replace(LEADING_JUNK_RE, '');
+  // 다음 구분자(공백/괄호/특수문자) 전까지가 첫 토큰
+  const m = trimmed.match(/^[^\s\[\]\(\)\{\}\/\-_.,·|:;]+/);
+  return m ? m[0] : '';
+}
+function ownBrandOfGroup(name) {
+  const t = firstToken(name);
+  if (/^보아르|^voar/i.test(t)) return '보아르';
+  if (/^오아|^oa$|^oor/i.test(t)) return '오아';
+  return null;
+}
+function isOwnAdGroup(row) {
+  return ownBrandOfGroup(row.adGroup) !== null;
 }
 
 /** 파일명에서 날짜 추출 (..._YYYYMMDD_YYYYMMDD.xlsx) */
@@ -104,11 +129,15 @@ function parseWorkbook(wb, fileName) {
 // =========================================================
 // 2) 집계: 광고그룹 × 키워드 단위
 // =========================================================
-/** 브랜드 필터 통과 여부 */
+/** 브랜드 필터 통과 여부
+ *  자사(오아/보아르) 브랜드가 아닌 광고는 항상 제외.
+ *  '전체' 는 오아+보아르 합계를 의미.
+ */
 function passBrand(row) {
+  const brand = ownBrandOfGroup(row.adGroup);
+  if (!brand) return false;
   if (state.brand === '전체') return true;
-  const blob = `${row.campaignName} ${row.adGroup} ${row.productName}`;
-  return classifyBrand(blob) === state.brand;
+  return brand === state.brand;
 }
 
 /** rows → 광고그룹×키워드 집계된 배열 (선택된 그룹만 or 전체) */
@@ -116,6 +145,7 @@ function aggregate() {
   const map = new Map();
   for (const r of state.rows) {
     if (!passBrand(r)) continue;
+    if (state.selectedCategory && r.campaignName !== state.selectedCategory) continue;
     if (state.selectedGroup && r.adGroup !== state.selectedGroup) continue;
     const key = `${r.adGroup}||${r.keywordNorm || '(자동노출)'}`;
     let g = map.get(key);
@@ -491,70 +521,85 @@ function renderGrade(list) {
 }
 
 // =========================================================
-// 상품 검색 (광고그룹 리스트)
+// 카테고리 → 광고그룹 드릴다운
+// ---------------------------------------------------------
+// 1단계: 카테고리(캠페인명) 목록
+// 2단계: 선택한 카테고리 안의 광고그룹 목록
+// 광고그룹 클릭 시 하단 분석 섹션이 해당 그룹으로 필터링됨
 // =========================================================
-/** 브랜드 필터를 통과한 rows에서 광고그룹별 요약 → 검색 필터 후 렌더 */
-function renderProductPicker() {
-  const listEl = document.getElementById('productList');
-  const countEl = document.getElementById('productCount');
-  const selectedInfo = document.getElementById('selectedInfo');
-  const selectedName = document.getElementById('selectedName');
-  if (!listEl) return;
+const roasClass = (roas) => roas >= 300 ? 'high' : roas >= 100 ? 'mid' : 'low';
 
-  // 광고그룹별 지표 합산 (브랜드 필터 적용)
-  const groupMap = new Map();
-  for (const r of state.rows) {
-    if (!passBrand(r)) continue;
-    if (!r.adGroup) continue;
-    const g = groupMap.get(r.adGroup) || {
-      adGroup: r.adGroup,
-      impressions: 0, clicks: 0, adCost: 0,
-      directQty: 0, directRevenue: 0,
-    };
+/** 브랜드 필터 통과 rows → {key: 지표} 형태로 집계 */
+function summarize(rows, keyFn) {
+  const map = new Map();
+  for (const r of rows) {
+    const key = keyFn(r);
+    if (!key) continue;
+    let g = map.get(key);
+    if (!g) {
+      g = { key, impressions: 0, clicks: 0, adCost: 0, directQty: 0, directRevenue: 0, groupSet: new Set() };
+      map.set(key, g);
+    }
     g.impressions += r.impressions;
     g.clicks += r.clicks;
     g.adCost += r.adCost;
     g.directQty += r.directQty;
     g.directRevenue += r.directRevenue;
-    groupMap.set(r.adGroup, g);
+    if (r.adGroup) g.groupSet.add(r.adGroup);
   }
-  const allGroups = [...groupMap.values()].map(g => ({
+  return [...map.values()].map(g => ({
     ...g,
+    groupCount: g.groupSet.size,
     roas: g.adCost > 0 ? g.directRevenue / g.adCost * 100 : 0,
   })).sort((a, b) => b.adCost - a.adCost);
+}
 
-  // 검색어 필터
-  const q = state.searchQuery.trim().toLowerCase();
-  const filtered = q
-    ? allGroups.filter(g => g.adGroup.toLowerCase().includes(q))
-    : allGroups;
+function renderProductPicker() {
+  const listEl = document.getElementById('productList');
+  const countEl = document.getElementById('productCount');
+  if (!listEl) return;
 
-  countEl.textContent = `총 ${allGroups.length}개${q ? ` (검색 ${filtered.length})` : ''}`;
+  const rows = state.rows.filter(passBrand);
+  const inCategory = state.selectedCategory
+    ? rows.filter(r => r.campaignName === state.selectedCategory)
+    : rows;
 
-  // 선택 배너
-  if (state.selectedGroup) {
-    selectedInfo.hidden = false;
-    selectedName.textContent = state.selectedGroup;
-  } else {
-    selectedInfo.hidden = true;
-  }
+  renderBreadcrumb();
 
-  if (allGroups.length === 0) {
-    listEl.innerHTML = `<div class="picker-empty">데이터가 없습니다.</div>`;
+  // ---- Level 1: 카테고리(캠페인) 목록 ----
+  if (!state.selectedCategory) {
+    const cats = summarize(rows, r => r.campaignName || '(캠페인 없음)');
+    countEl.textContent = `카테고리 ${cats.length}개`;
+    if (cats.length === 0) {
+      listEl.innerHTML = `<div class="picker-empty">데이터가 없습니다.</div>`;
+      return;
+    }
+    listEl.innerHTML = cats.map(g => {
+      const escaped = g.key.replace(/"/g, '&quot;');
+      return `
+        <div class="product-item cat-item" data-category="${escaped}">
+          <div class="name">📂 ${g.key}<span class="sub">광고그룹 ${g.groupCount}개</span></div>
+          <div class="metric">광고비 <strong>${fmtWon(g.adCost)}</strong></div>
+          <div class="metric">전환 <strong>${fmtInt(g.directQty)}</strong></div>
+          <div class="roas-tag ${roasClass(g.roas)}">ROAS ${fmtPct(g.roas, 0)}</div>
+        </div>`;
+    }).join('');
     return;
   }
-  if (filtered.length === 0) {
-    listEl.innerHTML = `<div class="picker-empty">검색 결과가 없습니다.</div>`;
+
+  // ---- Level 2: 선택한 카테고리 내 광고그룹 목록 ----
+  const groups = summarize(inCategory, r => r.adGroup);
+  countEl.textContent = `광고그룹 ${groups.length}개`;
+  if (groups.length === 0) {
+    listEl.innerHTML = `<div class="picker-empty">이 카테고리에 광고그룹이 없습니다.</div>`;
     return;
   }
-
-  const roasClass = (roas) => roas >= 300 ? 'high' : roas >= 100 ? 'mid' : 'low';
-  listEl.innerHTML = filtered.slice(0, 200).map(g => {
-    const active = state.selectedGroup === g.adGroup;
-    const escaped = g.adGroup.replace(/"/g, '&quot;');
+  listEl.innerHTML = groups.map(g => {
+    const active = state.selectedGroup === g.key;
+    const escaped = g.key.replace(/"/g, '&quot;');
     return `
       <div class="product-item ${active ? 'active' : ''}" data-group="${escaped}">
-        <div class="name">${g.adGroup}</div>
+        <div class="name">${g.key}</div>
         <div class="metric">광고비 <strong>${fmtWon(g.adCost)}</strong></div>
         <div class="metric">전환 <strong>${fmtInt(g.directQty)}</strong></div>
         <div class="roas-tag ${roasClass(g.roas)}">ROAS ${fmtPct(g.roas, 0)}</div>
@@ -562,14 +607,51 @@ function renderProductPicker() {
   }).join('');
 }
 
+function renderBreadcrumb() {
+  const bc = document.getElementById('pickerBreadcrumb');
+  if (!bc) return;
+  const root = bc.querySelector('.crumb-root');
+  const sep1 = bc.querySelector('.crumb-sep');
+  const catBtn = bc.querySelector('.crumb-cat');
+  const sep2 = bc.querySelector('.crumb-sep-2');
+  const grpEl = bc.querySelector('.crumb-group');
+
+  root.classList.toggle('active', !state.selectedCategory);
+
+  if (state.selectedCategory) {
+    sep1.hidden = false;
+    catBtn.hidden = false;
+    catBtn.textContent = state.selectedCategory;
+    catBtn.classList.toggle('active', !state.selectedGroup);
+  } else {
+    sep1.hidden = true;
+    catBtn.hidden = true;
+  }
+
+  if (state.selectedGroup) {
+    sep2.hidden = false;
+    grpEl.hidden = false;
+    grpEl.textContent = state.selectedGroup;
+    grpEl.classList.add('active');
+  } else {
+    sep2.hidden = true;
+    grpEl.hidden = true;
+  }
+}
+
 function bindProductPicker() {
   const listEl = document.getElementById('productList');
-  const searchEl = document.getElementById('productSearch');
-  const clearBtn = document.getElementById('clearSearch');
-  const clearSel = document.getElementById('clearSelection');
+  const bc = document.getElementById('pickerBreadcrumb');
 
-  // 리스트 클릭 → 광고그룹 선택
   listEl.addEventListener('click', (e) => {
+    const catItem = e.target.closest('.cat-item');
+    if (catItem) {
+      state.selectedCategory = catItem.dataset.category;
+      state.selectedGroup = null;
+      renderProductPicker();
+      runAnalysis();
+      return;
+    }
     const item = e.target.closest('.product-item');
     if (!item) return;
     state.selectedGroup = item.dataset.group;
@@ -578,28 +660,16 @@ function bindProductPicker() {
     document.querySelector('.kpi-row')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
-  // 검색어 입력 → 필터
-  let debounceTimer = null;
-  searchEl.addEventListener('input', (e) => {
-    clearBtn.hidden = !e.target.value;
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      state.searchQuery = e.target.value;
-      renderProductPicker();
-    }, 150);
-  });
-
-  clearBtn.addEventListener('click', () => {
-    searchEl.value = '';
-    state.searchQuery = '';
-    clearBtn.hidden = true;
-    renderProductPicker();
-    searchEl.focus();
-  });
-
-  // 선택 해제
-  clearSel.addEventListener('click', () => {
-    state.selectedGroup = null;
+  bc.addEventListener('click', (e) => {
+    const btn = e.target.closest('.crumb');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'root') {
+      state.selectedCategory = null;
+      state.selectedGroup = null;
+    } else if (action === 'category') {
+      state.selectedGroup = null;
+    }
     renderProductPicker();
     runAnalysis();
   });
@@ -629,7 +699,11 @@ function runAnalysis() {
   renderNewKeywords(newKws);
   renderGrade(grades);
 
-  const scopeText = state.selectedGroup ? `선택: ${state.selectedGroup}` : '전체 상품';
+  const scopeText = state.selectedGroup
+    ? `선택: ${state.selectedGroup}`
+    : state.selectedCategory
+      ? `카테고리: ${state.selectedCategory}`
+      : '전체 카테고리';
   document.getElementById('loadInfo').textContent =
     `${state.rows.length.toLocaleString()}건 · ${state.dates.size}일 · 브랜드 ${state.brand} · ${scopeText}`;
 }
@@ -645,6 +719,7 @@ function bindTabs() {
     document.querySelectorAll('#brandTabs .btag').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
     state.brand = b.dataset.brand;
+    state.selectedCategory = null;
     state.selectedGroup = null; // 브랜드 변경 시 선택 해제
     if (state.rows.length > 0) { renderProductPicker(); runAnalysis(); }
   });
