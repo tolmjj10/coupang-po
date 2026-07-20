@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="ai-dashboard.css?v=5">
+<link rel="stylesheet" href="ai-dashboard.css?v=6">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -29,7 +29,6 @@
       <button class="btag active" data-brand="전체">전체</button>
       <button class="btag" data-brand="오아">오아</button>
       <button class="btag" data-brand="보아르">보아르</button>
-      <button class="btag" data-brand="기타">기타</button>
     </div>
   </div>
 </header>
@@ -37,23 +36,21 @@
 <!-- ========== Main Dashboard ========== -->
 <main id="dashboard" class="dashboard">
 
-  <!-- 상품 검색 -->
+  <!-- 카테고리 → 광고그룹 드릴다운 -->
   <section class="card product-picker-card">
     <div class="card-head">
-      <h3>🔍 분석할 상품 검색</h3>
+      <h3>📂 분석할 광고 선택</h3>
       <span id="productCount" class="badge">로딩 중...</span>
     </div>
-    <div class="search-wrap">
-      <input type="text" id="productSearch" class="search-input" placeholder="광고그룹명 검색 (예: 미니고데기, 안마기)" autocomplete="off">
-      <button id="clearSearch" class="clear-btn" hidden>×</button>
+    <div id="pickerBreadcrumb" class="picker-breadcrumb">
+      <button type="button" class="crumb crumb-root active" data-action="root">전체 카테고리</button>
+      <span class="crumb-sep" hidden>›</span>
+      <button type="button" class="crumb crumb-cat" data-action="category" hidden></button>
+      <span class="crumb-sep-2" hidden>›</span>
+      <span class="crumb crumb-group" hidden></span>
     </div>
     <div id="productList" class="product-list">
       <div class="picker-empty">데이터를 불러오는 중입니다...</div>
-    </div>
-    <div id="selectedInfo" class="selected-info" hidden>
-      <span class="selected-label">선택됨:</span>
-      <span id="selectedName" class="selected-name"></span>
-      <button id="clearSelection" class="btn ghost small">전체 보기</button>
     </div>
   </section>
 
@@ -169,6 +166,6 @@
   <span id="loadInfo"></span>
 </footer>
 
-<script src="ai-dashboard.js?v=5"></script>
+<script src="ai-dashboard.js?v=6"></script>
 </body>
 </html>
