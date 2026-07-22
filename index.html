@@ -1061,7 +1061,7 @@ function renderAll(){
       const _defQty=r.orderQty;
       const _rid='r_'+r.idx;
       let _hasInv=invValues[_rid]!==undefined;
-      if(!_hasInv && r.stockQty===0){
+      if(!_hasInv && (r.status==='partial' || r.status==='shortage') && r.stockQty!==null && r.orderQty > r.stockQty){
         invValues[_rid]=0;
         _hasInv=true;
       }
@@ -1370,6 +1370,30 @@ function updateAllPoAmounts(){
       });
     }
     el.textContent = cnt+'개';
+  });
+  checkAllPoComplete();
+}
+function checkAndMarkPoComplete(poNum){
+  if(!Array.isArray(matchedRows)) return;
+  const rows=matchedRows.filter(function(r){return String(r.poNum)===String(poNum);});
+  if(!rows.length) return;
+  const allZero=rows.every(function(r){
+    const _rid='r_'+r.idx;
+    return invValues[_rid]!==undefined && Number(invValues[_rid])===0;
+  });
+  const map=window.__VOAR_DOWNLOADED_POS__=window.__VOAR_DOWNLOADED_POS__||{};
+  if(allZero && !map[poNum]){
+    markPoDownloaded(poNum, null, false);
+  }
+}
+function checkAllPoComplete(){
+  if(!Array.isArray(matchedRows)) return;
+  const seen={};
+  matchedRows.forEach(function(r){
+    const po=r.poNum;
+    if(po==null || seen[po]) return;
+    seen[po]=true;
+    checkAndMarkPoComplete(po);
   });
 }
 window.updateAllPoAmounts=updateAllPoAmounts;
