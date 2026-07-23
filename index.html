@@ -160,6 +160,7 @@ body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif
 .unreg-label { color: var(--text-hint); font-size: 11px; min-width: 55px; }
 .unreg-name { color: var(--text); font-weight: 500; }
 .unreg-sku { font-size: 11px; color: var(--text-hint); font-family: monospace; }
+.row-num { display:inline-block; min-width:22px; color: var(--text-hint); font-size: 11px; text-align:right; margin-right:4px; }
 
 /* ── TABLE ── */
 .table-wrap { overflow-x: auto; }
@@ -1022,7 +1023,7 @@ function renderAll(){
     const amtSpan=_dupMode?'':`<span class="po-sep-amt" data-po-amt="${escHtml(poNum)}"></span>`;
     const cntAttr=_dupMode?'':` data-po-cnt="${escHtml(poNum)}"`;
     tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt"${cntAttr}>${rows.length}개</span>${amtSpan}<span class="po-sep-arrow ${open?'open':''}">▼</span>${dlBtn}</td></tr>`;
-    rows.forEach(r=>{
+    rows.forEach((r,ri)=>{
       const isUnreg=r.noMaster||r.noStock;
       let stockCell;
       if(r.stockQty!==null){
@@ -1071,8 +1072,9 @@ function renderAll(){
       const filledCls=_modified?'modified':'filled';
 
       const skuHtml=r.orderSku?(r.isDup?`<span class="sku-dup">${r.orderSku}</span>`:r.orderSku):'—';
+      const rowNumHtml=`<span class="row-num">${ri+1}.</span>`;
       tbody+=`<tr data-pg="${gi}" style="${allOpen?'':'display:none'}">
-        <td class="mono" style="white-space:nowrap">${skuHtml}</td>
+        <td class="mono" style="white-space:nowrap">${rowNumHtml} ${skuHtml}</td>
         <td class="col-name" title="${escHtml(r.stockName||r.orderName)}">${(r.stockName||r.orderName)||'—'}</td>
         ${salesCells}
         <td class="col-num-u td-stock-oaa" style="text-align:center">${stockCell}</td>
