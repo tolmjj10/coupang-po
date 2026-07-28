@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>쿠팡 신제품 관리</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #f5f4f0;
+    --card: #ffffff;
+    --border: #e2e0d8;
+    --text: #1a1916;
+    --muted: #6b6960;
+    --primary: #1a3a4a;
+    --primary-hover: #255269;
+    --accent: #1a3a4a;
+    --accent-light: #e8f1f5;
+    --success: #4a7c59;
+    --warning: #b08840;
+    --danger: #a85450;
+    --info: #4a6b8a;
+    --soft-red: #f7efee;
+    --soft-yellow: #f8f4e9;
+    --soft-green: #eef2ec;
+    --soft-blue: #eef1f4;
+    --soft-purple: #f2f0ee;
+  }
+  html, body {
+    font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',-apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    margin: 0;
+    padding: 0;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.01em;
+  }
+  .page-header {
+    background: #fff;
+    padding: 10px 28px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    min-height: 44px;
+  }
+  .page-header .header-icon {
+    width: 26px; height: 26px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  .page-header .header-icon svg { width: 18px; height: 18px; stroke-width: 1.75; }
+  .page-header h1 {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    margin: 0;
+    color: var(--text);
+  }
+  .page-header .subtitle {
+    color: var(--muted);
+    font-size: 12px;
+    margin-left: 6px;
+  }
+  .page-header #saveStatus {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .container { max-width: 1720px; margin: 0 auto; padding: 22px 28px 60px; }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--card);
+    padding: 18px 22px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .stat-card:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+  .stat-label { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .stat-value { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+  .stat-value.red { color: var(--danger); }
+  .stat-value.orange { color: var(--warning); }
+  .stat-value.green { color: var(--success); }
+  .stat-value.indigo { color: var(--text); }
+
+  .alerts {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .alert {
+    padding: 14px 18px;
+    border-radius: 12px;
+    font-size: 13.5px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid transparent;
+  }
+  .alert.urgent {
+    background: var(--soft-red);
+    color: #8a3a37;
+    border-color: #e6d3d1;
+  }
+  .alert.warning {
+    background: var(--soft-yellow);
+    color: #7a5c2e;
+    border-color: #e5dcc4;
+  }
+  .alert.info {
+    background: var(--soft-blue);
+    color: #3d5670;
+    border-color: #d5dbe2;
+  }
+  .alert.ok {
+    background: var(--soft-green);
+    color: #3d6349;
+    border-color: #d4dbd0;
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  button {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 600;
+    font-family: inherit;
+    transition: all .15s ease;
+    letter-spacing: -0.01em;
+  }
+  button:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+  button.ghost {
+    background: white;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  button.ghost:hover { background: #f8fafc; box-shadow: none; transform: none; }
+  button.danger-icon {
+    background: transparent;
+    color: var(--muted);
+    padding: 6px 8px;
+    font-size: 14px;
+    border-radius: 6px;
+  }
+  button.danger-icon:hover {
+    background: var(--soft-red);
+    color: var(--danger);
+    transform: none;
+    box-shadow: none;
+  }
+  .search {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 13px;
+    width: 260px;
+    font-family: inherit;
+    background: white;
+    transition: border-color .15s ease;
+  }
+  .search:focus { outline: none; border-color: var(--text); box-shadow: 0 0 0 3px rgba(0,0,0,0.05); }
+
+  .table-wrap {
+    background: white;
+    border-radius: 16px;
+    overflow: auto;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 1600px;
+  }
+  th {
+    background: #fafbfd;
+    padding: 14px 14px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    white-space: nowrap;
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f5f6f9;
+    vertical-align: middle;
+  }
+  tbody tr { transition: background .12s ease; }
+  tbody tr:hover td { background: #fafbfd; }
+  tr.completed td { background: #f4f6f2 !important; }
+  tr.completed input { color: #4a6b52; }
+  tr.urgent-row td { background: #f7efee !important; }
+  tr.warning-row td { background: #f8f4e9 !important; }
+
+  input[type="text"], input[type="date"] {
+    border: 1px solid transparent;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    width: 100%;
+    background: transparent;
+    color: var(--text);
+    transition: all .12s ease;
+  }
+  input[type="text"]:hover, input[type="date"]:hover { background: #f4f5f8; }
+  input[type="text"]:focus, input[type="date"]:focus {
+    outline: none;
+    background: white;
+    border-color: #c0c0bb;
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.04);
+  }
+  input.reg-name {
+    background: #f3f1ec;
+    border: 1px dashed #c9c3b6;
+    color: #6b6355;
+  }
+  input.reg-name::placeholder { color: #a89f8c; font-style: italic; }
+  input.reg-name.filled {
+    font-weight: 700;
+    color: #2b2b2b;
+    background: #ebe8e0;
+    border: 1px solid #c9c3b6;
+  }
+
+  .check-cell {
+    text-align: center;
+    min-width: 130px;
+  }
+  .check-cell input[type="checkbox"] {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #d1d5db;
+    border-radius: 6px;
+    cursor: pointer;
+    position: relative;
+    vertical-align: middle;
+    transition: all .15s ease;
+    background: white;
+  }
+  .check-cell input[type="checkbox"] { border-color: #cfcfc9; }
+  .check-cell input[type="checkbox"]:hover { border-color: #9a9a94; }
+  .check-cell input[type="checkbox"]:checked {
+    background: var(--success);
+    border-color: var(--success);
+  }
+  .check-cell input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 1px;
+    width: 5px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .check-cell input[type="date"] {
+    font-size: 11px;
+    padding: 3px 6px;
+    text-align: center;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .status-badge {
+    display: inline-block;
+    padding: 5px 11px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .status-done { background: #e4ebe0; color: #4a6b52; }
+  .status-progress { background: #e2e7ed; color: #45607a; }
+  .status-urgent { background: #ecd9d7; color: #8a3a37; }
+  .status-pending { background: #ecebe7; color: #7a7a72; }
+
+  .d-day {
+    font-size: 10.5px;
+    font-weight: 700;
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    letter-spacing: -0.01em;
+  }
+  .d-day.danger { background: #ecd9d7; color: #8a3a37; }
+  .d-day.warn { background: #ebe1c9; color: #7a5c2e; }
+  .d-day.safe { background: #e4ebe0; color: #4a6b52; }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    background: transparent;
+    color: var(--muted);
+    border: none;
+    padding: 10px 18px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    border-radius: 0;
+    letter-spacing: -0.01em;
+    transition: color .12s ease, border-color .12s ease;
+  }
+  .tab:hover { color: var(--text); background: transparent; transform: none; box-shadow: none; }
+  .tab.active {
+    color: var(--text);
+    border-bottom-color: var(--text);
+  }
+  .tab .count {
+    display: inline-block;
+    background: #ecebe7;
+    color: #7a7a72;
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    margin-left: 6px;
+    font-weight: 600;
+  }
+  .tab.active .count { background: #2b2b2b; color: white; }
+
+  ::-webkit-scrollbar { height: 10px; width: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="header-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3l1.9 5.8L20 10.5l-4.7 3.9L16.9 21 12 17.6 7.1 21l1.6-6.6L4 10.5l6.1-1.7L12 3z"/>
+    </svg>
+  </div>
+  <h1>쿠팡 신제품 관리</h1>
+  <span class="subtitle">담당자별 신제품 등록 진행 현황 · 자동 저장</span>
+  <span id="saveStatus"></span>
+</div>
+
+<div class="container">
+
+  <div class="stats" id="stats"></div>
+  <div class="alerts" id="alerts"></div>
+
+  <div class="toolbar">
+    <button onclick="addRow()">＋ 신제품 추가</button>
+    <input class="search" id="search" placeholder="🔍 담당자 · 상품명 검색" oninput="render()">
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:90px;">담당자</th>
+          <th style="width:280px;">등록 상품명</th>
+          <th style="width:240px;">실제 상품명</th>
+          <th style="width:120px;">생산완료일</th>
+          <th style="width:140px;">입고예정일</th>
+          <th style="width:140px;">상세전달일자</th>
+          <th class="check-cell">🚀 로켓 등록</th>
+          <th class="check-cell">🪽 윙 등록</th>
+          <th class="check-cell">🔗 벤플 매핑</th>
+          <th class="check-cell">📢 광고 생성</th>
+          <th style="width:100px;">상태</th>
+          <th style="width:50px;"></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+const STORAGE_KEY = 'coupang_new_product_dashboard_v1';
+const DEFAULT_YEAR = '2026';
+const BRANDS = [
+  { key: 'all',   label: '전체' },
+  { key: 'oa',    label: '오아',   match: n => (n||'').trim().startsWith('오아') },
+  { key: 'voir',  label: '보아르', match: n => (n||'').trim().startsWith('보아르') },
+  { key: 'etc',   label: '기타',   match: n => { const t = (n||'').trim(); return !t.startsWith('오아') && !t.startsWith('보아르'); } }
+];
+let activeBrand = 'all';
+let data = load();
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return sampleData();
+}
+
+function sampleData() {
+  return [
+    {
+      id: uid(), manager: '홍길동', regName: '', realName: '예시 상품 A',
+      productionDate: '', arrivalDate: '', detailDueDate: '',
+      rocket: {done:false, date:''}, wing: {done:false, date:''},
+      venple: {done:false, date:''}, ad: {done:false, date:''}
+    }
+  ];
+}
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).substr(2,5); }
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  const el = document.getElementById('saveStatus');
+  el.textContent = '✓ 저장됨 ' + new Date().toLocaleTimeString('ko-KR');
+  setTimeout(() => { if (el.textContent.startsWith('✓')) el.textContent = ''; }, 2000);
+}
+
+function today() {
+  const d = new Date();
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const t = new Date(dateStr);
+  t.setHours(0,0,0,0);
+  return Math.round((t - today()) / 86400000);
+}
+
+function isCompleted(row) {
+  return row.rocket.done && row.wing.done && row.venple.done && row.ad.done;
+}
+
+function statusOf(row) {
+  if (isCompleted(row)) return {label: '완료', cls: 'status-done'};
+  const detail = daysUntil(row.detailDueDate);
+  if (detail !== null && detail <= 2) return {label: '긴급', cls: 'status-urgent'};
+  const doneCount = [row.rocket, row.wing, row.venple, row.ad].filter(x => x.done).length;
+  if (doneCount > 0) return {label: '진행중 ' + doneCount + '/4', cls: 'status-progress'};
+  return {label: '대기', cls: 'status-pending'};
+}
+
+function rowClass(row) {
+  if (isCompleted(row)) return 'completed';
+  const detail = daysUntil(row.detailDueDate);
+  if (detail !== null && detail <= 2) return 'urgent-row';
+  if (detail !== null && detail <= 5) return 'warning-row';
+  const arrival = daysUntil(row.arrivalDate);
+  if (arrival !== null && arrival <= 3 && arrival >= 0) return 'warning-row';
+  return '';
+}
+
+function dDayHtml(dateStr) {
+  if (!dateStr) return '';
+  const d = daysUntil(dateStr);
+  if (d === null) return '';
+  let cls = 'd-day';
+  let text = '';
+  if (d < 0) { text = 'D+' + Math.abs(d); cls += ' danger'; }
+  else if (d === 0) { text = 'D-DAY'; cls += ' danger'; }
+  else if (d <= 3) { text = 'D-' + d; cls += ' danger'; }
+  else if (d <= 7) { text = 'D-' + d; cls += ' warn'; }
+  else { text = 'D-' + d; cls += ' safe'; }
+  return '<span class="' + cls + '">' + text + '</span>';
+}
+
+function renderAlerts() {
+  const alerts = [];
+  data.forEach(row => {
+    if (isCompleted(row)) return;
+    const name = row.realName || row.regName || '(이름 없음)';
+    const manager = row.manager || '담당자 미정';
+
+    const detail = daysUntil(row.detailDueDate);
+    if (detail !== null) {
+      if (detail < 0) alerts.push({cls:'urgent', text:`🚨 [${manager}] "${name}" 상세전달일자 ${Math.abs(detail)}일 초과!`});
+      else if (detail === 0) alerts.push({cls:'urgent', text:`🚨 [${manager}] "${name}" 오늘이 상세전달일자입니다!`});
+      else if (detail <= 2) alerts.push({cls:'urgent', text:`⚠️ [${manager}] "${name}" 상세전달 D-${detail} — 곧 등록 필요`});
+      else if (detail <= 5) alerts.push({cls:'warning', text:`⏰ [${manager}] "${name}" 상세전달 D-${detail}`});
+    }
+
+    const arrival = daysUntil(row.arrivalDate);
+    if (arrival !== null) {
+      if (arrival >= 0 && arrival <= 3) alerts.push({cls:'warning', text:`📦 [${manager}] "${name}" 입고예정 D-${arrival}`});
+      else if (arrival < 0 && !row.rocket.done && !row.wing.done) alerts.push({cls:'info', text:`📦 [${manager}] "${name}" 입고 완료(${Math.abs(arrival)}일 전) — 등록 확인`});
+    }
+  });
+
+  const box = document.getElementById('alerts');
+  if (alerts.length === 0) {
+    box.innerHTML = '';
+  } else {
+    box.innerHTML = alerts.map(a => `<div class="alert ${a.cls}">${a.text}</div>`).join('');
+  }
+}
+
+function renderStats() {
+  const total = data.length;
+  const done = data.filter(isCompleted).length;
+  const urgent = data.filter(r => {
+    if (isCompleted(r)) return false;
+    const d = daysUntil(r.detailDueDate);
+    return d !== null && d <= 2;
+  }).length;
+  const inProgress = total - done - urgent;
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">전체</div><div class="stat-value indigo">${total}</div></div>
+    <div class="stat-card"><div class="stat-label">완료</div><div class="stat-value green">${done}</div></div>
+    <div class="stat-card"><div class="stat-label">진행중</div><div class="stat-value">${Math.max(0,inProgress)}</div></div>
+    <div class="stat-card"><div class="stat-label">긴급</div><div class="stat-value red">${urgent}</div></div>
+  `;
+}
+
+function brandOf(row) {
+  const n = (row.realName||'').trim();
+  if (n.startsWith('오아')) return 'oa';
+  if (n.startsWith('보아르')) return 'voir';
+  return 'etc';
+}
+
+function renderTabs() {
+  const tabs = document.getElementById('tabs');
+  tabs.innerHTML = BRANDS.map(b => {
+    const count = b.key === 'all' ? data.length : data.filter(r => brandOf(r) === b.key).length;
+    return `<button class="tab ${activeBrand===b.key?'active':''}" onclick="setBrand('${b.key}')">${b.label}<span class="count">${count}</span></button>`;
+  }).join('');
+}
+
+function setBrand(key) { activeBrand = key; render(); }
+
+function render() {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  let filtered = data;
+  if (activeBrand !== 'all') filtered = filtered.filter(r => brandOf(r) === activeBrand);
+  if (q) filtered = filtered.filter(r =>
+    (r.manager||'').toLowerCase().includes(q) ||
+    (r.regName||'').toLowerCase().includes(q) ||
+    (r.realName||'').toLowerCase().includes(q)
+  );
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = filtered.map(row => {
+    const st = statusOf(row);
+    const cls = rowClass(row);
+    return `
+      <tr class="${cls}" data-id="${row.id}">
+        <td><input type="text" value="${esc(row.manager)}" placeholder="이름" onchange="upd('${row.id}','manager',this.value)"></td>
+        <td><input type="text" class="reg-name ${row.regName ? 'filled' : ''}" value="${esc(row.regName)}" placeholder="✎ 등록시 기입" onchange="upd('${row.id}','regName',this.value)"></td>
+        <td><input type="text" value="${esc(row.realName)}" placeholder="실제 상품명" onchange="upd('${row.id}','realName',this.value)"></td>
+        <td><input type="date" min="2026-01-01" value="${row.productionDate||''}" onchange="upd('${row.id}','productionDate',this.value)"></td>
+        <td>
+          <input type="date" min="2026-01-01" value="${row.arrivalDate||''}" onchange="upd('${row.id}','arrivalDate',this.value)">
+          ${dDayHtml(row.arrivalDate)}
+        </td>
+        <td>
+          <input type="date" min="2026-01-01" value="${row.detailDueDate||''}" onchange="upd('${row.id}','detailDueDate',this.value)">
+          ${dDayHtml(row.detailDueDate)}
+        </td>
+        ${checkCell(row,'rocket')}
+        ${checkCell(row,'wing')}
+        ${checkCell(row,'venple')}
+        ${checkCell(row,'ad')}
+        <td><span class="status-badge ${st.cls}">${st.label}</span></td>
+        <td><button class="danger-icon" onclick="delRow('${row.id}')" title="삭제">✕</button></td>
+      </tr>
+    `;
+  }).join('');
+
+  renderStats();
+  renderAlerts();
+  renderTabs();
+}
+
+function checkCell(row, key) {
+  const item = row[key];
+  return `<td class="check-cell">
+    <input type="checkbox" ${item.done?'checked':''} onchange="updCheck('${row.id}','${key}',this.checked)">
+    <input type="date" min="2026-01-01" value="${item.date||''}" onchange="updCheckDate('${row.id}','${key}',this.value)">
+  </td>`;
+}
+
+function esc(s) { return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+function upd(id, key, val) {
+  const row = data.find(r => r.id === id);
+  if (row) { row[key] = val; save(); render(); }
+}
+function updCheck(id, key, val) {
+  const row = data.find(r => r.id === id);
+  if (row) {
+    row[key].done = val;
+    if (val && !row[key].date) {
+      row[key].date = new Date().toISOString().slice(0,10);
+    }
+    save(); render();
+  }
+}
+function updCheckDate(id, key, val) {
+  const row = data.find(r => r.id === id);
+  if (row) { row[key].date = val; if (val) row[key].done = true; save(); render(); }
+}
+
+function addRow() {
+  data.unshift({
+    id: uid(), manager: '', regName: '', realName: '',
+    productionDate: '', arrivalDate: '', detailDueDate: '',
+    rocket:{done:false,date:''}, wing:{done:false,date:''},
+    venple:{done:false,date:''}, ad:{done:false,date:''}
+  });
+  save(); render();
+}
+
+function delRow(id) {
+  if (!confirm('삭제하시겠습니까?')) return;
+  data = data.filter(r => r.id !== id);
+  save(); render();
+}
+
+render();
+setInterval(() => { renderAlerts(); renderStats(); }, 60000);
+</script>
+
+</body>
+</html>
