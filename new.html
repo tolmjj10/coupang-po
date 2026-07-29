@@ -227,7 +227,7 @@
   tr.urgent-row td { background: #f7efee !important; }
   tr.warning-row td { background: #f8f4e9 !important; }
 
-  input[type="text"], input[type="date"] {
+  input[type="text"], input[type="date"], select.manager-select {
     border: 1px solid transparent;
     padding: 8px 10px;
     border-radius: 8px;
@@ -238,13 +238,26 @@
     color: var(--text);
     transition: all .12s ease;
   }
-  input[type="text"]:hover, input[type="date"]:hover { background: #f4f5f8; }
-  input[type="text"]:focus, input[type="date"]:focus {
+  input[type="text"]:hover, input[type="date"]:hover, select.manager-select:hover { background: #f4f5f8; }
+  input[type="text"]:focus, input[type="date"]:focus, select.manager-select:focus {
     outline: none;
     background: white;
     border-color: #c0c0bb;
     box-shadow: 0 0 0 3px rgba(0,0,0,0.04);
   }
+  select.manager-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    cursor: pointer;
+    padding-right: 26px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b6960' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    font-weight: 500;
+  }
+  select.manager-select:hover { background-color: #f4f5f8; }
+  select.manager-select:focus { background-color: white; }
   input.reg-name {
     background: #f3f1ec;
     border: 1px dashed #c9c3b6;
@@ -590,7 +603,7 @@ function render() {
     return `
       <tr class="${cls}" data-id="${row.id}">
         <td>
-          <select onchange="upd('${row.id}','manager',this.value)">
+          <select class="manager-select" onchange="upd('${row.id}','manager',this.value)">
             <option value="" ${!row.manager?'selected':''}>선택</option>
             ${['김현유','이병은','조민주'].map(n=>`<option value="${n}" ${row.manager===n?'selected':''}>${n}</option>`).join('')}
           </select>
