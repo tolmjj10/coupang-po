@@ -117,6 +117,74 @@
     background: var(--bg);
   }
   iframe.active { display: block; }
+
+  .landing {
+    width: 100%;
+    height: 100%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+  .landing.active { display: flex; }
+  .landing-inner {
+    max-width: 780px;
+    width: 100%;
+    text-align: center;
+  }
+  .landing h2 {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin: 0 0 8px;
+    color: var(--text);
+  }
+  .landing p {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin: 0 0 32px;
+  }
+  .pick-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+  .pick-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 24px;
+    cursor: pointer;
+    text-align: left;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .pick-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    border-color: var(--accent);
+  }
+  .pick-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    background: var(--accent-light);
+    color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pick-icon svg { width: 24px; height: 24px; stroke-width: 1.75; }
+  .pick-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+  .pick-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
 </style>
 </head>
 <body>
@@ -137,7 +205,7 @@
 
     <div class="nav-label">Workspace</div>
 
-    <div class="nav-item active" data-target="order">
+    <div class="nav-item" data-target="order">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
         <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
@@ -157,29 +225,63 @@
   </aside>
 
   <main class="content">
-    <iframe id="frame-order" class="active" src="po.html"></iframe>
+    <div id="landing" class="landing">
+      <div class="landing-inner">
+        <h2>쿠팡팀 업무 허브</h2>
+        <p>작업할 항목을 선택하세요.</p>
+        <div class="pick-grid">
+          <div class="pick-card" data-target="order">
+            <div class="pick-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                <line x1="12" y1="22.08" x2="12" y2="12"/>
+              </svg>
+            </div>
+            <div class="pick-title">발주</div>
+            <div class="pick-desc">발주리스트 · 입고수량 관리 · 매입가/전산재고 매칭</div>
+          </div>
+          <div class="pick-card" data-target="new">
+            <div class="pick-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3l1.9 5.8L20 10.5l-4.7 3.9L16.9 21 12 17.6 7.1 21l1.6-6.6L4 10.5l6.1-1.7L12 3z"/>
+              </svg>
+            </div>
+            <div class="pick-title">신제품</div>
+            <div class="pick-desc">담당자별 신제품 등록 진행 현황 · 로켓/윙/벤플/광고</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <iframe id="frame-order" src="po.html"></iframe>
     <iframe id="frame-new" src="new.html"></iframe>
   </main>
 </div>
 
 <script>
   const items = document.querySelectorAll('.nav-item');
+  const landing = document.getElementById('landing');
   const frames = {
     order: document.getElementById('frame-order'),
     new:   document.getElementById('frame-new')
   };
-  items.forEach(el => {
-    el.addEventListener('click', () => {
-      const target = el.dataset.target;
-      items.forEach(i => i.classList.toggle('active', i === el));
-      Object.entries(frames).forEach(([k, f]) => f.classList.toggle('active', k === target));
-      try { history.replaceState(null, '', '#' + target); } catch(e) {}
-    });
-  });
-  const hash = (location.hash || '').replace('#','');
-  if (hash && frames[hash]) {
-    document.querySelector('.nav-item[data-target="'+hash+'"]').click();
+
+  function showTarget(target) {
+    items.forEach(i => i.classList.toggle('active', i.dataset.target === target));
+    Object.entries(frames).forEach(([k, f]) => f.classList.toggle('active', k === target));
+    landing.classList.toggle('active', !target);
+    try { history.replaceState(null, '', target ? '#' + target : location.pathname); } catch(e) {}
   }
+
+  items.forEach(el => {
+    el.addEventListener('click', () => showTarget(el.dataset.target));
+  });
+  document.querySelectorAll('.pick-card').forEach(el => {
+    el.addEventListener('click', () => showTarget(el.dataset.target));
+  });
+
+  const hash = (location.hash || '').replace('#','');
+  showTarget(frames[hash] ? hash : null);
 </script>
 
 </body>
