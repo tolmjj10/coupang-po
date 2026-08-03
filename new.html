@@ -433,6 +433,7 @@
 
 <script>
 const STORAGE_KEY = 'coupang_new_product_dashboard_v1';
+const API_URL = '/api/new-state';
 const DEFAULT_YEAR = '2026';
 const BRANDS = [
   { key: 'all',   label: '전체' },
@@ -441,14 +442,29 @@ const BRANDS = [
   { key: 'etc',   label: '기타',   match: n => { const t = (n||'').trim(); return !t.startsWith('오아') && !t.startsWith('보아르'); } }
 ];
 let activeBrand = 'all';
-let data = load();
+let data = loadLocal();
 
-function load() {
+function loadLocal() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
   } catch(e) {}
   return sampleData();
+}
+
+async function loadRemote() {
+  try {
+    const res = await fetch(API_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const remote = await res.json();
+    if (Array.isArray(remote) && remote.length > 0) {
+      data = remote;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+      render();
+    }
+  } catch (e) {
+    console.warn('[new] remote load skipped:', e.message);
+  }
 }
 
 function sampleData() {
@@ -464,11 +480,30 @@ function sampleData() {
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).substr(2,5); }
 
+let _saveTimer = null;
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   const el = document.getElementById('saveStatus');
-  el.textContent = '✓ 저장됨 ' + new Date().toLocaleTimeString('ko-KR');
-  setTimeout(() => { if (el.textContent.startsWith('✓')) el.textContent = ''; }, 2000);
+  el.textContent = '저장 중...';
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(saveRemote, 400);
+}
+
+async function saveRemote() {
+  const el = document.getElementById('saveStatus');
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    el.textContent = '✓ 공유 저장됨 ' + new Date().toLocaleTimeString('ko-KR');
+    setTimeout(() => { if (el.textContent.startsWith('✓')) el.textContent = ''; }, 2000);
+  } catch (e) {
+    el.textContent = '⚠ 로컬만 저장 (' + e.message + ')';
+    console.warn('[new] remote save failed:', e);
+  }
 }
 
 function today() {
@@ -680,7 +715,10 @@ function delRow(id) {
 }
 
 render();
+loadRemote();
 setInterval(() => { renderAlerts(); renderStats(); }, 60000);
+setInterval(loadRemote, 30000);
+window.addEventListener('focus', loadRemote);
 </script>
 
 </body>
