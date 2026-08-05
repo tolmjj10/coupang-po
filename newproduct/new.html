@@ -215,6 +215,21 @@
     z-index: 2;
     white-space: nowrap;
   }
+  th.resizable { position: sticky; overflow: visible; }
+  th .col-resizer {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    user-select: none;
+    z-index: 3;
+  }
+  th .col-resizer:hover, th .col-resizer.dragging {
+    background: linear-gradient(90deg, transparent, var(--accent) 40%, var(--accent) 60%, transparent);
+    opacity: 0.5;
+  }
   td {
     padding: 10px 12px;
     border-bottom: 1px solid #f5f6f9;
@@ -277,6 +292,9 @@
     background: #f3f1ec;
     border: 1px dashed #c9c3b6;
     color: #6b6355;
+    font-size: 11.5px;
+    padding: 6px 8px;
+    letter-spacing: -0.02em;
   }
   input.reg-name::placeholder { color: #a89f8c; font-style: italic; }
   input.reg-name.filled {
@@ -438,8 +456,8 @@
         <tr>
           <th style="width:28px;"></th>
           <th style="width:110px;">담당자</th>
-          <th style="width:280px;">등록 상품명</th>
-          <th style="width:240px;">전산명</th>
+          <th class="resizable" style="width:360px; position:relative;" data-col="reg">등록 상품명<span class="col-resizer"></span></th>
+          <th class="resizable" style="width:300px; position:relative;" data-col="real">전산명<span class="col-resizer"></span></th>
           <th style="width:120px;">생산완료일</th>
           <th style="width:140px;">입고예정일</th>
           <th style="width:140px;">상세전달일자</th>
@@ -470,16 +488,21 @@ const BRANDS = [
   { key: 'etc',   label: '기타',   match: n => { const t = (n||'').trim(); return !t.startsWith('오아') && !t.startsWith('보아르'); } }
 ];
 let activeBrand = 'all';
-let importedNames = {}; // 자동 임포트/삭제 기록 — 신제품 재추가 방지 (공유 상태)
+let importedNames = {}; // (구버전 호환용, 더 이상 dedup에 사용하지 않음)
+let lastExcelProducts = null; // 마지막으로 처리한 엑셀의 제품명 배열. 이 목록과 diff로 신규 판별
 let data = loadLocal();
 
-/* 저장 페이로드 파싱 — 구버전(array)과 신버전({rows,imported}) 모두 지원 */
+/* 저장 페이로드 파싱 — 구버전(array), {rows,imported}, {rows,imported,lastExcelProducts} 모두 지원 */
 function _parsePayload(parsed) {
-  if (Array.isArray(parsed)) return { rows: parsed, imported: null };
+  if (Array.isArray(parsed)) return { rows: parsed, imported: null, lastExcelProducts: null };
   if (parsed && Array.isArray(parsed.rows)) {
-    return { rows: parsed.rows, imported: parsed.imported || null };
+    return {
+      rows: parsed.rows,
+      imported: parsed.imported || null,
+      lastExcelProducts: Array.isArray(parsed.lastExcelProducts) ? parsed.lastExcelProducts : null
+    };
   }
-  return { rows: [], imported: null };
+  return { rows: [], imported: null, lastExcelProducts: null };
 }
 
 function loadLocal() {
@@ -488,11 +511,7 @@ function loadLocal() {
     if (raw) {
       const p = _parsePayload(JSON.parse(raw));
       if (p.imported) importedNames = p.imported;
-      /* 로컬 imported 세트도 병합 (구버전 호환) */
-      try {
-        const legacy = JSON.parse(localStorage.getItem(IMPORTED_KEY) || '{}');
-        Object.keys(legacy).forEach(k => { importedNames[k] = true; });
-      } catch(e){}
+      if (p.lastExcelProducts) lastExcelProducts = p.lastExcelProducts;
       return p.rows.length ? p.rows : sampleData();
     }
   } catch(e) {}
@@ -508,12 +527,12 @@ async function loadRemote() {
     const p = _parsePayload(remote);
     if (p.rows.length > 0) {
       data = p.rows;
-      /* imported는 원격 우선, 로컬 것도 병합 (삭제 이력 보존) */
       if (p.imported) {
         Object.keys(p.imported).forEach(k => { importedNames[k] = true; });
       }
+      if (p.lastExcelProducts) lastExcelProducts = p.lastExcelProducts;
       migrateImportedToRealName();
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames })); } catch(e) {}
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts })); } catch(e) {}
       render();
     }
   } catch (e) {
@@ -556,7 +575,7 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sub
 
 let _saveTimer = null;
 function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts }));
   const el = document.getElementById('saveStatus');
   el.textContent = '저장 중...';
   clearTimeout(_saveTimer);
@@ -569,7 +588,7 @@ async function saveRemote() {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rows: data, imported: importedNames })
+      body: JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     el.textContent = '✓ 공유 저장됨 ' + new Date().toLocaleTimeString('ko-KR');
@@ -598,12 +617,12 @@ function isCompleted(row) {
 }
 
 function statusOf(row) {
-  if (isCompleted(row)) return {label: '완료', cls: 'status-done'};
-  const detail = daysUntil(row.detailDueDate);
-  if (detail !== null && detail <= 2) return {label: '긴급', cls: 'status-urgent'};
-  const doneCount = [row.rocket, row.wing, row.venple, row.ad].filter(x => x.done).length;
-  if (doneCount > 0) return {label: '진행중 ' + doneCount + '/4', cls: 'status-progress'};
-  return {label: '대기', cls: 'status-pending'};
+  /* 긴급: 입고예정일이 D-3 이하인데 로켓 등록 미완료 */
+  const arrival = daysUntil(row.arrivalDate);
+  if (arrival !== null && arrival <= 3 && !row.rocket.done) {
+    return {label: '긴급', cls: 'status-urgent'};
+  }
+  return {label: '', cls: ''};
 }
 
 function rowClass(row) {
@@ -665,8 +684,8 @@ function renderStats() {
   const done = data.filter(isCompleted).length;
   const urgent = data.filter(r => {
     if (isCompleted(r)) return false;
-    const d = daysUntil(r.detailDueDate);
-    return d !== null && d <= 2;
+    const a = daysUntil(r.arrivalDate);
+    return a !== null && a <= 3 && !r.rocket.done;
   }).length;
   const inProgress = total - done - urgent;
 
@@ -710,16 +729,16 @@ function render() {
     const st = statusOf(row);
     const cls = rowClass(row);
     return `
-      <tr class="${cls}" data-id="${row.id}" draggable="true">
-        <td class="drag-handle" title="드래그해서 순서 변경">≡</td>
+      <tr class="${cls}" data-id="${row.id}">
+        <td class="drag-handle" draggable="true" title="드래그해서 순서 변경">≡</td>
         <td>
           <select class="manager-select" onchange="upd('${row.id}','manager',this.value)">
             <option value="" ${!row.manager?'selected':''}>선택</option>
             ${['김현유','이병은','조민주'].map(n=>`<option value="${n}" ${row.manager===n?'selected':''}>${n}</option>`).join('')}
           </select>
         </td>
-        <td><input type="text" class="reg-name ${row.regName ? 'filled' : ''}" value="${esc(row.regName)}" placeholder="✎ 등록시 기입" onchange="upd('${row.id}','regName',this.value)"></td>
-        <td><input type="text" value="${esc(row.realName)}" placeholder="실제 상품명" onchange="upd('${row.id}','realName',this.value)"></td>
+        <td><input type="text" class="reg-name ${row.regName ? 'filled' : ''}" value="${esc(row.regName)}" title="${esc(row.regName)}" placeholder="✎ 등록시 기입" onchange="upd('${row.id}','regName',this.value)"></td>
+        <td><input type="text" value="${esc(row.realName)}" title="${esc(row.realName)}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)"></td>
         <td><input type="date" min="2026-01-01" value="${row.productionDate||''}" onchange="upd('${row.id}','productionDate',this.value)"></td>
         <td>
           <input type="date" min="2026-01-01" value="${row.arrivalDate||''}" onchange="upd('${row.id}','arrivalDate',this.value)">
@@ -733,7 +752,7 @@ function render() {
         ${checkCell(row,'wing')}
         ${checkCell(row,'venple')}
         ${checkCell(row,'ad')}
-        <td><span class="status-badge ${st.cls}">${st.label}</span></td>
+        <td>${st.label ? `<span class="status-badge ${st.cls}">${st.label}</span>` : ''}</td>
         <td><button class="danger-icon" onclick="delRow('${row.id}')" title="삭제">✕</button></td>
       </tr>
     `;
@@ -774,26 +793,69 @@ function updCheckDate(id, key, val) {
   if (row) { row[key].date = val; if (val) row[key].done = true; save(); render(); }
 }
 
+/* ═══════════════════════ 컬럼 리사이즈 ═══════════════════════ */
+const COL_WIDTH_KEY = 'coupang_new_col_widths_v1';
+function initColumnResize() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(COL_WIDTH_KEY) || '{}');
+    Object.keys(saved).forEach(col => {
+      const th = document.querySelector('th[data-col="' + col + '"]');
+      if (th && saved[col] > 60) th.style.width = saved[col] + 'px';
+    });
+  } catch(e){}
+
+  document.querySelectorAll('.col-resizer').forEach(handle => {
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const th = handle.closest('th');
+      const startX = e.clientX;
+      const startW = th.getBoundingClientRect().width;
+      handle.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      function onMove(ev) {
+        const w = Math.max(80, Math.round(startW + (ev.clientX - startX)));
+        th.style.width = w + 'px';
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        handle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        try {
+          const saved = JSON.parse(localStorage.getItem(COL_WIDTH_KEY) || '{}');
+          saved[th.dataset.col] = Math.round(th.getBoundingClientRect().width);
+          localStorage.setItem(COL_WIDTH_KEY, JSON.stringify(saved));
+        } catch(e){}
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
+}
+
 /* ═══════════════════════ 드래그 순서 변경 ═══════════════════════ */
 let _dragId = null;
 function attachDragHandlers() {
   const rows = document.querySelectorAll('#tbody tr[data-id]');
   rows.forEach(tr => {
-    tr.addEventListener('dragstart', e => {
-      /* 드래그 핸들 셀에서 시작한 경우만 허용 */
-      const handleActive = tr.querySelector('.drag-handle:hover, .drag-handle:active');
-      if (e.target.closest('input, select, button')) { e.preventDefault(); return; }
-      _dragId = tr.dataset.id;
-      tr.classList.add('dragging');
-      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', _dragId); } catch(_){}
-    });
-    tr.addEventListener('dragend', () => {
-      tr.classList.remove('dragging');
-      document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
-        el.classList.remove('drag-over-top', 'drag-over-bottom');
+    const handle = tr.querySelector('.drag-handle');
+    if (handle) {
+      handle.addEventListener('dragstart', e => {
+        _dragId = tr.dataset.id;
+        tr.classList.add('dragging');
+        try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', _dragId); } catch(_){}
       });
-      _dragId = null;
-    });
+      handle.addEventListener('dragend', () => {
+        tr.classList.remove('dragging');
+        document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
+          el.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
+        _dragId = null;
+      });
+    }
     tr.addEventListener('dragover', e => {
       if (!_dragId || tr.dataset.id === _dragId) return;
       e.preventDefault();
@@ -812,10 +874,10 @@ function attachDragHandlers() {
       tr.classList.remove('drag-over-top', 'drag-over-bottom');
       if (!_dragId || targetId === _dragId) return;
       const srcIdx = data.findIndex(r => r.id === _dragId);
-      const dstIdx = data.findIndex(r => r.id === targetId);
-      if (srcIdx < 0 || dstIdx < 0) return;
+      if (srcIdx < 0) return;
       const [moved] = data.splice(srcIdx, 1);
       let insertAt = data.findIndex(r => r.id === targetId);
+      if (insertAt < 0) insertAt = data.length;
       if (!before) insertAt += 1;
       data.splice(insertAt, 0, moved);
       save();
@@ -841,12 +903,9 @@ function delRow(id) {
   const label = row.regName || row.realName || '(이름 없음)';
   if (!confirm('"' + label + '" 삭제하시겠습니까?')) return;
   data = data.filter(r => r.id !== id);
-  /* 삭제 항목이 imported 세트에 남아있어야 자동 fetch가 재추가하지 않음 (모든 사용자에 공유) */
-  const key = (row.realName || '').trim();
-  if (key) importedNames[key] = true;
   /* 원격 loadRemote가 방금 삭제한 행을 되돌리지 못하도록 잠깐 억제 */
   _suppressRemoteLoadUntil = Date.now() + 5000;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts }));
   render();
   /* 디바운스 우회하고 즉시 원격 반영 */
   clearTimeout(_saveTimer);
@@ -855,6 +914,7 @@ function delRow(id) {
 
 migrateImportedToRealName();
 render();
+initColumnResize();
 loadRemote().then(() => fetchProductStatus());
 setInterval(() => { renderAlerts(); renderStats(); }, 60000);
 setInterval(loadRemote, 30000);
@@ -947,20 +1007,24 @@ async function fetchProductStatus() {
       picked.push(name);
     }
 
-    /* 중복 제외 — importedNames(공유)와 현재 data의 realName으로 이중 체크
-       ※ 기존 행은 절대 수정/덮어쓰지 않음. 신규 항목만 push. */
-    const existingNames = new Set(data.map(r => (r.realName || '').trim()).filter(Boolean));
-    const toAdd = [];
-    picked.forEach(name => {
-      if (importedNames[name]) return;
-      if (existingNames.has(name)) { importedNames[name] = true; return; }
-      toAdd.push(name);
-      importedNames[name] = true;
-    });
+    /* 신규 판별 — 이전 엑셀 스냅샷(lastExcelProducts)에 없던 제품만 추가
+       ※ HTML 현재 상태(삭제 이력 등)와 무관하게 엑셀 diff만으로 결정
+       ※ 첫 실행(lastExcelProducts=null)이면 현재 파일을 베이스라인으로 저장만 하고 아무것도 추가하지 않음 */
+    if (lastExcelProducts === null) {
+      console.log('[new] 최초 실행 — 현재 엑셀을 베이스라인으로 저장 (자동 추가 안 함)');
+      lastExcelProducts = picked;
+      save();
+      return;
+    }
+
+    const prevSet = new Set(lastExcelProducts);
+    const toAdd = picked.filter(name => !prevSet.has(name));
+
+    /* 현재 엑셀을 다음 실행의 기준으로 갱신 */
+    lastExcelProducts = picked;
 
     if (toAdd.length === 0) {
-      console.log('[new] 새로 추가할 신제품 없음 (필터 통과: ' + picked.length + '건)');
-      /* imported 세트에 변화가 있을 수 있으므로 저장 */
+      console.log('[new] 신규 없음 (엑셀: ' + picked.length + '건, 이전 대비 diff 0)');
       save();
       return;
     }
@@ -973,7 +1037,7 @@ async function fetchProductStatus() {
         venple:{done:false,date:''}, ad:{done:false,date:''}
       });
     });
-    console.log('[new] ' + toAdd.length + '개 신제품 자동 추가');
+    console.log('[new] ' + toAdd.length + '개 신제품 자동 추가 (이전 엑셀 대비 diff)');
     save();
     render();
   } catch (e) {
