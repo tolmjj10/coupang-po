@@ -413,12 +413,12 @@
         <tr>
           <th style="width:110px;">담당자</th>
           <th style="width:280px;">등록 상품명</th>
-          <th style="width:240px;">실제 상품명</th>
+          <th style="width:240px;">전산명</th>
           <th style="width:120px;">생산완료일</th>
           <th style="width:140px;">입고예정일</th>
           <th style="width:140px;">상세전달일자</th>
           <th class="check-cell">🚀 로켓 등록</th>
-          <th class="check-cell">🪽 윙 등록</th>
+          <th class="check-cell">✈️ 윙 등록</th>
           <th class="check-cell">🔗 벤플 매핑</th>
           <th class="check-cell">📢 광고 생성</th>
           <th style="width:100px;">상태</th>
@@ -743,7 +743,7 @@ function delRow(id) {
   if (!confirm('"' + label + '" 삭제하시겠습니까?')) return;
   data = data.filter(r => r.id !== id);
   /* 삭제 항목이 imported 세트에 남아있어야 자동 fetch가 재추가하지 않음 (모든 사용자에 공유) */
-  const key = (row.regName || '').trim();
+  const key = (row.realName || '').trim();
   if (key) importedNames[key] = true;
   /* 원격 loadRemote가 방금 삭제한 행을 되돌리지 못하도록 잠깐 억제 */
   _suppressRemoteLoadUntil = Date.now() + 5000;
@@ -847,9 +847,9 @@ async function fetchProductStatus() {
       picked.push(name);
     }
 
-    /* 중복 제외 — importedNames(공유)와 현재 data의 regName으로 이중 체크
+    /* 중복 제외 — importedNames(공유)와 현재 data의 realName으로 이중 체크
        ※ 기존 행은 절대 수정/덮어쓰지 않음. 신규 항목만 push. */
-    const existingNames = new Set(data.map(r => (r.regName || '').trim()).filter(Boolean));
+    const existingNames = new Set(data.map(r => (r.realName || '').trim()).filter(Boolean));
     const toAdd = [];
     picked.forEach(name => {
       if (importedNames[name]) return;
@@ -867,7 +867,7 @@ async function fetchProductStatus() {
 
     toAdd.forEach(name => {
       data.push({
-        id: uid(), manager: '', regName: name, realName: '',
+        id: uid(), manager: '', regName: '', realName: name,
         productionDate: '', arrivalDate: '', detailDueDate: '',
         rocket:{done:false,date:''}, wing:{done:false,date:''},
         venple:{done:false,date:''}, ad:{done:false,date:''}
