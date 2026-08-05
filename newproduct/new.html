@@ -222,6 +222,21 @@
   }
   tbody tr { transition: background .12s ease; }
   tbody tr:hover td { background: #fafbfd; }
+  tbody tr.drag-over-top td { border-top: 2px solid var(--accent); }
+  tbody tr.drag-over-bottom td { border-bottom: 2px solid var(--accent); }
+  tbody tr.dragging { opacity: 0.4; }
+  .drag-handle {
+    cursor: grab;
+    color: #c9c6be;
+    font-size: 16px;
+    line-height: 1;
+    user-select: none;
+    text-align: center;
+    padding: 0 4px;
+    transition: color .12s ease;
+  }
+  .drag-handle:hover { color: var(--text); }
+  .drag-handle:active { cursor: grabbing; }
   tr.completed td { background: #f4f6f2 !important; }
   tr.completed input { color: #4a6b52; }
   tr.urgent-row td { background: #f7efee !important; }
@@ -267,8 +282,18 @@
   input.reg-name.filled {
     font-weight: 700;
     color: #2b2b2b;
+    background: transparent;
+    border: 1px solid transparent;
+  }
+  input.reg-name.filled:hover {
+    background: #f4f5f8;
+    border-color: transparent;
+  }
+  input.reg-name.filled:focus {
     background: #ebe8e0;
     border: 1px solid #c9c3b6;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.04);
   }
 
   .check-cell {
@@ -411,6 +436,7 @@
     <table>
       <thead>
         <tr>
+          <th style="width:28px;"></th>
           <th style="width:110px;">담당자</th>
           <th style="width:280px;">등록 상품명</th>
           <th style="width:240px;">전산명</th>
@@ -663,7 +689,8 @@ function render() {
     const st = statusOf(row);
     const cls = rowClass(row);
     return `
-      <tr class="${cls}" data-id="${row.id}">
+      <tr class="${cls}" data-id="${row.id}" draggable="true">
+        <td class="drag-handle" title="드래그해서 순서 변경">≡</td>
         <td>
           <select class="manager-select" onchange="upd('${row.id}','manager',this.value)">
             <option value="" ${!row.manager?'selected':''}>선택</option>
@@ -691,6 +718,7 @@ function render() {
     `;
   }).join('');
 
+  attachDragHandlers();
   renderStats();
   renderAlerts();
   renderTabs();
@@ -723,6 +751,56 @@ function updCheck(id, key, val) {
 function updCheckDate(id, key, val) {
   const row = data.find(r => r.id === id);
   if (row) { row[key].date = val; if (val) row[key].done = true; save(); render(); }
+}
+
+/* ═══════════════════════ 드래그 순서 변경 ═══════════════════════ */
+let _dragId = null;
+function attachDragHandlers() {
+  const rows = document.querySelectorAll('#tbody tr[data-id]');
+  rows.forEach(tr => {
+    tr.addEventListener('dragstart', e => {
+      /* 드래그 핸들 셀에서 시작한 경우만 허용 */
+      const handleActive = tr.querySelector('.drag-handle:hover, .drag-handle:active');
+      if (e.target.closest('input, select, button')) { e.preventDefault(); return; }
+      _dragId = tr.dataset.id;
+      tr.classList.add('dragging');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', _dragId); } catch(_){}
+    });
+    tr.addEventListener('dragend', () => {
+      tr.classList.remove('dragging');
+      document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
+        el.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      _dragId = null;
+    });
+    tr.addEventListener('dragover', e => {
+      if (!_dragId || tr.dataset.id === _dragId) return;
+      e.preventDefault();
+      const rect = tr.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      tr.classList.toggle('drag-over-top', before);
+      tr.classList.toggle('drag-over-bottom', !before);
+    });
+    tr.addEventListener('dragleave', () => {
+      tr.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+    tr.addEventListener('drop', e => {
+      e.preventDefault();
+      const targetId = tr.dataset.id;
+      const before = tr.classList.contains('drag-over-top');
+      tr.classList.remove('drag-over-top', 'drag-over-bottom');
+      if (!_dragId || targetId === _dragId) return;
+      const srcIdx = data.findIndex(r => r.id === _dragId);
+      const dstIdx = data.findIndex(r => r.id === targetId);
+      if (srcIdx < 0 || dstIdx < 0) return;
+      const [moved] = data.splice(srcIdx, 1);
+      let insertAt = data.findIndex(r => r.id === targetId);
+      if (!before) insertAt += 1;
+      data.splice(insertAt, 0, moved);
+      save();
+      render();
+    });
+  });
 }
 
 function addRow() {
