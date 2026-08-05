@@ -433,8 +433,10 @@
 
 <script>
 const STORAGE_KEY = 'coupang_new_product_dashboard_v1';
+const IMPORTED_KEY = 'coupang_new_product_imported_v1';
 const API_URL = '/api/new-state';
 const DEFAULT_YEAR = '2026';
+const REPO_CFG = { owner: 'tolmjj10', repo: 'coupang-po', branch: 'main', dir: 'newproduct/new' };
 const BRANDS = [
   { key: 'all',   label: '전체' },
   { key: 'oa',    label: '오아',   match: n => (n||'').trim().startsWith('오아') },
@@ -442,24 +444,49 @@ const BRANDS = [
   { key: 'etc',   label: '기타',   match: n => { const t = (n||'').trim(); return !t.startsWith('오아') && !t.startsWith('보아르'); } }
 ];
 let activeBrand = 'all';
+let importedNames = {}; // 자동 임포트/삭제 기록 — 신제품 재추가 방지 (공유 상태)
 let data = loadLocal();
+
+/* 저장 페이로드 파싱 — 구버전(array)과 신버전({rows,imported}) 모두 지원 */
+function _parsePayload(parsed) {
+  if (Array.isArray(parsed)) return { rows: parsed, imported: null };
+  if (parsed && Array.isArray(parsed.rows)) {
+    return { rows: parsed.rows, imported: parsed.imported || null };
+  }
+  return { rows: [], imported: null };
+}
 
 function loadLocal() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const p = _parsePayload(JSON.parse(raw));
+      if (p.imported) importedNames = p.imported;
+      /* 로컬 imported 세트도 병합 (구버전 호환) */
+      try {
+        const legacy = JSON.parse(localStorage.getItem(IMPORTED_KEY) || '{}');
+        Object.keys(legacy).forEach(k => { importedNames[k] = true; });
+      } catch(e){}
+      return p.rows.length ? p.rows : sampleData();
+    }
   } catch(e) {}
   return sampleData();
 }
 
 async function loadRemote() {
+  if (Date.now() < _suppressRemoteLoadUntil) return;
   try {
     const res = await fetch(API_URL, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const remote = await res.json();
-    if (Array.isArray(remote) && remote.length > 0) {
-      data = remote;
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+    const p = _parsePayload(remote);
+    if (p.rows.length > 0) {
+      data = p.rows;
+      /* imported는 원격 우선, 로컬 것도 병합 (삭제 이력 보존) */
+      if (p.imported) {
+        Object.keys(p.imported).forEach(k => { importedNames[k] = true; });
+      }
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames })); } catch(e) {}
       render();
     }
   } catch (e) {
@@ -482,7 +509,7 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sub
 
 let _saveTimer = null;
 function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames }));
   const el = document.getElementById('saveStatus');
   el.textContent = '저장 중...';
   clearTimeout(_saveTimer);
@@ -495,7 +522,7 @@ async function saveRemote() {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify({ rows: data, imported: importedNames })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     el.textContent = '✓ 공유 저장됨 ' + new Date().toLocaleTimeString('ko-KR');
@@ -699,7 +726,7 @@ function updCheckDate(id, key, val) {
 }
 
 function addRow() {
-  data.unshift({
+  data.push({
     id: uid(), manager: '', regName: '', realName: '',
     productionDate: '', arrivalDate: '', detailDueDate: '',
     rocket:{done:false,date:''}, wing:{done:false,date:''},
@@ -708,17 +735,151 @@ function addRow() {
   save(); render();
 }
 
+let _suppressRemoteLoadUntil = 0;
 function delRow(id) {
-  if (!confirm('삭제하시겠습니까?')) return;
+  const row = data.find(r => r.id === id);
+  if (!row) return;
+  const label = row.regName || row.realName || '(이름 없음)';
+  if (!confirm('"' + label + '" 삭제하시겠습니까?')) return;
   data = data.filter(r => r.id !== id);
-  save(); render();
+  /* 삭제 항목이 imported 세트에 남아있어야 자동 fetch가 재추가하지 않음 (모든 사용자에 공유) */
+  const key = (row.regName || '').trim();
+  if (key) importedNames[key] = true;
+  /* 원격 loadRemote가 방금 삭제한 행을 되돌리지 못하도록 잠깐 억제 */
+  _suppressRemoteLoadUntil = Date.now() + 5000;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames }));
+  render();
+  /* 디바운스 우회하고 즉시 원격 반영 */
+  clearTimeout(_saveTimer);
+  saveRemote();
 }
 
 render();
-loadRemote();
+loadRemote().then(() => fetchProductStatus());
 setInterval(() => { renderAlerts(); renderStats(); }, 60000);
 setInterval(loadRemote, 30000);
+setInterval(fetchProductStatus, 5 * 60 * 1000);
 window.addEventListener('focus', loadRemote);
+
+/* ═══════════════════════ 제품 현황 조회 자동 fetch ═══════════════════════ */
+let _xlsxLoading = null;
+function ensureXlsx() {
+  if (typeof XLSX !== 'undefined') return Promise.resolve();
+  if (_xlsxLoading) return _xlsxLoading;
+  _xlsxLoading = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('XLSX load failed'));
+    document.head.appendChild(s);
+  });
+  return _xlsxLoading;
+}
+
+function _parseNum(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  const n = parseFloat(String(v).replace(/,/g, '').trim());
+  return isNaN(n) ? 0 : n;
+}
+
+async function fetchProductStatus() {
+  try {
+    const listUrl = 'https://api.github.com/repos/' + REPO_CFG.owner + '/' + REPO_CFG.repo +
+                    '/contents/' + encodeURI(REPO_CFG.dir) + '?ref=' + REPO_CFG.branch;
+    const listRes = await fetch(listUrl, { headers: { 'Accept': 'application/vnd.github+json' } });
+    if (!listRes.ok) { console.warn('[new] list HTTP ' + listRes.status); return; }
+    const files = await listRes.json();
+    const NAME_RE = /^제품\s*현황\s*조회.*\.xlsx?$/i;
+    const matches = (files || []).filter(f => f.type === 'file' && NAME_RE.test(f.name));
+    if (matches.length === 0) { console.log('[new] 제품 현황 조회 파일 없음'); return; }
+    matches.sort((a, b) => a.name < b.name ? 1 : a.name > b.name ? -1 : 0);
+    const target = matches[0];
+    console.log('[new] 제품 현황 조회 파일: ' + target.name);
+
+    await ensureXlsx();
+    const abRes = await fetch(target.download_url);
+    if (!abRes.ok) throw new Error('file HTTP ' + abRes.status);
+    const ab = await abRes.arrayBuffer();
+    const wb = XLSX.read(ab, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    if (aoa.length < 2) return;
+
+    /* 헤더 행 찾기 (제품명 + 생산중이 있는 행) */
+    let hIdx = -1;
+    for (let i = 0; i < Math.min(aoa.length, 15); i++) {
+      const row = (aoa[i] || []).map(v => String(v || '').trim());
+      const hasName = row.some(c => c === '제품명');
+      const hasProd = row.some(c => /^생산\s*중$/.test(c));
+      if (hasName && hasProd) { hIdx = i; break; }
+    }
+    if (hIdx < 0) { console.warn('[new] 헤더 행을 찾지 못함'); return; }
+    const header = (aoa[hIdx] || []).map(v => String(v || '').trim());
+    const findIdx = (fn) => header.findIndex(fn);
+    const brandCol = findIdx(h => h === '브랜드');
+    const nameCol = findIdx(h => h === '제품명');
+    const prodCol = findIdx(h => /^생산\s*중$/.test(h));
+    const shipCol = findIdx(h => /^출하\s*중$/.test(h));
+    const transCol = findIdx(h => /^운송\s*중$/.test(h));
+    if (nameCol < 0 || prodCol < 0 || shipCol < 0 || transCol < 0) {
+      console.warn('[new] 필수 컬럼 누락', { brandCol, nameCol, prodCol, shipCol, transCol });
+      return;
+    }
+
+    const BRANDS_ALLOWED = ['오아', '보아르'];
+    const picked = [];
+    const seen = new Set();
+    for (let r = hIdx + 1; r < aoa.length; r++) {
+      const row = aoa[r] || [];
+      const name = String(row[nameCol] || '').trim();
+      if (!name) continue;
+      if (/리테일/.test(name)) continue;
+      if (brandCol >= 0) {
+        const brand = String(row[brandCol] || '').trim();
+        if (!BRANDS_ALLOWED.includes(brand)) continue;
+      }
+      const prodQty = _parseNum(row[prodCol]);
+      const shipQty = _parseNum(row[shipCol]);
+      const transQty = _parseNum(row[transCol]);
+      if (prodQty === 0 && shipQty === 0 && transQty === 0) continue;
+      if (seen.has(name)) continue;
+      seen.add(name);
+      picked.push(name);
+    }
+
+    /* 중복 제외 — importedNames(공유)와 현재 data의 regName으로 이중 체크
+       ※ 기존 행은 절대 수정/덮어쓰지 않음. 신규 항목만 push. */
+    const existingNames = new Set(data.map(r => (r.regName || '').trim()).filter(Boolean));
+    const toAdd = [];
+    picked.forEach(name => {
+      if (importedNames[name]) return;
+      if (existingNames.has(name)) { importedNames[name] = true; return; }
+      toAdd.push(name);
+      importedNames[name] = true;
+    });
+
+    if (toAdd.length === 0) {
+      console.log('[new] 새로 추가할 신제품 없음 (필터 통과: ' + picked.length + '건)');
+      /* imported 세트에 변화가 있을 수 있으므로 저장 */
+      save();
+      return;
+    }
+
+    toAdd.forEach(name => {
+      data.push({
+        id: uid(), manager: '', regName: name, realName: '',
+        productionDate: '', arrivalDate: '', detailDueDate: '',
+        rocket:{done:false,date:''}, wing:{done:false,date:''},
+        venple:{done:false,date:''}, ad:{done:false,date:''}
+      });
+    });
+    console.log('[new] ' + toAdd.length + '개 신제품 자동 추가');
+    save();
+    render();
+  } catch (e) {
+    console.warn('[new] fetchProductStatus 실패:', e.message);
+  }
+}
 </script>
 
 </body>
