@@ -512,11 +512,32 @@ async function loadRemote() {
       if (p.imported) {
         Object.keys(p.imported).forEach(k => { importedNames[k] = true; });
       }
+      migrateImportedToRealName();
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames })); } catch(e) {}
       render();
     }
   } catch (e) {
     console.warn('[new] remote load skipped:', e.message);
+  }
+}
+
+/* 이전에 regName으로 자동 임포트된 값을 realName(전산명)으로 이동
+   조건: regName에 값 있고, realName은 비어있음
+   → 자동 임포트된 값으로 간주하고 이동. 이동 후 해당 이름을 importedNames에 등록 */
+function migrateImportedToRealName() {
+  let migrated = 0;
+  data.forEach(r => {
+    const rn = (r.regName || '').trim();
+    if (!rn) return;
+    if ((r.realName || '').trim()) return; // 이미 전산명이 있으면 건드리지 않음
+    r.realName = r.regName;
+    r.regName = '';
+    importedNames[rn] = true;
+    migrated++;
+  });
+  if (migrated > 0) {
+    console.log('[new] regName → realName 마이그레이션: ' + migrated + '건');
+    save();
   }
 }
 
@@ -832,6 +853,7 @@ function delRow(id) {
   saveRemote();
 }
 
+migrateImportedToRealName();
 render();
 loadRemote().then(() => fetchProductStatus());
 setInterval(() => { renderAlerts(); renderStats(); }, 60000);
