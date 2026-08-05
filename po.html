@@ -287,6 +287,9 @@ td { padding: 9px 11px; vertical-align: middle; }
 .doc-cell.doc-low { color: #dc2626; font-weight: 800; }
 /* 중복 SKU: 셀 자체만 약한 빨강 배경 */
 .sku-dup { background: #fff1f1; color: #b91c1c; border-radius: 4px; padding: 2px 6px; }
+/* 이슈 SKU: 빨간 글씨 + 확인필요 배지 */
+.sku-issue { color: #dc2626; font-weight: 700; }
+.issue-badge { display:inline-block; margin-left:6px; padding:1px 6px; background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:10px; font-size:10.5px; font-weight:700; vertical-align:middle; }
 
 /* 재고 기입 */
 .inv-input { width: 78px; padding: 5px 7px; border: 1.5px solid var(--border-strong); border-radius: 5px; font-size: 12px; text-align: right; background: #fff; color: var(--text); transition: border-color .15s; }
@@ -444,6 +447,7 @@ const DEFAULT_MASTER_DATA=[{"SKU#":"3636925","상품명":"오아안개가습기5
 /* ═══════════════════════ STATE ═══════════════════════ */
 let orderData=null, masterData=null, stockData=null, salesData=null;
 let transitMap={}; // norm(상품코드) → 운송 중 수량
+let issueMap={}; // norm(SKU ID) → 특이사항 문구
 let matchedRows=[], activeFilter='all', allOpen=true;
 const fileState={order:false,master:false,stock:false};
 
@@ -1091,11 +1095,20 @@ function renderAll(){
       const _modified=_shownIsZero || (_hasInv && String(invValues[_rid])!==String(_defQty));
       const filledCls=_modified?'modified':'filled';
 
-      const skuHtml=r.orderSku?(r.isDup?`<span class="sku-dup">${r.orderSku}</span>`:r.orderSku):'—';
+      const issueNote=r.orderSku?(issueMap[norm(r.orderSku)]||''):'';
+      const isIssue=!!issueNote;
+      let skuHtml;
+      if(r.orderSku){
+        if(r.isDup) skuHtml=`<span class="sku-dup${isIssue?' sku-issue':''}">${r.orderSku}</span>`;
+        else if(isIssue) skuHtml=`<span class="sku-issue">${r.orderSku}</span>`;
+        else skuHtml=r.orderSku;
+      } else skuHtml='—';
+      const issueBadge=isIssue?`<span class="issue-badge" title="${escHtml(issueNote)}">⚠ 확인필요</span>`:'';
       const rowNumHtml=`<span class="row-num">${ri+1}.</span>`;
+      const nameText=(r.stockName||r.orderName)||'—';
       tbody+=`<tr data-pg="${gi}" style="${allOpen?'':'display:none'}">
         <td class="mono" style="white-space:nowrap">${rowNumHtml} ${skuHtml}</td>
-        <td class="col-name" title="${escHtml(r.stockName||r.orderName)}">${(r.stockName||r.orderName)||'—'}</td>
+        <td class="col-name" title="${escHtml((r.stockName||r.orderName)+(isIssue?' — '+issueNote:''))}">${nameText}${issueBadge}</td>
         ${salesCells}
         <td class="col-num-u td-stock-oaa" style="text-align:center">${stockCell}</td>
         ${curStockCell}
@@ -1882,7 +1895,8 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
     order:  /^발주리스트/,
     sales:  /^(일일판매|\d{8})/,
     stock:  /^전산재고/,
-    master: /^매입가/
+    master: /^매입가/,
+    issue:  /^이슈제품/
   };
 
   var hideStyle=document.createElement('style');
@@ -2083,6 +2097,23 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
       ['order','stock'].forEach(function(k){
         if(picks[k]) jobs.push(fetchBinary(picks[k].download_url).then(function(ab){ dispatchToLoadFile(k, ab, picks[k].name); }));
       });
+      if(picks.issue) jobs.push(fetchBinary(picks.issue.download_url).then(function(ab){
+        try {
+          var wb=XLSX.read(abToBinaryString(ab),{type:'binary'});
+          var ws=wb.Sheets[wb.SheetNames[0]];
+          var rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+          issueMap={};
+          rows.forEach(function(row){
+            var keys=Object.keys(row);
+            var skuKey=keys.find(function(k){ var n=norm(k); return n==='skuid'||n==='sku'||n==='옵션코드'; })||keys[0];
+            var noteKey=keys.find(function(k){ var n=norm(k); return n==='특이사항'||n==='메모'||n==='비고'||n==='note'; });
+            var sku=norm(row[skuKey]);
+            if(!sku) return;
+            issueMap[sku]=noteKey?String(row[noteKey]||'').trim()||'확인필요':'확인필요';
+          });
+          console.log('[VOAR] issue loaded: '+Object.keys(issueMap).length+'건');
+        } catch(e){ console.warn('[VOAR] issue parse err:', e.message); }
+      }));
       /* sales: daily/ 폴더의 YYYYMMDD 파일 우선 병합, 없으면 기존 방식 */
       var dailyFiles=pickDailySales(files);
       if(dailyFiles.length>0){
