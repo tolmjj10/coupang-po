@@ -676,18 +676,6 @@ function renderAlerts() {
     const name = row.realName || row.regName || '(이름 없음)';
     const manager = row.manager || '담당자 미정';
 
-    const detail = daysUntil(row.detailDueDate);
-    if (detail !== null) {
-      if (detail === 0) alerts.push({cls:'urgent', text:`🚨 [${manager}] "${name}" 오늘이 상세전달일자입니다!`});
-      else if (detail <= 2) alerts.push({cls:'urgent', text:`⚠️ [${manager}] "${name}" 상세전달 D-${detail} — 곧 등록 필요`});
-      else if (detail <= 5) alerts.push({cls:'warning', text:`⏰ [${manager}] "${name}" 상세전달 D-${detail}`});
-    }
-
-    const arrival = daysUntil(row.arrivalDate);
-    if (arrival !== null) {
-      if (arrival >= 0 && arrival <= 3) alerts.push({cls:'warning', text:`📦 [${manager}] "${name}" 입고예정 D-${arrival}`});
-      else if (arrival < 0 && !row.rocket.done && !row.wing.done) alerts.push({cls:'info', text:`📦 [${manager}] "${name}" 입고 완료(${Math.abs(arrival)}일 전) — 등록 확인`});
-    }
   });
 
   const box = document.getElementById('alerts');
@@ -790,10 +778,7 @@ function checkCell(row, key) {
   const item = row[key];
   let warnHtml = '';
   if (key === 'rocket' && !item.done && !item.date) {
-    const detail = daysUntil(row.detailDueDate);
-    if (detail !== null && detail < 0) {
-      warnHtml = `<div class="rocket-warn" title="상세전달일자가 ${Math.abs(detail)}일 지났는데 로켓 등록이 안 되어 있어요">⚠️ 등록 지연 D+${Math.abs(detail)}</div>`;
-    }
+    warnHtml = dDayHtml(row.detailDueDate);
   }
   return `<td class="check-cell">
     <input type="checkbox" ${item.done?'checked':''} onchange="updCheck('${row.id}','${key}',this.checked)">
