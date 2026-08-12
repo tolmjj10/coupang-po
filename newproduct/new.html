@@ -759,14 +759,17 @@ function render() {
         </td>
         <td><input type="text" class="reg-name ${row.regName ? 'filled' : ''}" value="${esc(row.regName)}" title="${esc(row.regName)}" placeholder="✎ 등록시 기입" onchange="upd('${row.id}','regName',this.value)"></td>
         <td><input type="text" value="${esc(row.realName)}" title="${esc(row.realName)}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)"></td>
-        <td><input type="date" min="2026-01-01" value="${row.productionDate||''}" onchange="upd('${row.id}','productionDate',this.value)"></td>
+        <td>
+          <input type="date" min="2026-01-01" value="${row.productionDate||''}" onchange="upd('${row.id}','productionDate',this.value)">
+          ${(() => { const d = daysUntil(row.productionDate); return (d !== null && d >= 0) ? dDayHtml(row.productionDate) : ''; })()}
+        </td>
         <td>
           <input type="date" min="2026-01-01" value="${row.arrivalDate||''}" onchange="upd('${row.id}','arrivalDate',this.value)">
           ${dDayHtml(row.arrivalDate)}
         </td>
         <td>
           <input type="date" min="2026-01-01" value="${row.detailDueDate||''}" onchange="upd('${row.id}','detailDueDate',this.value)">
-          ${dDayHtml(row.detailDueDate)}
+          ${(row.rocket.done || row.rocket.date) ? '' : dDayHtml(row.detailDueDate)}
         </td>
         ${checkCell(row,'rocket')}
         ${checkCell(row,'wing')}
@@ -812,6 +815,8 @@ function updCheck(id, key, val) {
     row[key].done = val;
     if (val && !row[key].date) {
       row[key].date = new Date().toISOString().slice(0,10);
+    } else if (!val) {
+      row[key].date = '';
     }
     save(); render();
   }
