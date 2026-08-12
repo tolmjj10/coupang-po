@@ -1089,6 +1089,7 @@ function renderAll(){
       if(!_hasInv && (r.status==='partial' || r.status==='shortage') && r.stockQty!==null && r.orderQty > r.stockQty){
         invValues[_rid]=0;
         _hasInv=true;
+        window.__VOAR_DIRTY__=true;
       }
       const invVal=_hasInv?invValues[_rid]:_defQty;
       const _shownIsZero=Number(invVal)===0;
@@ -1262,8 +1263,8 @@ async function downloadPO(poNum,btnEl){
   const aoa=[header];
   rows.forEach(r=>{
     const _rid='r_'+r.idx;
-    const qty=invValues[_rid]!==undefined?Number(invValues[_rid]):Number(r.orderQty);
-    if(!qty || qty<=0) return;
+    const rawQty=invValues[_rid]!==undefined?Number(invValues[_rid]):Number(r.orderQty);
+    const qty=(!isNaN(rawQty) && rawQty>0)?rawQty:0;
     const price=(r.orderPrice!=null && !isNaN(r.orderPrice))?Number(r.orderPrice):(Number(r.price)||0);
     const procodeRaw=r.procode||'';
     const procodeVal=(procodeRaw!=='' && !isNaN(Number(procodeRaw))) ? Number(procodeRaw) : procodeRaw;
