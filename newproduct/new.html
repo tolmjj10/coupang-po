@@ -478,7 +478,7 @@
           <th style="width:110px;">담당자</th>
           <th class="resizable" style="width:360px;" data-col="reg">등록 상품명<span class="col-resizer"></span></th>
           <th class="resizable" style="width:300px;" data-col="real">전산명<span class="col-resizer"></span></th>
-          <th style="width:120px;">생산완료일</th>
+          <th style="width:120px; cursor:pointer; user-select:none;" onclick="toggleSortProd()" title="클릭하여 정렬">생산완료일 <span id="sortProdIcon" style="opacity:.6;">⇅</span></th>
           <th style="width:140px;">입고예정일</th>
           <th style="width:140px;">상세전달일자</th>
           <th class="check-cell">🚀 로켓 등록</th>
@@ -508,6 +508,7 @@ const BRANDS = [
   { key: 'etc',   label: '기타',   match: n => { const t = (n||'').trim(); return !t.startsWith('오아') && !t.startsWith('보아르'); } }
 ];
 let activeBrand = 'all';
+let sortProdAsc = null;
 let importedNames = {}; // (구버전 호환용, 더 이상 dedup에 사용하지 않음)
 let lastExcelProducts = null; // 마지막으로 처리한 엑셀의 제품명 배열. 이 목록과 diff로 신규 판별
 let data = loadLocal();
@@ -721,6 +722,11 @@ function renderTabs() {
 
 function setBrand(key) { activeBrand = key; render(); }
 
+function toggleSortProd() {
+  sortProdAsc = sortProdAsc === null ? true : sortProdAsc === true ? false : null;
+  render();
+}
+
 function render() {
   const q = document.getElementById('search').value.trim().toLowerCase();
   let filtered = data;
@@ -730,6 +736,20 @@ function render() {
     (r.regName||'').toLowerCase().includes(q) ||
     (r.realName||'').toLowerCase().includes(q)
   );
+
+  if (sortProdAsc !== null) {
+    filtered = filtered.slice().sort((a, b) => {
+      const av = a.productionDate || '';
+      const bv = b.productionDate || '';
+      if (!av && !bv) return 0;
+      if (!av) return 1;
+      if (!bv) return -1;
+      return sortProdAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
+  }
+
+  const icon = document.getElementById('sortProdIcon');
+  if (icon) icon.textContent = sortProdAsc === null ? '⇅' : sortProdAsc ? '↑' : '↓';
 
   const tbody = document.getElementById('tbody');
   tbody.innerHTML = filtered.map(row => {
