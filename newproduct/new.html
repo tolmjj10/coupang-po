@@ -678,8 +678,7 @@ function renderAlerts() {
 
     const detail = daysUntil(row.detailDueDate);
     if (detail !== null) {
-      if (detail < 0) alerts.push({cls:'urgent', text:`🚨 [${manager}] "${name}" 상세전달일자 ${Math.abs(detail)}일 초과!`});
-      else if (detail === 0) alerts.push({cls:'urgent', text:`🚨 [${manager}] "${name}" 오늘이 상세전달일자입니다!`});
+      if (detail === 0) alerts.push({cls:'urgent', text:`🚨 [${manager}] "${name}" 오늘이 상세전달일자입니다!`});
       else if (detail <= 2) alerts.push({cls:'urgent', text:`⚠️ [${manager}] "${name}" 상세전달 D-${detail} — 곧 등록 필요`});
       else if (detail <= 5) alerts.push({cls:'warning', text:`⏰ [${manager}] "${name}" 상세전달 D-${detail}`});
     }
