@@ -812,7 +812,9 @@ function runMatch(){
 
   /* ── SKU procode 오버라이드: 특정 SKU는 다른 제품의 재고를 조회하도록 강제 ── */
   const PROCODE_OVERRIDES=[
-    { sku:'64778161', targetProcode:'A02799' }  // 오아베이직빗고데기-블루 → (FV)-블루 재고(A02799) 사용
+    { sku:'64778161', targetProcode:'A02799' },  // 오아베이직빗고데기-블루 → (FV)-블루 재고(A02799) 사용
+    { sku:'77463489', targetProcode:'A03267' },
+    { sku:'77463490', targetProcode:'A03268' }
   ];
   PROCODE_OVERRIDES.forEach(ov=>{
     const skuKey=norm(ov.sku);
