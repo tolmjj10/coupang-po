@@ -1265,6 +1265,7 @@ async function downloadPO(poNum,btnEl){
     const _rid='r_'+r.idx;
     const rawQty=invValues[_rid]!==undefined?Number(invValues[_rid]):Number(r.orderQty);
     const qty=(!isNaN(rawQty) && rawQty>0)?rawQty:0;
+    if(qty<=0) return;
     const price=(r.orderPrice!=null && !isNaN(r.orderPrice))?Number(r.orderPrice):(Number(r.price)||0);
     const procodeRaw=r.procode||'';
     const procodeVal=(procodeRaw!=='' && !isNaN(Number(procodeRaw))) ? Number(procodeRaw) : procodeRaw;
@@ -1277,6 +1278,8 @@ async function downloadPO(poNum,btnEl){
       qty*price
     ]);
   });
+
+  if(aoa.length<=1){ alert('수량이 0보다 큰 제품이 없습니다.'); return; }
 
   const XL=window.XLSX;
   const ws=XL.utils.aoa_to_sheet(aoa);
