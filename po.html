@@ -1241,6 +1241,20 @@ function loadStyleXLSX(){
   return window.__STYLE_XLSX_LOAD__;
 }
 
+/* 입고수량 실효값: 화면 인풋(최우선) → invValues → orderQty */
+function getEffectiveQty(r){
+  const _rid='r_'+r.idx;
+  const inputEl=document.querySelector('input[data-rid="'+_rid+'"]');
+  let raw;
+  if(inputEl && inputEl.value!==''){
+    raw=Number(inputEl.value);
+  } else if(invValues[_rid]!==undefined){
+    raw=Number(invValues[_rid]);
+  } else {
+    raw=Number(r.orderQty);
+  }
+  return isNaN(raw)?0:raw;
+}
 async function downloadPO(poNum,btnEl){
   if(!matchedRows || !matchedRows.length){ alert('데이터가 없습니다'); return; }
   const rows=matchedRows.filter(r=>(r.poNum||'')===poNum).sort((a,b)=>{
@@ -1264,9 +1278,8 @@ async function downloadPO(poNum,btnEl){
 
   const aoa=[header];
   rows.forEach(r=>{
-    const _rid='r_'+r.idx;
-    const rawQty=invValues[_rid]!==undefined?Number(invValues[_rid]):Number(r.orderQty);
-    const qty=(!isNaN(rawQty) && rawQty>0)?rawQty:0;
+    const rawQty=getEffectiveQty(r);
+    const qty=rawQty>0?rawQty:0;
     if(qty<=0) return;
     const price=(r.orderPrice!=null && !isNaN(r.orderPrice))?Number(r.orderPrice):(Number(r.price)||0);
     const procodeRaw=r.procode||'';
@@ -1385,8 +1398,7 @@ function computePoAmount(poNum){
   let sum=0;
   matchedRows.forEach(function(r){
     if(String(r.poNum)!==String(poNum)) return;
-    const _rid='r_'+r.idx;
-    const qty=invValues[_rid]!==undefined?Number(invValues[_rid]):Number(r.orderQty);
+    const qty=getEffectiveQty(r);
     if(!qty || qty<=0) return;
     const unit=(r.orderPrice!=null && !isNaN(r.orderPrice))?Number(r.orderPrice):(Number(r.price)||0);
     sum += qty * unit;
@@ -1405,8 +1417,7 @@ function updateAllPoAmounts(){
     if(Array.isArray(matchedRows)){
       matchedRows.forEach(function(r){
         if(String(r.poNum)!==String(po)) return;
-        const _rid='r_'+r.idx;
-        const qty=invValues[_rid]!==undefined?Number(invValues[_rid]):Number(r.orderQty);
+        const qty=getEffectiveQty(r);
         if(qty>0) cnt++;
       });
     }
@@ -1419,8 +1430,7 @@ function checkAndMarkPoComplete(poNum){
   const rows=matchedRows.filter(function(r){return String(r.poNum)===String(poNum);});
   if(!rows.length) return;
   const allZero=rows.every(function(r){
-    const _rid='r_'+r.idx;
-    return invValues[_rid]!==undefined && Number(invValues[_rid])===0;
+    return getEffectiveQty(r)===0;
   });
   const map=window.__VOAR_DOWNLOADED_POS__=window.__VOAR_DOWNLOADED_POS__||{};
   if(allZero && !map[poNum]){
@@ -1541,13 +1551,12 @@ async function saveResult(mode){
     }
     const skuRaw=r.orderSku;
     const skuVal=(skuRaw!=='' && skuRaw!=null && !isNaN(Number(skuRaw))) ? Number(skuRaw) : skuRaw;
-    const _rid='r_'+r.idx;
     const row={
       '발주번호': r.poNum||'',
       'SKU':      skuVal,
       '제품명':   r.stockName||r.orderName,
       '발주수량': r.orderQty,
-      '입고수량': invValues[_rid]!==undefined ? Number(invValues[_rid]) : Number(r.orderQty),
+      '입고수량': getEffectiveQty(r),
     };
     rowsWithGaps.push(row);
     rowsNoGaps.push(row);
