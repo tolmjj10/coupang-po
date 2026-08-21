@@ -1927,15 +1927,38 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
 
   function setStatus(msg, color){ console.log('[VOAR]', msg); }
 
-  function listOneDir(dir){
+  /* GitHub 파일 목록 60초 localStorage 캐시.
+     반복 접속·페이지 전환 시 API 왕복(300~600ms)을 스킵. 60초 지나면 백그라운드에서 갱신. */
+  var _LIST_CACHE_TTL = 60 * 1000;
+  function _listCacheKey(dir){
+    return 'voar-lc-'+CFG.owner+'-'+CFG.repo+'-'+CFG.branch+'-'+dir;
+  }
+  function _fetchAndCacheDir(dir){
     var url='https://api.github.com/repos/'+CFG.owner+'/'+CFG.repo+'/contents/'+encodeURI(dir)+'?ref='+CFG.branch;
-    return fetch(url, {headers:{'Accept':'application/vnd.github+json'}}).then(function(r){
+    return fetch(url, {headers:{'Accept':'application/vnd.github+json'}, cache:'default'}).then(function(r){
       if(!r.ok){
         console.warn('[VOAR] listDir skip '+dir+': '+r.status);
         return [];
       }
       return r.json();
+    }).then(function(data){
+      try{ localStorage.setItem(_listCacheKey(dir), JSON.stringify({at:Date.now(), data:data})); }catch(e){}
+      return data;
     }).catch(function(e){ console.warn('[VOAR] listDir err '+dir+':', e.message); return []; });
+  }
+  function listOneDir(dir){
+    try{
+      var raw=localStorage.getItem(_listCacheKey(dir));
+      if(raw){
+        var obj=JSON.parse(raw);
+        if(obj && obj.at && Array.isArray(obj.data) && (Date.now()-obj.at) < _LIST_CACHE_TTL){
+          /* 백그라운드에서 갱신(다음 로드용) */
+          setTimeout(function(){ _fetchAndCacheDir(dir); }, 0);
+          return Promise.resolve(obj.data);
+        }
+      }
+    }catch(e){}
+    return _fetchAndCacheDir(dir);
   }
 
   function listRepoFiles(){
@@ -2157,15 +2180,15 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
         setStatus('데이터 로드 완료');
         try{ checkReady(); }catch(e){}
         try{ document.getElementById('mapping-section').classList.add('show'); }catch(e){}
-        setTimeout(function(){
-          try{ runMatch(); }catch(e){ console.error('runMatch:',e); }
-          fetchSharedState().then(function(saved){
-            if(saved && typeof window.applySharedState==='function'){
-              window.applySharedState(saved);
-              console.log('[VOAR] shared state applied');
-            }
-          });
-        }, 200);
+        /* 불필요한 200ms 지연 제거 — 즉시 매칭 + shared state는 병렬로 fetch */
+        var stateP=fetchSharedState();
+        try{ runMatch(); }catch(e){ console.error('runMatch:',e); }
+        stateP.then(function(saved){
+          if(saved && typeof window.applySharedState==='function'){
+            window.applySharedState(saved);
+            console.log('[VOAR] shared state applied');
+          }
+        });
       });
     }).catch(function(err){
       console.error('[VOAR] load error', err);
