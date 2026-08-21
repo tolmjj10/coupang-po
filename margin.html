@@ -47,7 +47,24 @@
     width:210px;flex-shrink:0;background:var(--surface);
     border-right:1px solid var(--hairline);
     padding:18px 12px;display:flex;flex-direction:column;overflow-y:auto;
+    transition:width .22s ease, padding .22s ease, border-color .22s ease;
+    position:relative;
   }
+  body.sidebar-collapsed .side{
+    width:0;padding:18px 0;border-right-color:transparent;overflow:hidden;
+  }
+  .side-toggle{
+    position:fixed;top:16px;left:198px;
+    width:22px;height:22px;border-radius:50%;
+    background:var(--surface);border:1px solid var(--hairline-strong);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--muted);cursor:pointer;font-size:12px;line-height:1;
+    z-index:20;box-shadow:var(--shadow-xs);
+    transition:left .22s ease, background .12s, color .12s, border-color .12s, transform .12s;
+    user-select:none;
+  }
+  .side-toggle:hover{background:var(--accent-soft);color:var(--accent-dark);border-color:var(--accent);}
+  body.sidebar-collapsed .side-toggle{left:8px;}
   .side-title{
     font-size:11px;font-weight:600;color:var(--hint);
     letter-spacing:0.09em;text-transform:uppercase;
@@ -243,6 +260,7 @@
 </head>
 <body>
 <div class="shell">
+  <button class="side-toggle" id="btnSide" title="사이드바 열기/닫기" aria-label="사이드바 토글">«</button>
   <aside class="side">
     <div class="side-title">카테고리</div>
     <div id="catList"></div>
@@ -299,10 +317,10 @@ const CFG={owner:'tolmjj10',repo:'coupang-po',branch:'main',dir:'data',file:'마
 */
 const COLS=[
   {k:'owner',   label:'담당자',      w:52,  align:'center', editable:true, type:'text'},
-  {k:'cat',     label:'카',          w:44,  align:'center', editable:true, type:'select', cls:'col-cat',
+  {k:'cat',     label:'카테고리',    w:66,  align:'center', editable:true, type:'select', cls:'col-cat',
     options:['이미용','욕실가전','모바일','겨울가전','여름가전','건강가전','주방가전','생활가전','인테리어/조명','제습기','공기청정기','육아','차량','애견']},
   {k:'sku',     label:'SKU #',       w:70,  align:'center', editable:true, type:'text'},
-  {k:'name',    label:'상품명',      w:520, align:'left',   editable:true, type:'text', cls:'col-name'},
+  {k:'name',    label:'상품명',      w:320, align:'left',   editable:true, type:'text', cls:'col-name'},
   {k:'status',  label:'상태',        w:60,  align:'center', editable:true, type:'select', options:['판매','중지','단종','품절','예정']},
   {k:'cost',    label:'매입가',      w:72,  align:'right',  editable:true, type:'num'},
   {k:'supply',  label:'공급가',      w:72,  align:'right',  calc:r=>r.cost!=null? r.cost/1.1 : null,           type:'num'},
@@ -475,6 +493,8 @@ function buildHead(){
         document.body.classList.remove('col-resizing');
         window.removeEventListener('mousemove',onMove);
         window.removeEventListener('mouseup',onUp);
+        // 폭 변경을 KV에 저장(모든 사용자에게 반영). undo 스택은 오염시키지 않음.
+        if(startW !== pendingW) markDirtyNoHistory();
       };
       window.addEventListener('mousemove',onMove);
       window.addEventListener('mouseup',onUp);
@@ -756,14 +776,29 @@ function updateSaveInfo(){
   }
 }
 
+function getColWidths(){
+  const o={};
+  COLS.forEach(c=>{ if(c.k!=='_act') o[c.k]=c.w; });
+  return o;
+}
+function applyColWidths(){
+  const tr=document.getElementById('thead-row');
+  if(!tr) return;
+  COLS.forEach(c=>{
+    const th=tr.querySelector(`th[data-k="${c.k}"]`);
+    if(th){ th.style.minWidth=c.w+'px'; th.style.width=c.w+'px'; }
+  });
+}
+
 async function save(){
   if(saving) return;
   saving=true; updateSaveInfo();
   try{
-    const payload=rows.map(r=>{
+    const rowsPayload=rows.map(r=>{
       const {_id,_new,...rest}=r;
       return rest;
     });
+    const payload={rows:rowsPayload, colWidths:getColWidths()};
     const res=await fetch('/api/margin-state',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -793,7 +828,15 @@ async function load(){
     const res=await fetch('/api/margin-state',{cache:'no-store'});
     if(!res.ok) throw new Error('HTTP '+res.status);
     const data=await res.json();
-    rows=(Array.isArray(data)?data:[]).map(r=>({_id:uid(),...r}));
+    // 하위호환: 예전엔 [row,...] 배열, 지금은 {rows,colWidths}
+    let rowArr=[], colWidths=null;
+    if(Array.isArray(data)) rowArr=data;
+    else if(data && typeof data==='object'){ rowArr=Array.isArray(data.rows)?data.rows:[]; colWidths=data.colWidths||null; }
+    rows=rowArr.map(r=>({_id:uid(),...r}));
+    if(colWidths){
+      COLS.forEach(c=>{ if(colWidths[c.k]!=null && isFinite(colWidths[c.k])) c.w=colWidths[c.k]; });
+      applyColWidths();
+    }
     fillFilters();
     render();
     undoStack.length=0; redoStack.length=0;
@@ -820,6 +863,10 @@ document.getElementById('btnReload').addEventListener('click',()=>{
 });
 document.getElementById('btnUndo').addEventListener('click',doUndo);
 document.getElementById('btnRedo').addEventListener('click',doRedo);
+document.getElementById('btnSide').addEventListener('click',()=>{
+  const collapsed=document.body.classList.toggle('sidebar-collapsed');
+  document.getElementById('btnSide').textContent = collapsed ? '»' : '«';
+});
 window.addEventListener('keydown',ev=>{
   const meta=ev.ctrlKey||ev.metaKey;
   if(!meta) return;

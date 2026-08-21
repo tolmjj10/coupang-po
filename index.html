@@ -10,14 +10,19 @@
 <style>
   * { box-sizing: border-box; }
   :root {
-    --bg: #f5f4f0;
+    /* 마진테이블/po/new 와 동일한 어스톤 팔레트 */
+    --bg: #fbfbfe;
     --surface: #ffffff;
-    --border: #e2e0d8;
-    --text: #1a1916;
-    --text-muted: #6b6960;
-    --text-hint: #9e9c94;
-    --accent: #1a3a4a;
-    --accent-light: #e8f1f5;
+    --border: #ebe6df;
+    --border-strong: #d9d1c8;
+    --text: #2a1a15;
+    --text-muted: #4d5a4c;
+    --text-hint: #7a706a;
+    --accent: #aa9791;
+    --accent-dark: #8b756c;
+    --accent-light: #f2ede9;
+    --sage: #b1c0b2;
+    --sage-soft: #e6ece6;
   }
   html, body {
     margin: 0; padding: 0; height: 100%;
@@ -44,13 +49,13 @@
     align-items: center;
     gap: 10px;
     padding: 4px 10px 16px;
-    border-bottom: 1px solid #f0eee6;
+    border-bottom: 1px solid var(--border);
     margin-bottom: 14px;
     cursor: pointer;
     border-radius: 8px;
     transition: background .12s ease;
   }
-  .brand:hover { background: #f6f4ee; }
+  .brand:hover { background: var(--accent-light); }
   .brand .logo {
     width: 26px; height: 26px;
     border-radius: 7px;
@@ -88,7 +93,7 @@
     transition: background .12s ease, color .12s ease;
     margin-bottom: 2px;
   }
-  .nav-item:hover { background: #f6f4ee; color: var(--text); }
+  .nav-item:hover { background: var(--accent-light); color: var(--text); }
   .nav-item.active {
     background: var(--accent-light);
     color: var(--accent);
@@ -132,7 +137,7 @@
   }
   .landing.active { display: flex; }
   .landing-inner {
-    max-width: 780px;
+    max-width: 1080px;
     width: 100%;
     text-align: center;
   }
@@ -150,7 +155,7 @@
   }
   .pick-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 18px;
   }
   .pick-card {
