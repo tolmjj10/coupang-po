@@ -138,6 +138,20 @@
     background:var(--surface-alt);
     overflow:hidden;text-overflow:ellipsis;
   }
+  thead th{position:sticky;}
+  th .resize{
+    position:absolute;top:0;right:0;bottom:0;width:7px;
+    cursor:col-resize;user-select:none;z-index:3;
+    background:transparent;transition:background .12s ease;
+  }
+  th .resize::after{
+    content:'';position:absolute;top:22%;bottom:22%;right:2px;width:2px;
+    border-radius:2px;background:transparent;transition:background .12s ease;
+  }
+  th:hover .resize::after{background:var(--hairline-strong);}
+  th .resize:hover::after,th .resize.dragging::after{background:var(--accent);}
+  body.col-resizing{cursor:col-resize !important;}
+  body.col-resizing *{cursor:col-resize !important;}
   tbody td{padding:0;border-bottom:1px solid var(--hairline);color:var(--text);vertical-align:middle;overflow:hidden;}
   tbody td .cell{padding:9px 8px;min-height:36px;display:flex;align-items:center;font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;}
   tbody td .cell.num{justify-content:flex-end;font-variant-numeric:tabular-nums;}
@@ -285,10 +299,10 @@ const CFG={owner:'tolmjj10',repo:'coupang-po',branch:'main',dir:'data',file:'마
 */
 const COLS=[
   {k:'owner',   label:'담당자',      w:52,  align:'center', editable:true, type:'text'},
-  {k:'cat',     label:'카테고리',    w:78,  align:'center', editable:true, type:'select', cls:'col-cat',
+  {k:'cat',     label:'카',          w:44,  align:'center', editable:true, type:'select', cls:'col-cat',
     options:['이미용','욕실가전','모바일','겨울가전','여름가전','건강가전','주방가전','생활가전','인테리어/조명','제습기','공기청정기','육아','차량','애견']},
   {k:'sku',     label:'SKU #',       w:70,  align:'center', editable:true, type:'text'},
-  {k:'name',    label:'상품명',      w:420, align:'left',   editable:true, type:'text', cls:'col-name'},
+  {k:'name',    label:'상품명',      w:520, align:'left',   editable:true, type:'text', cls:'col-name'},
   {k:'status',  label:'상태',        w:60,  align:'center', editable:true, type:'select', options:['판매','중지','단종','품절','예정']},
   {k:'cost',    label:'매입가',      w:72,  align:'right',  editable:true, type:'num'},
   {k:'supply',  label:'공급가',      w:72,  align:'right',  calc:r=>r.cost!=null? r.cost/1.1 : null,           type:'num'},
@@ -419,11 +433,13 @@ function buildHead(){
   const tr=document.getElementById('thead-row');
   tr.innerHTML=COLS.map(c=>{
     const sortable=c.k!=='_act';
+    const resizable=c.k!=='_act';
     const cls=sortable?'sortable':'';
-    return `<th class="${cls}" data-k="${c.k}" style="min-width:${c.w}px;">${esc(c.label).replace(/\n/g,'<br>')}${sortable?'<span class="arrow"></span>':''}</th>`;
+    return `<th class="${cls}" data-k="${c.k}" style="min-width:${c.w}px;width:${c.w}px;">${esc(c.label).replace(/\n/g,'<br>')}${sortable?'<span class="arrow"></span>':''}${resizable?'<span class="resize" data-k="'+c.k+'"></span>':''}</th>`;
   }).join('');
   tr.querySelectorAll('th.sortable').forEach(th=>{
-    th.addEventListener('click',()=>{
+    th.addEventListener('click',(e)=>{
+      if(e.target.classList.contains('resize')) return;
       const k=th.dataset.k;
       if(sortKey===k){ sortDir=-sortDir; } else { sortKey=k; sortDir=1; }
       tr.querySelectorAll('th').forEach(t=>t.classList.remove('asc','desc'));
@@ -431,6 +447,39 @@ function buildHead(){
       pushHistory();
       render();
     });
+  });
+  // 컬럼 리사이즈
+  tr.querySelectorAll('.resize').forEach(handle=>{
+    handle.addEventListener('mousedown',ev=>{
+      ev.preventDefault(); ev.stopPropagation();
+      const th=handle.parentElement;
+      const k=handle.dataset.k;
+      const startX=ev.clientX;
+      const startW=th.offsetWidth;
+      handle.classList.add('dragging');
+      document.body.classList.add('col-resizing');
+      let rafId=null, pendingW=startW;
+      const apply=()=>{
+        rafId=null;
+        th.style.minWidth=pendingW+'px';
+        th.style.width=pendingW+'px';
+        const col=COLS.find(c=>c.k===k);
+        if(col) col.w=pendingW;
+      };
+      const onMove=e=>{
+        pendingW=Math.max(40, startW + (e.clientX-startX));
+        if(rafId==null) rafId=requestAnimationFrame(apply);
+      };
+      const onUp=()=>{
+        handle.classList.remove('dragging');
+        document.body.classList.remove('col-resizing');
+        window.removeEventListener('mousemove',onMove);
+        window.removeEventListener('mouseup',onUp);
+      };
+      window.addEventListener('mousemove',onMove);
+      window.addEventListener('mouseup',onUp);
+    });
+    handle.addEventListener('click',e=>e.stopPropagation());
   });
 }
 
@@ -536,6 +585,9 @@ function attachEditors(){
 }
 
 function startEdit(el, id){
+  // 이미 편집 중이면 재진입하지 않음 → 브라우저 기본 캐럿 이동/부분 선택 그대로 동작
+  if(el.getAttribute('contenteditable')==='true') return;
+  if(el.querySelector('select')) return;
   const r=rows.find(x=>x._id===id);
   if(!r) return;
   const k=el.dataset.k;
@@ -554,8 +606,8 @@ function startEdit(el, id){
     const commit=()=>{
       if(done) return; done=true;
       const changed=(r[k]||'')!==(sel.value||'');
-      if(changed){ setValue(r,k,sel.value); markDirty(); }
-      render();
+      if(changed){ setValue(r,k,sel.value); markDirty(); render(); }
+      else { render(); }
     };
     sel.addEventListener('change',commit);
     sel.addEventListener('blur',commit);
@@ -566,6 +618,7 @@ function startEdit(el, id){
   el.textContent=raw==null?'':String(raw);
   el.setAttribute('contenteditable','true');
   el.focus();
+  // 최초 진입 시 전체 선택(교체 편집 편의). 이후 클릭은 재진입 가드로 브라우저 기본 캐럿 이동 유지.
   const range=document.createRange(); range.selectNodeContents(el);
   const s=window.getSelection(); s.removeAllRanges(); s.addRange(range);
 
@@ -576,13 +629,22 @@ function startEdit(el, id){
     if((r[k]??'')!==(newVal??'')){
       setValue(r,k,newVal);
       markDirty();
+      render();
+    } else {
+      // 변경 없음 → 전체 render 생략, 표시값만 원복
+      const v=getCellValue(r,col);
+      el.textContent=formatValue(v,col);
     }
-    render();
   };
   el.addEventListener('blur',commit,{once:true});
   el.addEventListener('keydown',ev=>{
     if(ev.key==='Enter'){ ev.preventDefault(); el.blur(); }
-    if(ev.key==='Escape'){ ev.preventDefault(); el.removeAttribute('contenteditable'); render(); }
+    if(ev.key==='Escape'){
+      ev.preventDefault();
+      el.removeAttribute('contenteditable');
+      const v=getCellValue(r,col);
+      el.textContent=formatValue(v,col);
+    }
   });
 }
 
