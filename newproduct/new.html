@@ -1014,9 +1014,15 @@ function _parseNum(v) {
 
 async function fetchProductStatus() {
   try {
-    const listUrl = 'https://api.github.com/repos/' + REPO_CFG.owner + '/' + REPO_CFG.repo +
+    /* Cloudflare Pages Function 프록시 우선 → 실패 시 직접 호출 폴백 */
+    const proxyUrl = '/api/repo-files?path=' + encodeURIComponent(REPO_CFG.dir) + '&ref=' + encodeURIComponent(REPO_CFG.branch);
+    const directUrl = 'https://api.github.com/repos/' + REPO_CFG.owner + '/' + REPO_CFG.repo +
                     '/contents/' + encodeURI(REPO_CFG.dir) + '?ref=' + REPO_CFG.branch;
-    const listRes = await fetch(listUrl, { headers: { 'Accept': 'application/vnd.github+json' } });
+    let listRes = await fetch(proxyUrl);
+    if (!listRes.ok) {
+      console.warn('[new] proxy list failed (' + listRes.status + '), fallback to direct');
+      listRes = await fetch(directUrl, { headers: { 'Accept': 'application/vnd.github+json' } });
+    }
     if (!listRes.ok) { console.warn('[new] list HTTP ' + listRes.status); return; }
     const files = await listRes.json();
     const NAME_RE = /^제품\s*현황\s*조회.*\.xlsx?$/i;
