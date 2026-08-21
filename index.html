@@ -46,7 +46,11 @@
     padding: 4px 10px 16px;
     border-bottom: 1px solid #f0eee6;
     margin-bottom: 14px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background .12s ease;
   }
+  .brand:hover { background: #f6f4ee; }
   .brand .logo {
     width: 26px; height: 26px;
     border-radius: 7px;
@@ -191,7 +195,7 @@
 
 <div class="app">
   <aside class="sidebar">
-    <div class="brand">
+    <div class="brand" id="brand-home" title="첫 화면">
       <div class="logo">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
           <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
@@ -204,6 +208,16 @@
     </div>
 
     <div class="nav-label">Workspace</div>
+
+    <div class="nav-item" data-target="margin">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+        <line x1="8" y1="3" x2="8" y2="21"/>
+      </svg>
+      <span>마진테이블</span>
+    </div>
 
     <div class="nav-item" data-target="order">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -230,6 +244,18 @@
         <h2>쿠팡팀 업무 허브</h2>
         <p>작업할 항목을 선택하세요.</p>
         <div class="pick-grid">
+          <div class="pick-card" data-target="margin">
+            <div class="pick-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <line x1="3" y1="12" x2="21" y2="12"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+                <line x1="8" y1="3" x2="8" y2="21"/>
+              </svg>
+            </div>
+            <div class="pick-title">마진테이블</div>
+            <div class="pick-desc">SKU별 매입가 · 공급가 · 마진율 · ROAS 자동 계산</div>
+          </div>
           <div class="pick-card" data-target="order">
             <div class="pick-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -255,6 +281,7 @@
     </div>
     <iframe id="frame-order" src="po.html"></iframe>
     <iframe id="frame-new" src="newproduct/new.html"></iframe>
+    <iframe id="frame-margin" src="margin.html"></iframe>
   </main>
 </div>
 
@@ -262,8 +289,9 @@
   const items = document.querySelectorAll('.nav-item');
   const landing = document.getElementById('landing');
   const frames = {
-    order: document.getElementById('frame-order'),
-    new:   document.getElementById('frame-new')
+    order:  document.getElementById('frame-order'),
+    new:    document.getElementById('frame-new'),
+    margin: document.getElementById('frame-margin')
   };
 
   function showTarget(target) {
@@ -279,6 +307,7 @@
   document.querySelectorAll('.pick-card').forEach(el => {
     el.addEventListener('click', () => showTarget(el.dataset.target));
   });
+  document.getElementById('brand-home').addEventListener('click', () => showTarget(null));
 
   const hash = (location.hash || '').replace('#','');
   showTarget(frames[hash] ? hash : null);
