@@ -478,9 +478,9 @@
           <th style="width:110px;">담당자</th>
           <th class="resizable" style="width:360px;" data-col="reg">등록 상품명<span class="col-resizer"></span></th>
           <th class="resizable" style="width:300px;" data-col="real">전산명<span class="col-resizer"></span></th>
-          <th style="width:120px; cursor:pointer; user-select:none;" onclick="toggleSortProd()" title="클릭하여 정렬">생산완료일 <span id="sortProdIcon" style="opacity:.6;">⇅</span></th>
-          <th style="width:140px;">입고예정일</th>
-          <th style="width:140px;">상세전달일자</th>
+          <th style="width:120px; cursor:pointer; user-select:none;" onclick="toggleSort('prod')" title="클릭하여 정렬">생산완료일 <span id="sortProdIcon" style="opacity:.6;">⇅</span></th>
+          <th style="width:140px; cursor:pointer; user-select:none;" onclick="toggleSort('arrival')" title="클릭하여 정렬">입고예정일 <span id="sortArrivalIcon" style="opacity:.6;">⇅</span></th>
+          <th style="width:140px; cursor:pointer; user-select:none;" onclick="toggleSort('detail')" title="클릭하여 정렬">상세전달일자 <span id="sortDetailIcon" style="opacity:.6;">⇅</span></th>
           <th class="check-cell">🚀 로켓 등록</th>
           <th class="check-cell">✈️ 윙 등록</th>
           <th class="check-cell">🔗 벤플 매핑</th>
@@ -503,12 +503,26 @@ const DEFAULT_YEAR = '2026';
 const REPO_CFG = { owner: 'tolmjj10', repo: 'coupang-po', branch: 'main', dir: 'newproduct/new' };
 const BRANDS = [
   { key: 'all',   label: '전체' },
+  { key: 'urgent',label: '긴급' },
   { key: 'oa',    label: '오아',   match: n => (n||'').trim().startsWith('오아') },
   { key: 'voir',  label: '보아르', match: n => (n||'').trim().startsWith('보아르') },
   { key: 'etc',   label: '기타',   match: n => { const t = (n||'').trim(); return !t.startsWith('오아') && !t.startsWith('보아르'); } }
 ];
 let activeBrand = 'all';
-let sortProdAsc = null;
+let sortKey = null;   // 'prod' | 'arrival' | 'detail'
+let sortAsc = true;
+const URGENT_DISMISS_KEY = 'coupang_new_urgent_dismiss_v1';
+let urgentDismissedIds = new Set();
+try {
+  const _stored = JSON.parse(localStorage.getItem(URGENT_DISMISS_KEY) || '[]');
+  urgentDismissedIds = new Set(_stored);
+} catch(e) {}
+
+function isUrgentRow(r) {
+  if (isCompleted(r)) return false;
+  const a = daysUntil(r.arrivalDate);
+  return a !== null && a <= 3 && !r.rocket.done;
+}
 let importedNames = {}; // (구버전 호환용, 더 이상 dedup에 사용하지 않음)
 let lastExcelProducts = null; // 마지막으로 처리한 엑셀의 제품명 배열. 이 목록과 diff로 신규 판별
 let data = loadLocal();
@@ -671,20 +685,22 @@ function dDayHtml(dateStr) {
 }
 
 function renderAlerts() {
-  const alerts = [];
-  data.forEach(row => {
-    if (isCompleted(row)) return;
-    const name = row.realName || row.regName || '(이름 없음)';
-    const manager = row.manager || '담당자 미정';
-
-  });
-
   const box = document.getElementById('alerts');
-  if (alerts.length === 0) {
-    box.innerHTML = '';
-  } else {
-    box.innerHTML = alerts.map(a => `<div class="alert ${a.cls}">${a.text}</div>`).join('');
-  }
+  const urgent = data.filter(isUrgentRow);
+  const active = urgent.filter(r => !urgentDismissedIds.has(r.id));
+  if (active.length === 0) { box.innerHTML = ''; return; }
+  const names = active.slice(0, 5).map(r => r.realName || r.regName || '(이름 없음)').join(', ');
+  const extra = active.length > 5 ? ` 외 ${active.length - 5}건` : '';
+  box.innerHTML = `<div class="alert urgent" style="justify-content:space-between;">
+    <span>⚠️ 확인 필요 — 입고예정일 3일 이내 신제품 ${active.length}건: ${esc(names)}${extra}. '긴급' 탭에서 확인하세요.</span>
+    <button class="ghost" style="padding:6px 12px;font-size:12px;" onclick="dismissUrgentAlert()">숨기기</button>
+  </div>`;
+}
+
+function dismissUrgentAlert() {
+  data.filter(isUrgentRow).forEach(r => urgentDismissedIds.add(r.id));
+  try { localStorage.setItem(URGENT_DISMISS_KEY, JSON.stringify([...urgentDismissedIds])); } catch(e) {}
+  renderAlerts();
 }
 
 function renderStats() {
@@ -715,41 +731,56 @@ function brandOf(row) {
 function renderTabs() {
   const tabs = document.getElementById('tabs');
   tabs.innerHTML = BRANDS.map(b => {
-    const count = b.key === 'all' ? data.length : data.filter(r => brandOf(r) === b.key).length;
+    const count = b.key === 'all' ? data.length
+      : b.key === 'urgent' ? data.filter(isUrgentRow).length
+      : data.filter(r => brandOf(r) === b.key).length;
     return `<button class="tab ${activeBrand===b.key?'active':''}" onclick="setBrand('${b.key}')">${b.label}<span class="count">${count}</span></button>`;
   }).join('');
 }
 
 function setBrand(key) { activeBrand = key; render(); }
 
-function toggleSortProd() {
-  sortProdAsc = sortProdAsc === null ? true : sortProdAsc === true ? false : null;
+function toggleSort(key) {
+  if (sortKey === key) {
+    if (sortAsc) { sortAsc = false; }
+    else { sortKey = null; sortAsc = true; }
+  } else {
+    sortKey = key;
+    sortAsc = true;
+  }
   render();
+}
+function _sortIcon(key) {
+  if (sortKey !== key) return '⇅';
+  return sortAsc ? '↑' : '↓';
 }
 
 function render() {
   const q = document.getElementById('search').value.trim().toLowerCase();
   let filtered = data;
-  if (activeBrand !== 'all') filtered = filtered.filter(r => brandOf(r) === activeBrand);
+  if (activeBrand === 'urgent') filtered = filtered.filter(isUrgentRow);
+  else if (activeBrand !== 'all') filtered = filtered.filter(r => brandOf(r) === activeBrand);
   if (q) filtered = filtered.filter(r =>
     (r.manager||'').toLowerCase().includes(q) ||
     (r.regName||'').toLowerCase().includes(q) ||
     (r.realName||'').toLowerCase().includes(q)
   );
 
-  if (sortProdAsc !== null) {
+  if (sortKey) {
+    const field = sortKey === 'prod' ? 'productionDate' : sortKey === 'arrival' ? 'arrivalDate' : 'detailDueDate';
     filtered = filtered.slice().sort((a, b) => {
-      const av = a.productionDate || '';
-      const bv = b.productionDate || '';
+      const av = a[field] || '';
+      const bv = b[field] || '';
       if (!av && !bv) return 0;
       if (!av) return 1;
       if (!bv) return -1;
-      return sortProdAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+      return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
     });
   }
 
-  const icon = document.getElementById('sortProdIcon');
-  if (icon) icon.textContent = sortProdAsc === null ? '⇅' : sortProdAsc ? '↑' : '↓';
+  const _pi = document.getElementById('sortProdIcon');    if (_pi) _pi.textContent = _sortIcon('prod');
+  const _ai = document.getElementById('sortArrivalIcon'); if (_ai) _ai.textContent = _sortIcon('arrival');
+  const _di = document.getElementById('sortDetailIcon');  if (_di) _di.textContent = _sortIcon('detail');
 
   const tbody = document.getElementById('tbody');
   tbody.innerHTML = filtered.map(row => {
@@ -918,6 +949,8 @@ function attachDragHandlers() {
       if (!before) insertAt += 1;
       data.splice(insertAt, 0, moved);
       save();
+      clearTimeout(_saveTimer);
+      saveRemote();
       render();
     });
   });
