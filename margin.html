@@ -16,9 +16,9 @@
     --surface-alt:#f5f3ef;
     --hairline:#ebe6df;
     --hairline-strong:#d9d1c8;
-    --text:#4c342e;
-    --muted:#6f7c6d;
-    --hint:#a89e97;
+    --text:#2a1a15;
+    --muted:#4d5a4c;
+    --hint:#7a706a;
     --accent:#aa9791;
     --accent-dark:#8b756c;
     --accent-soft:#f2ede9;
@@ -131,15 +131,15 @@
   }
   table{border-collapse:separate;border-spacing:0;width:100%;font-size:12px;white-space:nowrap;table-layout:fixed;}
   thead th{
-    position:sticky;top:0;color:var(--muted);
-    font-weight:600;font-size:11px;letter-spacing:0.01em;
+    position:sticky;top:0;color:var(--text);
+    font-weight:700;font-size:11px;letter-spacing:0.01em;
     padding:12px 8px;border-bottom:1px solid var(--hairline);
     text-align:center;z-index:2;line-height:1.3;
     background:var(--surface-alt);
     overflow:hidden;text-overflow:ellipsis;
   }
   tbody td{padding:0;border-bottom:1px solid var(--hairline);color:var(--text);vertical-align:middle;overflow:hidden;}
-  tbody td .cell{padding:9px 8px;min-height:36px;display:flex;align-items:center;font-size:12px;overflow:hidden;text-overflow:ellipsis;}
+  tbody td .cell{padding:9px 8px;min-height:36px;display:flex;align-items:center;font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;}
   tbody td .cell.num{justify-content:flex-end;font-variant-numeric:tabular-nums;}
   tbody td .cell.center{justify-content:center;}
   tbody tr{transition:background .12s ease;}
@@ -158,7 +158,7 @@
   }
 
   /* Calc cells (읽기 전용) */
-  .calc{color:var(--muted);background:var(--surface-alt);}
+  .calc{color:var(--text);font-weight:500;background:var(--surface-alt);}
 
   /* Semantic colors */
   .pct{color:var(--accent-dark);font-weight:600;font-variant-numeric:tabular-nums;}
@@ -288,7 +288,7 @@ const COLS=[
   {k:'cat',     label:'카테고리',    w:78,  align:'center', editable:true, type:'select', cls:'col-cat',
     options:['이미용','욕실가전','모바일','겨울가전','여름가전','건강가전','주방가전','생활가전','인테리어/조명','제습기','공기청정기','육아','차량','애견']},
   {k:'sku',     label:'SKU #',       w:70,  align:'center', editable:true, type:'text'},
-  {k:'name',    label:'상품명',      w:300, align:'left',   editable:true, type:'text', cls:'col-name'},
+  {k:'name',    label:'상품명',      w:420, align:'left',   editable:true, type:'text', cls:'col-name'},
   {k:'status',  label:'상태',        w:60,  align:'center', editable:true, type:'select', options:['판매','중지','단종','품절','예정']},
   {k:'cost',    label:'매입가',      w:72,  align:'right',  editable:true, type:'num'},
   {k:'supply',  label:'공급가',      w:72,  align:'right',  calc:r=>r.cost!=null? r.cost/1.1 : null,           type:'num'},
@@ -298,7 +298,7 @@ const COLS=[
   {k:'price',   label:'소비자가',    w:72,  align:'right',  editable:true, type:'num'},
   {k:'origin',  label:'원가',        w:70,  align:'right',  editable:true, type:'num'},
   {k:'originN', label:'원가\n(NEW)', w:70,  align:'right',  editable:true, type:'num'},
-  {k:'diff',    label:'증감',        w:70,  align:'center', render:renderDiff},
+  {k:'diff',    label:'증감',        w:52,  align:'center', render:renderDiff},
   {k:'margin2', label:'마진\n(-VAT)', w:70, align:'right',  calc:r=>(r.cost!=null&&r.originN!=null)? (r.cost/1.1) - r.originN : null, type:'num'},
   {k:'pRate',   label:'이익율',      w:58,  align:'right',  calc:r=>{ if(r.cost==null||r.originN==null) return null; const g=r.cost/1.1, o=g-r.originN; return g? o/g:null; }, type:'pct'},
   {k:'roas',    label:'광고 ROAS\n(상시가)', w:72, align:'right', calc:r=>{ if(r.cost==null||r.originN==null||r.price==null) return null; const g=r.cost/1.1, o=g-r.originN; return o? r.price/o:null; }, type:'pctInt'},
