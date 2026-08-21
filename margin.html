@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>마진테이블</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f5f4f0; --surface:#fff; --border:#e2e0d8;
+    --text:#1a1916; --muted:#6b6960; --hint:#9e9c94;
+    --accent:#1a3a4a; --accent-light:#e8f1f5;
+    --up:#dc2626; --down:#2563eb; --ok:#16a34a; --warn:#d97706;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--text);
+    font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif;
+    letter-spacing:-0.01em;-webkit-font-smoothing:antialiased;}
+  .wrap{padding:14px 20px;}
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+  .toolbar h1{font-size:15px;font-weight:700;color:var(--text);margin-right:4px;}
+  .status{font-size:12px;color:var(--muted);}
+  .save-info{font-size:11.5px;color:var(--ok);}
+  .save-info.dirty{color:var(--warn);}
+  .save-info.err{color:var(--up);}
+  .actions{display:flex;gap:6px;margin-left:8px;}
+  .btn{
+    font:600 12.5px 'Pretendard',sans-serif;padding:6px 12px;border-radius:8px;border:1px solid var(--border);
+    background:#fff;color:var(--text);cursor:pointer;transition:.12s;
+  }
+  .btn:hover{background:#f6f4ee;border-color:var(--accent);}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .btn.primary:hover{background:#0f2733;}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:4px 8px;}
+  .btn.ghost:hover{background:#f0eee6;color:var(--text);}
+  .btn.danger:hover{background:#fef2f2;border-color:var(--up);color:var(--up);}
+  .search{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .search input, .search select{
+    font:13px 'Pretendard',sans-serif;padding:6px 10px;border:1px solid var(--border);
+    border-radius:8px;background:#fff;color:var(--text);outline:none;min-width:150px;
+  }
+  .search input:focus, .search select:focus{border-color:var(--accent);}
+  .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:auto;max-height:calc(100vh - 90px);}
+  table{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px;white-space:nowrap;}
+  thead th{
+    position:sticky;top:0;background:#f6f4ee;color:var(--text);
+    font-weight:600;padding:9px 10px;border-bottom:1px solid var(--border);
+    text-align:center;z-index:2;line-height:1.25;
+  }
+  tbody td{padding:0;border-bottom:1px solid #f0eee6;color:var(--text);vertical-align:middle;}
+  tbody td .cell{padding:7px 10px;min-height:32px;display:flex;align-items:center;}
+  tbody td .cell.num{justify-content:flex-end;font-variant-numeric:tabular-nums;}
+  tbody td .cell.center{justify-content:center;}
+  tbody tr:hover td{background:#faf9f4;}
+  tbody tr.new-row td{background:#f0f9ff;}
+  tbody tr.new-row:hover td{background:#e0f2fe;}
+  .editable{cursor:text;border-radius:4px;transition:background .1s;}
+  .editable:hover{background:#eef4f7;}
+  .editable[contenteditable="true"]{background:#fff;outline:2px solid var(--accent);outline-offset:-2px;}
+  .calc{color:var(--muted);background:#faf9f4;}
+  .pct{color:var(--accent);font-weight:600;}
+  .up{color:var(--up);font-weight:600;}
+  .down{color:var(--down);font-weight:600;}
+  .zero{color:var(--hint);}
+  .col-cat{color:var(--muted);font-size:11.5px;}
+  .col-name .cell{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:9px 10px;}
+  .col-name .cell[contenteditable="true"]{overflow:visible;white-space:normal;}
+  .row-actions{display:flex;gap:2px;justify-content:center;}
+  .row-actions .btn{padding:3px 6px;font-size:11px;}
+  .empty{padding:48px 20px;text-align:center;color:var(--muted);font-size:13px;}
+  .err{padding:48px 20px;text-align:center;color:var(--up);font-size:13px;}
+  th.sortable{cursor:pointer;user-select:none;}
+  th.sortable:hover{background:#eeece4;}
+  th.sortable .arrow{display:inline-block;width:10px;margin-left:2px;color:var(--hint);}
+  th.sortable.asc .arrow::after{content:'▲';color:var(--accent);}
+  th.sortable.desc .arrow::after{content:'▼';color:var(--accent);}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;
+    padding:10px 18px;border-radius:8px;font:13px 'Pretendard',sans-serif;z-index:99999;
+    box-shadow:0 4px 12px rgba(0,0,0,.2);opacity:0;transition:opacity .2s;pointer-events:none;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="toolbar">
+    <h1>마진테이블</h1>
+    <span id="status" class="status">불러오는 중…</span>
+    <span id="saveInfo" class="save-info"></span>
+    <div class="actions">
+      <button class="btn primary" id="btnAdd">+ 행 추가</button>
+      <button class="btn" id="btnSave">저장</button>
+      <button class="btn" id="btnReload">새로고침</button>
+      <button class="btn ghost" id="btnSeed" title="KV가 비어있을 때 마진테이블.xlsx에서 초기 데이터 가져오기">xlsx에서 초기화</button>
+    </div>
+    <div class="search">
+      <select id="fCat"><option value="">전체 카테고리</option></select>
+      <select id="fOwner"><option value="">전체 담당자</option></select>
+      <select id="fStatus"><option value="">전체 상태</option></select>
+      <input id="fQ" type="search" placeholder="SKU# / 상품명 검색">
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table id="tbl">
+      <thead><tr id="thead-row"></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const CFG={owner:'tolmjj10',repo:'coupang-po',branch:'main',dir:'data',file:'마진테이블.xlsx'};
+
+/* 컬럼 정의
+   - editable: 인라인 편집 가능한 원본 컬럼
+   - calc:     수식으로 자동 계산되는 컬럼
+   - type:     'text' | 'num' | 'select'
+*/
+const COLS=[
+  {k:'owner',   label:'담당자',      w:70,  align:'center', editable:true, type:'text'},
+  {k:'cat',     label:'카테고리',    w:100, align:'center', editable:true, type:'select', cls:'col-cat',
+    options:['이미용','욕실가전','모바일','겨울가전','여름가전','건강가전','주방가전','생활가전','인테리어/조명','제습기','공기청정기','육아','차량','애견']},
+  {k:'sku',     label:'SKU #',       w:90,  align:'center', editable:true, type:'text'},
+  {k:'name',    label:'상품명',      w:280, align:'left',   editable:true, type:'text', cls:'col-name'},
+  {k:'status',  label:'판매상태',    w:80,  align:'center', editable:true, type:'select', options:['판매','중지','단종','품절','예정']},
+  {k:'cost',    label:'매입가',      w:90,  align:'right',  editable:true, type:'num'},
+  {k:'supply',  label:'공급가',      w:90,  align:'right',  calc:r=>r.cost!=null? r.cost/1.1 : null,           type:'num'},
+  {k:'vat',     label:'부가세',      w:80,  align:'right',  calc:r=>r.cost!=null? r.cost - r.cost/1.1 : null,  type:'num'},
+  {k:'margin1', label:'마진(+VAT)',  w:90,  align:'right',  calc:r=>(r.price!=null&&r.cost!=null)? r.price - r.cost : null, type:'num'},
+  {k:'mRate',   label:'마진율',      w:70,  align:'right',  calc:r=>(r.price&&r.cost!=null)? 1-(r.cost/r.price) : null,      type:'pct'},
+  {k:'price',   label:'소비자가',    w:90,  align:'right',  editable:true, type:'num'},
+  {k:'origin',  label:'원가',        w:90,  align:'right',  editable:true, type:'num'},
+  {k:'originN', label:'원가(NEW)',   w:90,  align:'right',  editable:true, type:'num'},
+  {k:'diff',    label:'원가 증감액', w:100, align:'center', render:renderDiff},
+  {k:'margin2', label:'마진(-VAT)',  w:90,  align:'right',  calc:r=>(r.cost!=null&&r.originN!=null)? (r.cost/1.1) - r.originN : null, type:'num'},
+  {k:'pRate',   label:'이익율',      w:70,  align:'right',  calc:r=>{ if(r.cost==null||r.originN==null) return null; const g=r.cost/1.1, o=g-r.originN; return g? o/g:null; }, type:'pct'},
+  {k:'roas',    label:'광고 ROAS\n(상시가 기준)', w:100, align:'right', calc:r=>{ if(r.cost==null||r.originN==null||r.price==null) return null; const g=r.cost/1.1, o=g-r.originN; return o? r.price/o:null; }, type:'num2'},
+  {k:'_act',    label:'',            w:100, align:'center', render:renderActions},
+];
+
+const EDITABLE_KEYS=COLS.filter(c=>c.editable).map(c=>c.k);
+const NUM_KEYS=new Set(COLS.filter(c=>c.editable&&c.type==='num').map(c=>c.k));
+
+let rows=[];
+let sortKey=null, sortDir=1;
+let dirty=false;
+let saving=false;
+let autosaveTimer=null;
+let lastSavedAt=null;
+
+/* ─────────────────────────── util ─────────────────────────── */
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmtInt(n){ if(n==null||!isFinite(n)) return ''; return Math.round(n).toLocaleString(); }
+function fmtNum2(n){ if(n==null||!isFinite(n)) return ''; return n.toLocaleString(undefined,{maximumFractionDigits:2}); }
+function fmtPct(n){ if(n==null||!isFinite(n)) return ''; return (n*100).toFixed(1)+'%'; }
+function toNum(v){ if(v==null||v==='') return null; const n=Number(String(v).replace(/,/g,'').trim()); return isFinite(n)?n:null; }
+function uid(){ return 'r_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function showToast(msg,color){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  if(color) t.style.background=color; else t.style.background='#16a34a';
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer=setTimeout(()=>t.classList.remove('show'),1800);
+}
+
+function renderDiff(_,r){
+  const a=r.originN, b=r.origin;
+  if(a==null||b==null) return '';
+  if(a>b) return `<span class="up">▲ ${fmtInt(a-b)}</span>`;
+  if(a<b) return `<span class="down">▼ ${fmtInt(b-a)}</span>`;
+  return `<span class="zero">0</span>`;
+}
+function renderActions(_,r){
+  return `<div class="row-actions">
+    <button class="btn ghost" data-act="dup" title="복제">⧉</button>
+    <button class="btn ghost danger" data-act="del" title="삭제">✕</button>
+  </div>`;
+}
+
+/* ─────────────────────────── render ─────────────────────────── */
+function buildHead(){
+  const tr=document.getElementById('thead-row');
+  tr.innerHTML=COLS.map(c=>{
+    const sortable=c.k!=='_act';
+    const cls=sortable?'sortable':'';
+    return `<th class="${cls}" data-k="${c.k}" style="min-width:${c.w}px;">${esc(c.label).replace(/\n/g,'<br>')}${sortable?'<span class="arrow"></span>':''}</th>`;
+  }).join('');
+  tr.querySelectorAll('th.sortable').forEach(th=>{
+    th.addEventListener('click',()=>{
+      const k=th.dataset.k;
+      if(sortKey===k){ sortDir=-sortDir; } else { sortKey=k; sortDir=1; }
+      tr.querySelectorAll('th').forEach(t=>t.classList.remove('asc','desc'));
+      th.classList.add(sortDir===1?'asc':'desc');
+      render();
+    });
+  });
+}
+
+function getCellValue(r, col){
+  if(col.calc) return col.calc(r);
+  return r[col.k];
+}
+
+function formatValue(v, col){
+  if(v==null) return '';
+  if(col.type==='pct')  return fmtPct(v);
+  if(col.type==='num')  return fmtInt(v);
+  if(col.type==='num2') return fmtNum2(v);
+  return String(v);
+}
+
+function renderCell(r, col){
+  if(col.render && !col.calc) return col.render(getCellValue(r,col), r);
+  const v=getCellValue(r,col);
+  if(col.calc){
+    let inner;
+    if(col.type==='pct')       inner=`<span class="pct">${fmtPct(v)}</span>`;
+    else if(col.type==='num2') inner=fmtNum2(v);
+    else                       inner=fmtInt(v);
+    const align=col.align==='right'?'num':(col.align==='center'?'center':'');
+    return `<div class="cell calc ${align}">${inner}</div>`;
+  }
+  const align=col.align==='right'?'num':(col.align==='center'?'center':'');
+  const display=formatValue(v,col);
+  return `<div class="cell editable ${align}" data-k="${col.k}" data-type="${col.type}">${esc(display)}</div>`;
+}
+
+function render(){
+  const q=document.getElementById('fQ').value.trim().toLowerCase();
+  const fc=document.getElementById('fCat').value;
+  const fo=document.getElementById('fOwner').value;
+  const fs=document.getElementById('fStatus').value;
+
+  let list=rows.filter(r=>{
+    if(fc && r.cat!==fc) return false;
+    if(fo && r.owner!==fo) return false;
+    if(fs && r.status!==fs) return false;
+    if(q){
+      const hay=((r.sku||'')+' '+(r.name||'')).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  if(sortKey){
+    const col=COLS.find(c=>c.k===sortKey);
+    list.sort((a,b)=>{
+      const va=getCellValue(a,col), vb=getCellValue(b,col);
+      const na=Number(va), nb=Number(vb);
+      const bothNum=isFinite(na)&&isFinite(nb);
+      let cmp;
+      if(bothNum) cmp=na-nb;
+      else cmp=String(va==null?'':va).localeCompare(String(vb==null?'':vb),'ko');
+      return cmp*sortDir;
+    });
+  }
+
+  const tbody=document.getElementById('tbody');
+  if(list.length===0){
+    tbody.innerHTML=`<tr><td colspan="${COLS.length}" class="empty">표시할 데이터가 없습니다. 상단 [+ 행 추가] 또는 [xlsx에서 초기화]를 눌러주세요.</td></tr>`;
+  } else {
+    tbody.innerHTML=list.map(r=>{
+      const cls=r._new?'new-row':'';
+      return `<tr data-id="${r._id}" class="${cls}">`+COLS.map(c=>{
+        const cell=renderCell(r,c);
+        return `<td class="${c.cls||''}">${cell}</td>`;
+      }).join('')+'</tr>';
+    }).join('');
+    attachEditors();
+  }
+  document.getElementById('status').textContent=`총 ${rows.length.toLocaleString()}건${list.length!==rows.length?' · 필터 '+list.length.toLocaleString()+'건':''}`;
+}
+
+/* ─────────────────────────── edit ─────────────────────────── */
+function attachEditors(){
+  const tbody=document.getElementById('tbody');
+  tbody.querySelectorAll('tr').forEach(tr=>{
+    const id=tr.dataset.id;
+    tr.querySelectorAll('.editable').forEach(el=>{
+      el.addEventListener('click',()=>startEdit(el,id));
+    });
+    tr.querySelectorAll('button[data-act]').forEach(b=>{
+      b.addEventListener('click',(e)=>{
+        e.stopPropagation();
+        const act=b.dataset.act;
+        if(act==='del') deleteRow(id);
+        else if(act==='dup') duplicateRow(id);
+      });
+    });
+  });
+}
+
+function startEdit(el, id){
+  const r=rows.find(x=>x._id===id);
+  if(!r) return;
+  const k=el.dataset.k;
+  const type=el.dataset.type;
+  const col=COLS.find(c=>c.k===k);
+
+  if(type==='select'){
+    const cur=r[k]||'';
+    const sel=document.createElement('select');
+    sel.style.cssText='width:100%;padding:5px;border:1px solid var(--accent);border-radius:4px;font:12.5px Pretendard;';
+    sel.innerHTML=`<option value=""></option>`+col.options.map(o=>`<option value="${esc(o)}"${o===cur?' selected':''}>${esc(o)}</option>`).join('');
+    el.innerHTML='';
+    el.appendChild(sel);
+    sel.focus();
+    const commit=()=>{ setValue(r,k,sel.value); render(); markDirty(); };
+    sel.addEventListener('change',commit);
+    sel.addEventListener('blur',commit);
+    return;
+  }
+
+  const raw=r[k];
+  el.textContent=raw==null?'':String(raw);
+  el.setAttribute('contenteditable','true');
+  el.focus();
+  const range=document.createRange(); range.selectNodeContents(el);
+  const s=window.getSelection(); s.removeAllRanges(); s.addRange(range);
+
+  const commit=()=>{
+    el.removeAttribute('contenteditable');
+    const txt=el.textContent.trim();
+    const newVal=NUM_KEYS.has(k)?toNum(txt):txt;
+    if((r[k]??'')!==(newVal??'')){
+      setValue(r,k,newVal);
+      markDirty();
+    }
+    render();
+  };
+  el.addEventListener('blur',commit,{once:true});
+  el.addEventListener('keydown',ev=>{
+    if(ev.key==='Enter'){ ev.preventDefault(); el.blur(); }
+    if(ev.key==='Escape'){ ev.preventDefault(); el.removeAttribute('contenteditable'); render(); }
+  });
+}
+
+function setValue(r,k,v){ r[k]=v; delete r._new; }
+
+function addRow(){
+  const r={_id:uid(),_new:true,owner:'',cat:'',sku:'',name:'',status:'',cost:null,price:null,origin:null,originN:null};
+  rows.unshift(r);
+  markDirty();
+  fillFilters();
+  render();
+}
+
+function duplicateRow(id){
+  const idx=rows.findIndex(r=>r._id===id);
+  if(idx<0) return;
+  const src=rows[idx];
+  const copy={...src,_id:uid(),_new:true};
+  rows.splice(idx+1,0,copy);
+  markDirty();
+  render();
+}
+
+function deleteRow(id){
+  const r=rows.find(x=>x._id===id);
+  if(!r) return;
+  if(!confirm(`삭제하시겠습니까?\n${r.sku||''} ${r.name||''}`.trim())) return;
+  rows=rows.filter(x=>x._id!==id);
+  markDirty();
+  fillFilters();
+  render();
+}
+
+/* ─────────────────────────── filters ─────────────────────────── */
+function fillFilters(){
+  const cats=[...new Set(rows.map(r=>r.cat).filter(Boolean))].sort();
+  const owners=[...new Set(rows.map(r=>r.owner).filter(Boolean))].sort();
+  const sts=[...new Set(rows.map(r=>r.status).filter(Boolean))].sort();
+  const put=(id,arr)=>{
+    const el=document.getElementById(id);
+    const cur=el.value;
+    el.innerHTML=el.querySelector('option').outerHTML+arr.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    el.value=cur;
+  };
+  put('fCat',cats); put('fOwner',owners); put('fStatus',sts);
+}
+
+/* ─────────────────────────── save/load ─────────────────────────── */
+function markDirty(){
+  dirty=true;
+  updateSaveInfo();
+  clearTimeout(autosaveTimer);
+  autosaveTimer=setTimeout(save,3000);
+}
+
+function updateSaveInfo(){
+  const el=document.getElementById('saveInfo');
+  el.classList.remove('dirty','err');
+  if(saving){ el.textContent='저장 중…'; el.classList.add('dirty'); return; }
+  if(dirty){ el.textContent='● 변경사항 있음 (자동 저장 대기)'; el.classList.add('dirty'); return; }
+  if(lastSavedAt){
+    const d=new Date(lastSavedAt);
+    el.textContent='저장됨 · '+d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+  } else {
+    el.textContent='';
+  }
+}
+
+async function save(){
+  if(saving) return;
+  saving=true; updateSaveInfo();
+  try{
+    const payload=rows.map(r=>{
+      const {_id,_new,...rest}=r;
+      return rest;
+    });
+    const res=await fetch('/api/margin-state',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    dirty=false;
+    lastSavedAt=Date.now();
+    // 저장 후 _new 배지 제거
+    rows.forEach(r=>delete r._new);
+    render();
+    showToast('저장 완료');
+  } catch(e){
+    console.error(e);
+    const el=document.getElementById('saveInfo');
+    el.textContent='저장 실패: '+e.message;
+    el.classList.add('err');
+    showToast('저장 실패: '+e.message,'#dc2626');
+  } finally {
+    saving=false; updateSaveInfo();
+  }
+}
+
+async function load(){
+  document.getElementById('status').textContent='불러오는 중…';
+  try{
+    const res=await fetch('/api/margin-state',{cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    rows=(Array.isArray(data)?data:[]).map(r=>({_id:uid(),...r}));
+    fillFilters();
+    render();
+    if(rows.length===0){
+      document.getElementById('status').textContent='데이터 없음 · [xlsx에서 초기화] 또는 [+ 행 추가]';
+    }
+  } catch(e){
+    console.error(e);
+    document.getElementById('tbody').innerHTML=`<tr><td colspan="${COLS.length}" class="err">불러오기 실패: ${esc(e.message)}<br><br>배포판(https://coupang-po.pages.dev)에서 열어야 저장/불러오기가 동작합니다.</td></tr>`;
+    document.getElementById('status').textContent='로드 실패';
+  }
+}
+
+async function seedFromXlsx(){
+  if(rows.length>0){
+    if(!confirm(`현재 ${rows.length}건이 있습니다. xlsx로 덮어쓰시겠습니까? (되돌릴 수 없음)`)) return;
+  }
+  document.getElementById('status').textContent='xlsx 로드 중…';
+  try{
+    const url=`https://api.github.com/repos/${CFG.owner}/${CFG.repo}/contents/${encodeURI(CFG.dir)}/${encodeURIComponent(CFG.file)}?ref=${CFG.branch}`;
+    const meta=await fetch(url,{headers:{'Accept':'application/vnd.github+json'}}).then(r=>{ if(!r.ok) throw new Error('메타 HTTP '+r.status); return r.json(); });
+    const ab=await fetch(meta.download_url).then(r=>{ if(!r.ok) throw new Error('DL HTTP '+r.status); return r.arrayBuffer(); });
+    const wb=XLSX.read(new Uint8Array(ab),{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const arr=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    if(arr.length<2) throw new Error('데이터 없음');
+    const H=arr[0].map(h=>String(h||'').trim());
+    const idx={
+      owner:  H.findIndex(h=>h==='담당자'),
+      cat:    H.findIndex(h=>h==='카테고리'),
+      sku:    H.findIndex(h=>h==='SKU #'||h.replace(/\s|#/g,'').toLowerCase()==='sku'),
+      name:   H.findIndex(h=>h==='상품명'),
+      status: H.findIndex(h=>h==='판매상태'),
+      cost:   H.findIndex(h=>h==='매입가'),
+      price:  H.findIndex(h=>h==='소비자가'),
+      origin: H.findIndex(h=>h==='원가'),
+      originN:H.findIndex(h=>h.replace(/\s/g,'')==='원가(NEW)'),
+    };
+    rows=arr.slice(1).map(r=>({
+      _id:uid(),
+      owner:  String(r[idx.owner]||'').trim(),
+      cat:    String(r[idx.cat]||'').trim(),
+      sku:    String(r[idx.sku]||'').trim(),
+      name:   String(r[idx.name]||'').trim(),
+      status: String(r[idx.status]||'').trim(),
+      cost:   toNum(r[idx.cost]),
+      price:  toNum(r[idx.price]),
+      origin: toNum(r[idx.origin]),
+      originN:toNum(r[idx.originN]),
+    })).filter(r=>r.sku||r.name);
+    fillFilters();
+    render();
+    markDirty();
+    showToast(`xlsx에서 ${rows.length}건 불러옴 · 자동 저장 예정`);
+  } catch(e){
+    console.error(e);
+    showToast('xlsx 로드 실패: '+e.message,'#dc2626');
+    document.getElementById('status').textContent='xlsx 로드 실패';
+  }
+}
+
+/* ─────────────────────────── init ─────────────────────────── */
+buildHead();
+['fQ','fCat','fOwner','fStatus'].forEach(id=>document.getElementById(id).addEventListener('input',render));
+document.getElementById('btnAdd').addEventListener('click',addRow);
+document.getElementById('btnSave').addEventListener('click',()=>{ clearTimeout(autosaveTimer); save(); });
+document.getElementById('btnReload').addEventListener('click',()=>{
+  if(dirty && !confirm('저장하지 않은 변경사항이 있습니다. 버리시겠습니까?')) return;
+  dirty=false; load();
+});
+document.getElementById('btnSeed').addEventListener('click',seedFromXlsx);
+window.addEventListener('beforeunload',ev=>{
+  if(dirty){ ev.preventDefault(); ev.returnValue=''; }
+});
+load();
+</script>
+</body>
+</html>
