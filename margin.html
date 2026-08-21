@@ -42,12 +42,11 @@
   /* Overall shell: sidebar + main */
   .shell{display:flex;height:100vh;width:100vw;overflow:hidden;}
 
-  /* Category sidebar */
+  /* Category sidebar — 폭 애니메이션 제거(테이블 리플로우 비용이 커 렉 발생) */
   .side{
     width:210px;flex-shrink:0;background:var(--surface);
     border-right:1px solid var(--hairline);
     padding:18px 12px;display:flex;flex-direction:column;overflow-y:auto;
-    transition:width .22s ease, padding .22s ease, border-color .22s ease;
     position:relative;
   }
   body.sidebar-collapsed .side{
@@ -60,7 +59,7 @@
     display:flex;align-items:center;justify-content:center;
     color:var(--muted);cursor:pointer;font-size:12px;line-height:1;
     z-index:20;box-shadow:var(--shadow-xs);
-    transition:left .22s ease, background .12s, color .12s, border-color .12s, transform .12s;
+    transition:background .12s, color .12s, border-color .12s;
     user-select:none;
   }
   .side-toggle:hover{background:var(--accent-soft);color:var(--accent-dark);border-color:var(--accent);}
@@ -580,29 +579,34 @@ function render(){
         return `<td class="${c.cls||''}">${cell}</td>`;
       }).join('')+'</tr>';
     }).join('');
-    attachEditors();
   }
   document.getElementById('status').textContent=`총 ${rows.length.toLocaleString()}건${list.length!==rows.length?' · 필터 '+list.length.toLocaleString()+'건':''}`;
 }
 
 /* ─────────────────────────── edit ─────────────────────────── */
-function attachEditors(){
+// 이벤트 위임: tbody 하나에만 클릭 리스너를 붙여 매 render마다 리스너 재부착하지 않도록 함.
+// 이전엔 300행 × 15셀 = 4500개 리스너를 매번 붙여서 카테고리 클릭/검색 입력마다 렉이 심했음.
+function initTableDelegation(){
   const tbody=document.getElementById('tbody');
-  tbody.querySelectorAll('tr').forEach(tr=>{
-    const id=tr.dataset.id;
-    tr.querySelectorAll('.editable').forEach(el=>{
-      el.addEventListener('click',()=>startEdit(el,id));
-    });
-    tr.querySelectorAll('button[data-act]').forEach(b=>{
-      b.addEventListener('click',(e)=>{
-        e.stopPropagation();
-        const act=b.dataset.act;
-        if(act==='del') deleteRow(id);
-        else if(act==='dup') duplicateRow(id);
-      });
-    });
+  tbody.addEventListener('click', e=>{
+    const btn = e.target.closest('button[data-act]');
+    if(btn){
+      e.stopPropagation();
+      const tr = btn.closest('tr'); if(!tr) return;
+      const act = btn.dataset.act;
+      if(act==='del') deleteRow(tr.dataset.id);
+      else if(act==='dup') duplicateRow(tr.dataset.id);
+      return;
+    }
+    const cell = e.target.closest('.editable');
+    if(cell){
+      const tr = cell.closest('tr'); if(!tr) return;
+      startEdit(cell, tr.dataset.id);
+    }
   });
 }
+// 하위호환 no-op (기존 render() 내부 호출 대비)
+function attachEditors(){}
 
 function startEdit(el, id){
   // 이미 편집 중이면 재진입하지 않음 → 브라우저 기본 캐럿 이동/부분 선택 그대로 동작
@@ -854,7 +858,15 @@ async function load(){
 
 /* ─────────────────────────── init ─────────────────────────── */
 buildHead();
-['fQ','fOwner','fStatus'].forEach(id=>document.getElementById(id).addEventListener('input',render));
+initTableDelegation();
+// 검색은 디바운스, select 필터는 change 이벤트로 즉시
+let _searchTimer;
+document.getElementById('fQ').addEventListener('input', ()=>{
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(render, 120);
+});
+document.getElementById('fOwner').addEventListener('change', render);
+document.getElementById('fStatus').addEventListener('change', render);
 document.getElementById('btnAdd').addEventListener('click',addRow);
 document.getElementById('btnSave').addEventListener('click',()=>{ clearTimeout(autosaveTimer); save(); });
 document.getElementById('btnReload').addEventListener('click',()=>{
