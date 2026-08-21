@@ -1928,19 +1928,13 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
   function setStatus(msg, color){ console.log('[VOAR]', msg); }
 
   function listOneDir(dir){
-    /* Cloudflare Pages Function 프록시(/api/repo-files) 우선 → 실패 시 직접 호출 폴백 */
-    var proxyUrl='/api/repo-files?path='+encodeURIComponent(dir)+'&ref='+encodeURIComponent(CFG.branch);
-    var directUrl='https://api.github.com/repos/'+CFG.owner+'/'+CFG.repo+'/contents/'+encodeURI(dir)+'?ref='+CFG.branch;
-    return fetch(proxyUrl).then(function(r){
-      if(r.ok) return r.json();
-      console.warn('[VOAR] proxy listDir '+dir+' failed ('+r.status+'), fallback to direct');
-      return fetch(directUrl, {headers:{'Accept':'application/vnd.github+json'}}).then(function(r2){
-        if(!r2.ok){
-          console.warn('[VOAR] listDir skip '+dir+': '+r2.status);
-          return [];
-        }
-        return r2.json();
-      });
+    var url='https://api.github.com/repos/'+CFG.owner+'/'+CFG.repo+'/contents/'+encodeURI(dir)+'?ref='+CFG.branch;
+    return fetch(url, {headers:{'Accept':'application/vnd.github+json'}}).then(function(r){
+      if(!r.ok){
+        console.warn('[VOAR] listDir skip '+dir+': '+r.status);
+        return [];
+      }
+      return r.json();
     }).catch(function(e){ console.warn('[VOAR] listDir err '+dir+':', e.message); return []; });
   }
 
