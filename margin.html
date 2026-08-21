@@ -10,89 +10,197 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
-    --bg:#f5f4f0; --surface:#fff; --border:#e2e0d8;
-    --text:#1a1916; --muted:#6b6960; --hint:#9e9c94;
-    --accent:#1a3a4a; --accent-light:#e8f1f5;
-    --up:#dc2626; --down:#2563eb; --ok:#16a34a; --warn:#d97706;
+    /* Apple-inspired mono palette */
+    --bg:#f5f5f7;
+    --surface:#ffffff;
+    --surface-alt:#fbfbfd;
+    --hairline:rgba(0,0,0,0.06);
+    --hairline-strong:rgba(0,0,0,0.10);
+    --text:#1d1d1f;
+    --muted:#6e6e73;
+    --hint:#a1a1a6;
+    --accent:#1d1d1f;
+    --accent-soft:#f2f2f4;
+    --tint:#e8e8ed;
+    --up:#c92a2a;
+    --down:#1864ab;
+    --ok:#2b8a3e;
+    --warn:#b76e00;
+    --shadow-xs:0 1px 2px rgba(0,0,0,0.04);
+    --shadow-sm:0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+    --shadow-md:0 4px 16px rgba(0,0,0,0.06);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;background:var(--bg);color:var(--text);
-    font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif;
-    letter-spacing:-0.01em;-webkit-font-smoothing:antialiased;}
-  .wrap{padding:14px 20px;}
-  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
-  .toolbar h1{font-size:15px;font-weight:700;color:var(--text);margin-right:4px;}
-  .status{font-size:12px;color:var(--muted);}
-  .save-info{font-size:11.5px;color:var(--ok);}
+    font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;
+    letter-spacing:-0.014em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+    font-feature-settings:'ss01','cv11';}
+  .wrap{padding:22px 28px 28px;max-width:1600px;margin:0 auto;}
+
+  /* Header */
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:18px;flex-wrap:wrap;}
+  .page-head .title-block h1{font-size:26px;font-weight:700;letter-spacing:-0.028em;color:var(--text);line-height:1.15;}
+  .page-head .title-block .sub{font-size:13px;color:var(--muted);margin-top:4px;display:flex;align-items:center;gap:10px;}
+  .save-info{font-size:12px;color:var(--ok);display:inline-flex;align-items:center;gap:6px;}
+  .save-info::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;}
   .save-info.dirty{color:var(--warn);}
   .save-info.err{color:var(--up);}
-  .actions{display:flex;gap:6px;margin-left:8px;}
+
+  /* Toolbar card */
+  .toolbar{
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    background:var(--surface);border-radius:14px;padding:10px 12px;
+    box-shadow:var(--shadow-sm);margin-bottom:14px;
+    border:1px solid var(--hairline);
+  }
+  .actions{display:flex;gap:6px;}
   .btn{
-    font:600 12.5px 'Pretendard',sans-serif;padding:6px 12px;border-radius:8px;border:1px solid var(--border);
-    background:#fff;color:var(--text);cursor:pointer;transition:.12s;
+    font:500 13px -apple-system,'Pretendard',sans-serif;letter-spacing:-0.01em;
+    padding:8px 14px;border-radius:10px;border:1px solid var(--hairline-strong);
+    background:var(--surface);color:var(--text);cursor:pointer;
+    transition:background .15s ease,border-color .15s ease,transform .05s;
+    display:inline-flex;align-items:center;gap:6px;
   }
-  .btn:hover{background:#f6f4ee;border-color:var(--accent);}
+  .btn:hover{background:var(--surface-alt);border-color:rgba(0,0,0,0.16);}
+  .btn:active{transform:scale(0.98);}
   .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
-  .btn.primary:hover{background:#0f2733;}
-  .btn.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:4px 8px;}
-  .btn.ghost:hover{background:#f0eee6;color:var(--text);}
-  .btn.danger:hover{background:#fef2f2;border-color:var(--up);color:var(--up);}
-  .search{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .btn.primary:hover{background:#000;}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:6px 10px;}
+  .btn.ghost:hover{background:var(--accent-soft);color:var(--text);}
+  .btn.danger:hover{background:#fff5f5;border-color:#ffc9c9;color:var(--up);}
+  .divider{width:1px;height:22px;background:var(--hairline);margin:0 4px;}
+
+  .search{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
   .search input, .search select{
-    font:13px 'Pretendard',sans-serif;padding:6px 10px;border:1px solid var(--border);
-    border-radius:8px;background:#fff;color:var(--text);outline:none;min-width:150px;
+    font:13px -apple-system,'Pretendard',sans-serif;padding:8px 12px;
+    border:1px solid var(--hairline-strong);border-radius:10px;
+    background:var(--surface);color:var(--text);outline:none;
+    min-width:130px;transition:border-color .15s,box-shadow .15s;
   }
-  .search input:focus, .search select:focus{border-color:var(--accent);}
-  .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:auto;max-height:calc(100vh - 90px);}
-  table{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px;white-space:nowrap;}
+  .search input{min-width:180px;}
+  .search input:focus, .search select:focus{
+    border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,0,0,0.05);
+  }
+  .search input::placeholder{color:var(--hint);}
+
+  /* Table card */
+  .table-wrap{
+    background:var(--surface);border-radius:16px;overflow:auto;
+    max-height:calc(100vh - 190px);
+    box-shadow:var(--shadow-sm);border:1px solid var(--hairline);
+  }
+  table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;white-space:nowrap;}
   thead th{
-    position:sticky;top:0;background:#f6f4ee;color:var(--text);
-    font-weight:600;padding:9px 10px;border-bottom:1px solid var(--border);
-    text-align:center;z-index:2;line-height:1.25;
+    position:sticky;top:0;background:var(--surface);color:var(--muted);
+    font-weight:600;font-size:11.5px;letter-spacing:0.02em;text-transform:uppercase;
+    padding:14px 14px;border-bottom:1px solid var(--hairline);
+    text-align:center;z-index:2;line-height:1.3;
+    backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+    background:rgba(255,255,255,0.85);
   }
-  tbody td{padding:0;border-bottom:1px solid #f0eee6;color:var(--text);vertical-align:middle;}
-  tbody td .cell{padding:7px 10px;min-height:32px;display:flex;align-items:center;}
+  tbody td{padding:0;border-bottom:1px solid var(--hairline);color:var(--text);vertical-align:middle;}
+  tbody td .cell{padding:12px 14px;min-height:44px;display:flex;align-items:center;font-size:13px;}
   tbody td .cell.num{justify-content:flex-end;font-variant-numeric:tabular-nums;}
   tbody td .cell.center{justify-content:center;}
-  tbody tr:hover td{background:#faf9f4;}
-  tbody tr.new-row td{background:#f0f9ff;}
-  tbody tr.new-row:hover td{background:#e0f2fe;}
-  .editable{cursor:text;border-radius:4px;transition:background .1s;}
-  .editable:hover{background:#eef4f7;}
-  .editable[contenteditable="true"]{background:#fff;outline:2px solid var(--accent);outline-offset:-2px;}
-  .calc{color:var(--muted);background:#faf9f4;}
-  .pct{color:var(--accent);font-weight:600;}
-  .up{color:var(--up);font-weight:600;}
-  .down{color:var(--down);font-weight:600;}
+  tbody tr{transition:background .12s ease;}
+  tbody tr:hover td{background:var(--surface-alt);}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr.new-row td{background:#f0f7ff;}
+  tbody tr.new-row:hover td{background:#e5f0fc;}
+
+  /* Editable cell */
+  .editable{cursor:text;border-radius:6px;margin:2px;padding:10px 12px !important;min-height:36px !important;transition:background .12s;}
+  .editable:hover{background:var(--accent-soft);}
+  .editable[contenteditable="true"]{
+    background:#fff !important;
+    box-shadow:0 0 0 2px var(--accent) inset;
+    outline:none;
+  }
+
+  /* Calc cells (읽기 전용) */
+  .calc{color:var(--muted);background:linear-gradient(0deg,var(--surface-alt),var(--surface-alt));}
+
+  /* Semantic colors */
+  .pct{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;}
+  .up{color:var(--up);font-weight:600;font-variant-numeric:tabular-nums;}
+  .down{color:var(--down);font-weight:600;font-variant-numeric:tabular-nums;}
   .zero{color:var(--hint);}
-  .col-cat{color:var(--muted);font-size:11.5px;}
-  .col-name .cell{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:9px 10px;}
+  .col-cat{color:var(--muted);}
+  .col-name .cell{max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:14px 14px;font-weight:500;}
+  .col-name .cell.editable{display:block;}
   .col-name .cell[contenteditable="true"]{overflow:visible;white-space:normal;}
+
+  /* Pill/tag styles for status */
+  .status-pill{
+    display:inline-flex;align-items:center;gap:5px;
+    padding:4px 10px;border-radius:100px;
+    font-size:11.5px;font-weight:600;letter-spacing:-0.01em;
+    background:var(--accent-soft);color:var(--text);
+  }
+  .status-pill.sell{background:#e7f5ec;color:#2b6a3f;}
+  .status-pill.stop{background:#f5e7e7;color:#9a3a3a;}
+  .status-pill.dot::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;}
+
+  /* Row actions */
   .row-actions{display:flex;gap:2px;justify-content:center;}
-  .row-actions .btn{padding:3px 6px;font-size:11px;}
-  .empty{padding:48px 20px;text-align:center;color:var(--muted);font-size:13px;}
-  .err{padding:48px 20px;text-align:center;color:var(--up);font-size:13px;}
-  th.sortable{cursor:pointer;user-select:none;}
-  th.sortable:hover{background:#eeece4;}
-  th.sortable .arrow{display:inline-block;width:10px;margin-left:2px;color:var(--hint);}
-  th.sortable.asc .arrow::after{content:'▲';color:var(--accent);}
-  th.sortable.desc .arrow::after{content:'▼';color:var(--accent);}
-  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;
-    padding:10px 18px;border-radius:8px;font:13px 'Pretendard',sans-serif;z-index:99999;
-    box-shadow:0 4px 12px rgba(0,0,0,.2);opacity:0;transition:opacity .2s;pointer-events:none;}
-  .toast.show{opacity:1;}
+  .row-actions .btn{
+    padding:6px 8px;font-size:12px;border-radius:8px;
+    color:var(--muted);background:transparent;border-color:transparent;
+  }
+  .row-actions .btn:hover{background:var(--accent-soft);color:var(--text);}
+  .row-actions .btn.danger:hover{background:#fff5f5;color:var(--up);}
+
+  .empty{padding:64px 20px;text-align:center;color:var(--muted);font-size:14px;}
+  .err{padding:64px 20px;text-align:center;color:var(--up);font-size:14px;}
+
+  th.sortable{cursor:pointer;user-select:none;transition:color .1s;}
+  th.sortable:hover{color:var(--text);}
+  th.sortable .arrow{display:inline-block;width:12px;margin-left:2px;opacity:0.35;font-size:9px;}
+  th.sortable.asc .arrow::after{content:'▲';opacity:1;color:var(--text);}
+  th.sortable.desc .arrow::after{content:'▼';opacity:1;color:var(--text);}
+
+  /* Toast */
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);
+    background:rgba(29,29,31,0.92);color:#fff;
+    padding:12px 20px;border-radius:12px;font:500 13px -apple-system,'Pretendard',sans-serif;
+    z-index:99999;box-shadow:0 8px 24px rgba(0,0,0,0.15);
+    opacity:0;transition:opacity .2s ease,transform .2s ease;pointer-events:none;
+    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  /* Native select arrow polish */
+  .search select{
+    appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='none' stroke='%236e6e73' stroke-width='1.5' d='M1 1l4 4 4-4'/></svg>");
+    background-repeat:no-repeat;background-position:right 12px center;padding-right:30px;
+  }
+
+  /* Scrollbar polish */
+  .table-wrap::-webkit-scrollbar{width:10px;height:10px;}
+  .table-wrap::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15);border-radius:8px;border:2px solid var(--surface);}
+  .table-wrap::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,0.25);}
+  .table-wrap::-webkit-scrollbar-track{background:transparent;}
 </style>
 </head>
 <body>
 <div class="wrap">
+  <div class="page-head">
+    <div class="title-block">
+      <h1>마진테이블</h1>
+      <div class="sub">
+        <span id="status">불러오는 중…</span>
+        <span id="saveInfo" class="save-info"></span>
+      </div>
+    </div>
+  </div>
+
   <div class="toolbar">
-    <h1>마진테이블</h1>
-    <span id="status" class="status">불러오는 중…</span>
-    <span id="saveInfo" class="save-info"></span>
     <div class="actions">
-      <button class="btn primary" id="btnAdd">+ 행 추가</button>
+      <button class="btn primary" id="btnAdd">＋ 행 추가</button>
       <button class="btn" id="btnSave">저장</button>
-      <button class="btn" id="btnReload">새로고침</button>
+      <button class="btn ghost" id="btnReload">새로고침</button>
       <button class="btn ghost" id="btnSeed" title="KV가 비어있을 때 마진테이블.xlsx에서 초기 데이터 가져오기">xlsx에서 초기화</button>
     </div>
     <div class="search">
@@ -227,7 +335,13 @@ function renderCell(r, col){
   }
   const align=col.align==='right'?'num':(col.align==='center'?'center':'');
   const display=formatValue(v,col);
-  return `<div class="cell editable ${align}" data-k="${col.k}" data-type="${col.type}">${esc(display)}</div>`;
+  let inner=esc(display);
+  if(col.k==='status' && display){
+    const s=String(display).trim();
+    const cls=s==='판매'?'sell':(s==='중지'||s==='단종'||s==='품절'?'stop':'');
+    inner=`<span class="status-pill ${cls}">${esc(s)}</span>`;
+  }
+  return `<div class="cell editable ${align}" data-k="${col.k}" data-type="${col.type}">${inner}</div>`;
 }
 
 function render(){
