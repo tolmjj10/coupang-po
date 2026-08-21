@@ -10,27 +10,29 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
-    /* Soft dashboard palette */
-    --bg:#f4f6fb;
+    /* Warm earth palette — chocolate text, sage muted, warm taupe accent */
+    --bg:#fbfbfe;
     --surface:#ffffff;
-    --surface-alt:#f9fafc;
-    --hairline:#eef1f6;
-    --hairline-strong:#e3e7ee;
-    --text:#1e293b;
-    --muted:#64748b;
-    --hint:#94a3b8;
-    --accent:#f87171;
-    --accent-dark:#ef4444;
-    --accent-soft:#fef2f2;
-    --accent-softer:#fef7f7;
-    --tint:#fecdd3;
-    --up:#dc2626;
-    --down:#2563eb;
-    --ok:#10b981;
-    --warn:#f59e0b;
-    --shadow-xs:0 1px 2px rgba(15,23,42,0.04);
-    --shadow-sm:0 2px 6px rgba(15,23,42,0.05);
-    --shadow-md:0 6px 20px rgba(15,23,42,0.06);
+    --surface-alt:#f5f3ef;
+    --hairline:#ebe6df;
+    --hairline-strong:#d9d1c8;
+    --text:#4c342e;
+    --muted:#6f7c6d;
+    --hint:#a89e97;
+    --accent:#aa9791;
+    --accent-dark:#8b756c;
+    --accent-soft:#f2ede9;
+    --accent-softer:#f8f5f2;
+    --tint:#c9bdb4;
+    --sage:#b1c0b2;
+    --sage-soft:#e6ece6;
+    --up:#b04a3a;
+    --down:#5a6f8a;
+    --ok:#6f7c6d;
+    --warn:#b89968;
+    --shadow-xs:0 1px 2px rgba(76,52,46,0.05);
+    --shadow-sm:0 2px 6px rgba(76,52,46,0.06);
+    --shadow-md:0 6px 20px rgba(76,52,46,0.08);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;background:var(--bg);color:var(--text);
@@ -101,11 +103,11 @@
   .btn:active{transform:scale(0.98);}
   .btn:disabled{opacity:0.35;cursor:default;background:transparent;border-color:transparent;}
   .btn:disabled:hover{background:transparent;border-color:transparent;}
-  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 1px 2px rgba(239,68,68,0.22);}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 1px 2px rgba(139,117,108,0.28);}
   .btn.primary:hover{background:var(--accent-dark);border-color:var(--accent-dark);}
   .btn.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:6px 10px;}
   .btn.ghost:hover{background:var(--accent-soft);color:var(--accent-dark);}
-  .btn.danger:hover{background:#fef2f2;border-color:#fecaca;color:var(--up);}
+  .btn.danger:hover{background:#f5e8e3;border-color:#e5d0c6;color:var(--up);}
   .divider{width:1px;height:22px;background:var(--hairline);margin:0 4px;}
 
   .search{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
@@ -144,7 +146,7 @@
   tbody tr:hover td{background:var(--accent-softer);}
   tbody tr:last-child td{border-bottom:none;}
   tbody tr.new-row td{background:var(--accent-soft);}
-  tbody tr.new-row:hover td{background:#fde4e4;}
+  tbody tr.new-row:hover td{background:#ebe0d8;}
 
   /* Editable cell */
   .editable{cursor:text;border-radius:6px;margin:2px;padding:7px 8px !important;min-height:28px !important;transition:background .12s;}
@@ -180,8 +182,8 @@
     font-size:10.5px;font-weight:600;letter-spacing:-0.01em;
     background:var(--tint);color:var(--muted);
   }
-  .status-pill.sell{background:#ecfdf5;color:#059669;}
-  .status-pill.stop{background:#fef2f2;color:#dc2626;}
+  .status-pill.sell{background:var(--sage-soft);color:#4a5748;}
+  .status-pill.stop{background:#f2e5df;color:#8a3a2e;}
 
   /* Row actions */
   .row-actions{display:flex;gap:2px;justify-content:center;}
@@ -190,7 +192,7 @@
     color:var(--muted);background:transparent;border-color:transparent;
   }
   .row-actions .btn:hover{background:var(--accent-soft);color:var(--text);}
-  .row-actions .btn.danger:hover{background:#fff5f5;color:var(--up);}
+  .row-actions .btn.danger:hover{background:#f5e8e3;color:var(--up);}
 
   .empty{padding:64px 20px;text-align:center;color:var(--muted);font-size:14px;}
   .err{padding:64px 20px;text-align:center;color:var(--up);font-size:14px;}
@@ -206,7 +208,7 @@
     position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);
     background:var(--accent-dark);color:#fff;
     padding:12px 20px;border-radius:11px;font:500 13px 'Pretendard',sans-serif;
-    z-index:99999;box-shadow:0 8px 24px rgba(239,68,68,0.25);
+    z-index:99999;box-shadow:0 8px 24px rgba(76,52,46,0.22);
     opacity:0;transition:opacity .2s ease,transform .2s ease;pointer-events:none;
   }
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
@@ -214,14 +216,14 @@
   /* Native select arrow polish */
   .search select{
     appearance:none;-webkit-appearance:none;
-    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='none' stroke='%2364748b' stroke-width='1.5' d='M1 1l4 4 4-4'/></svg>");
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='none' stroke='%236f7c6d' stroke-width='1.5' d='M1 1l4 4 4-4'/></svg>");
     background-repeat:no-repeat;background-position:right 12px center;padding-right:30px;
   }
 
   /* Scrollbar polish */
   .table-wrap::-webkit-scrollbar,.side::-webkit-scrollbar{width:8px;height:8px;}
-  .table-wrap::-webkit-scrollbar-thumb,.side::-webkit-scrollbar-thumb{background:#d5dbe6;border-radius:8px;border:2px solid var(--surface);}
-  .table-wrap::-webkit-scrollbar-thumb:hover,.side::-webkit-scrollbar-thumb:hover{background:#b6bfce;}
+  .table-wrap::-webkit-scrollbar-thumb,.side::-webkit-scrollbar-thumb{background:#d9d1c8;border-radius:8px;border:2px solid var(--surface);}
+  .table-wrap::-webkit-scrollbar-thumb:hover,.side::-webkit-scrollbar-thumb:hover{background:#b8ada2;}
   .table-wrap::-webkit-scrollbar-track,.side::-webkit-scrollbar-track{background:transparent;}
 </style>
 </head>
@@ -392,7 +394,7 @@ function uid(){ return 'r_'+Date.now().toString(36)+Math.random().toString(36).s
 function showToast(msg,color){
   const t=document.getElementById('toast');
   t.textContent=msg;
-  if(color) t.style.background=color; else t.style.background='#16a34a';
+  if(color) t.style.background=color; else t.style.background='#6f7c6d';
   t.classList.add('show');
   clearTimeout(t._timer);
   t._timer=setTimeout(()=>t.classList.remove('show'),1800);
@@ -717,7 +719,7 @@ async function save(){
     const el=document.getElementById('saveInfo');
     el.textContent='저장 실패: '+e.message;
     el.classList.add('err');
-    showToast('저장 실패: '+e.message,'#dc2626');
+    showToast('저장 실패: '+e.message,'#b04a3a');
   } finally {
     saving=false; updateSaveInfo();
   }
