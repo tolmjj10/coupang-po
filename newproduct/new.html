@@ -9,24 +9,30 @@
 <style>
   * { box-sizing: border-box; }
   :root {
-    --bg: #f5f4f0;
+    /* 마진테이블/po/index 와 동일한 어스톤 팔레트 */
+    --bg: #fbfbfe;
     --card: #ffffff;
-    --border: #e2e0d8;
-    --text: #1a1916;
-    --muted: #6b6960;
-    --primary: #1a3a4a;
-    --primary-hover: #255269;
-    --accent: #1a3a4a;
-    --accent-light: #e8f1f5;
-    --success: #4a7c59;
-    --warning: #b08840;
-    --danger: #a85450;
-    --info: #4a6b8a;
-    --soft-red: #f7efee;
-    --soft-yellow: #f8f4e9;
-    --soft-green: #eef2ec;
-    --soft-blue: #eef1f4;
-    --soft-purple: #f2f0ee;
+    --border: #ebe6df;
+    --border-strong: #d9d1c8;
+    --text: #2a1a15;
+    --muted: #4d5a4c;
+    --hint: #7a706a;
+    --primary: #aa9791;
+    --primary-hover: #8b756c;
+    --accent: #aa9791;
+    --accent-dark: #8b756c;
+    --accent-light: #f2ede9;
+    --sage: #b1c0b2;
+    --sage-soft: #e6ece6;
+    --success: #6f7c6d;
+    --warning: #b89968;
+    --danger: #b04a3a;
+    --info: #5a6f8a;
+    --soft-red: #f5e8e3;
+    --soft-yellow: #f5efdd;
+    --soft-green: #e6ece6;
+    --soft-blue: #e8ecef;
+    --soft-purple: #efe9e5;
   }
   html, body {
     font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',-apple-system, BlinkMacSystemFont, sans-serif;
@@ -37,37 +43,37 @@
     -webkit-font-smoothing: antialiased;
     letter-spacing: -0.01em;
   }
+  /* 마진테이블과 동일한 제목 디자인 */
   .page-header {
-    background: #fff;
-    padding: 10px 28px;
+    background: transparent;
+    padding: 20px 28px 8px;
     display: flex;
-    align-items: center;
-    gap: 12px;
-    border-bottom: 1px solid var(--border);
-    min-height: 44px;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    border-bottom: none;
+    min-height: auto;
+    flex-wrap: wrap;
+    max-width: 1720px;
+    margin: 0 auto;
   }
-  .page-header .header-icon {
-    width: 26px; height: 26px;
-    border-radius: 6px;
-    display: flex; align-items: center; justify-content: center;
-    color: var(--accent);
-    flex-shrink: 0;
-  }
-  .page-header .header-icon svg { width: 18px; height: 18px; stroke-width: 1.75; }
-  .page-header h1 {
-    font-size: 15px;
+  .page-header .title-block h1 {
+    font-size: 22px;
     font-weight: 700;
-    letter-spacing: -0.2px;
+    letter-spacing: -0.024em;
     margin: 0;
     color: var(--text);
+    line-height: 1.15;
   }
-  .page-header .subtitle {
+  .page-header .title-block .sub {
+    font-size: 12.5px;
     color: var(--muted);
-    font-size: 12px;
-    margin-left: 6px;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
   .page-header #saveStatus {
-    margin-left: auto;
     color: var(--muted);
     font-size: 12px;
     font-weight: 500;
@@ -448,14 +454,13 @@
 <body>
 
 <div class="page-header">
-  <div class="header-icon">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 3l1.9 5.8L20 10.5l-4.7 3.9L16.9 21 12 17.6 7.1 21l1.6-6.6L4 10.5l6.1-1.7L12 3z"/>
-    </svg>
+  <div class="title-block">
+    <h1>쿠팡 신제품 관리</h1>
+    <div class="sub">
+      <span>담당자별 신제품 등록 진행 현황 · 자동 저장</span>
+      <span id="saveStatus"></span>
+    </div>
   </div>
-  <h1>쿠팡 신제품 관리</h1>
-  <span class="subtitle">담당자별 신제품 등록 진행 현황 · 자동 저장</span>
-  <span id="saveStatus"></span>
 </div>
 
 <div class="container">
