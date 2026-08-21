@@ -164,7 +164,12 @@
   .down{color:var(--down);font-weight:600;font-variant-numeric:tabular-nums;}
   .zero{color:var(--hint);}
   .col-cat{color:var(--muted);}
-  .col-name .cell{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:10px 10px;font-weight:500;}
+  td.col-name{overflow:visible;white-space:normal;}
+  .col-name .cell{
+    max-width:none;overflow:visible;
+    white-space:normal;word-break:break-word;overflow-wrap:anywhere;
+    display:block;padding:10px 10px;font-weight:500;line-height:1.45;min-height:36px;
+  }
   .col-name .cell.editable{display:block;}
   .col-name .cell[contenteditable="true"]{overflow:visible;white-space:normal;}
 
@@ -281,7 +286,7 @@ const COLS=[
   {k:'cat',     label:'카테고리',    w:78,  align:'center', editable:true, type:'select', cls:'col-cat',
     options:['이미용','욕실가전','모바일','겨울가전','여름가전','건강가전','주방가전','생활가전','인테리어/조명','제습기','공기청정기','육아','차량','애견']},
   {k:'sku',     label:'SKU #',       w:70,  align:'center', editable:true, type:'text'},
-  {k:'name',    label:'상품명',      w:170, align:'left',   editable:true, type:'text', cls:'col-name'},
+  {k:'name',    label:'상품명',      w:300, align:'left',   editable:true, type:'text', cls:'col-name'},
   {k:'status',  label:'상태',        w:60,  align:'center', editable:true, type:'select', options:['판매','중지','단종','품절','예정']},
   {k:'cost',    label:'매입가',      w:72,  align:'right',  editable:true, type:'num'},
   {k:'supply',  label:'공급가',      w:72,  align:'right',  calc:r=>r.cost!=null? r.cost/1.1 : null,           type:'num'},
@@ -312,10 +317,30 @@ let activeCat=''; // '' = 전체
 /* Undo/redo history: snapshots of rows (minus _id) */
 const HISTORY_LIMIT=100;
 let undoStack=[], redoStack=[];
-function snapshot(){ return JSON.stringify(rows.map(r=>{const{_id,_new,...rest}=r;return rest;})); }
+function snapshot(){
+  return JSON.stringify({
+    rows: rows.map(r=>{const{_id,_new,...rest}=r;return rest;}),
+    sortKey, sortDir, activeCat
+  });
+}
 function restoreSnapshot(s){
-  const arr=JSON.parse(s);
-  rows=arr.map(r=>({_id:uid(),...r}));
+  const obj=JSON.parse(s);
+  // 하위호환: 예전 배열 스냅샷
+  if(Array.isArray(obj)){
+    rows=obj.map(r=>({_id:uid(),...r}));
+    return;
+  }
+  rows=(obj.rows||[]).map(r=>({_id:uid(),...r}));
+  sortKey=obj.sortKey ?? null;
+  sortDir=obj.sortDir ?? 1;
+  activeCat=obj.activeCat ?? '';
+  // 헤더 정렬 표시 동기화
+  document.querySelectorAll('#thead-row th').forEach(th=>{
+    th.classList.remove('asc','desc');
+    if(sortKey && th.dataset.k===sortKey){
+      th.classList.add(sortDir===1?'asc':'desc');
+    }
+  });
 }
 function pushHistory(){
   undoStack.push(snapshot());
@@ -329,20 +354,30 @@ function updateUndoButtons(){
   if(u) u.disabled = undoStack.length<=1;
   if(r) r.disabled = redoStack.length===0;
 }
+function rowsJson(s){
+  try{ const o=JSON.parse(s); return JSON.stringify(Array.isArray(o)?o:o.rows||[]); }
+  catch(e){ return s; }
+}
 function doUndo(){
   if(undoStack.length<=1) return;
   const cur=undoStack.pop();
   redoStack.push(cur);
-  restoreSnapshot(undoStack[undoStack.length-1]);
-  fillFilters(); render(); markDirtyNoHistory();
+  const target=undoStack[undoStack.length-1];
+  const rowsChanged = rowsJson(cur) !== rowsJson(target);
+  restoreSnapshot(target);
+  fillFilters(); render();
+  if(rowsChanged) markDirtyNoHistory(); else updateSaveInfo();
   updateUndoButtons();
 }
 function doRedo(){
   if(redoStack.length===0) return;
   const s=redoStack.pop();
+  const prev=undoStack[undoStack.length-1];
   undoStack.push(s);
+  const rowsChanged = rowsJson(s) !== rowsJson(prev);
   restoreSnapshot(s);
-  fillFilters(); render(); markDirtyNoHistory();
+  fillFilters(); render();
+  if(rowsChanged) markDirtyNoHistory(); else updateSaveInfo();
   updateUndoButtons();
 }
 
@@ -391,6 +426,7 @@ function buildHead(){
       if(sortKey===k){ sortDir=-sortDir; } else { sortKey=k; sortDir=1; }
       tr.querySelectorAll('th').forEach(t=>t.classList.remove('asc','desc'));
       th.classList.add(sortDir===1?'asc':'desc');
+      pushHistory();
       render();
     });
   });
