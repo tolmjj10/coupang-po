@@ -19,11 +19,11 @@
     --text:#1e293b;
     --muted:#64748b;
     --hint:#94a3b8;
-    --accent:#3b82f6;
-    --accent-dark:#2563eb;
-    --accent-soft:#eff6ff;
-    --accent-softer:#f5f9ff;
-    --tint:#e2eaf7;
+    --accent:#f87171;
+    --accent-dark:#ef4444;
+    --accent-soft:#fef2f2;
+    --accent-softer:#fef7f7;
+    --tint:#fecdd3;
     --up:#dc2626;
     --down:#2563eb;
     --ok:#10b981;
@@ -101,7 +101,7 @@
   .btn:active{transform:scale(0.98);}
   .btn:disabled{opacity:0.35;cursor:default;background:transparent;border-color:transparent;}
   .btn:disabled:hover{background:transparent;border-color:transparent;}
-  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 1px 2px rgba(59,130,246,0.25);}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 1px 2px rgba(239,68,68,0.22);}
   .btn.primary:hover{background:var(--accent-dark);border-color:var(--accent-dark);}
   .btn.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:6px 10px;}
   .btn.ghost:hover{background:var(--accent-soft);color:var(--accent-dark);}
@@ -144,7 +144,7 @@
   tbody tr:hover td{background:var(--accent-softer);}
   tbody tr:last-child td{border-bottom:none;}
   tbody tr.new-row td{background:var(--accent-soft);}
-  tbody tr.new-row:hover td{background:#e0ecff;}
+  tbody tr.new-row:hover td{background:#fde4e4;}
 
   /* Editable cell */
   .editable{cursor:text;border-radius:6px;margin:2px;padding:7px 8px !important;min-height:28px !important;transition:background .12s;}
@@ -201,7 +201,7 @@
     position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);
     background:var(--accent-dark);color:#fff;
     padding:12px 20px;border-radius:11px;font:500 13px 'Pretendard',sans-serif;
-    z-index:99999;box-shadow:0 8px 24px rgba(37,99,235,0.25);
+    z-index:99999;box-shadow:0 8px 24px rgba(239,68,68,0.25);
     opacity:0;transition:opacity .2s ease,transform .2s ease;pointer-events:none;
   }
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
