@@ -440,16 +440,11 @@
   ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
   ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
-  .detail-url-cell { display: flex; gap: 4px; align-items: center; }
-  .detail-url-cell input {
-    flex: 1; min-width: 0;
-    padding: 5px 8px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    font-size: 12px;
-    background: #fff;
+  .detail-url-cell { white-space: nowrap; display: flex; gap: 4px; align-items: center; }
+  .detail-url-cell input.detail-url-input {
+    flex: 1; min-width: 0; width: auto;
+    padding: 6px 8px; font-size: 12px;
   }
-  .detail-url-cell input:focus { outline: none; border-color: var(--accent); }
   .detail-open-btn {
     flex-shrink: 0;
     padding: 5px 10px;
@@ -835,10 +830,7 @@ function render() {
         ${checkCell(row,'venple')}
         ${checkCell(row,'ad')}
         <td>${st.label ? `<span class="status-badge ${st.cls}">${st.label}</span>` : ''}</td>
-        <td class="detail-url-cell">
-          <input type="text" value="${esc(row.detailUrl||'')}" placeholder="URL 또는 경로" onchange="upd('${row.id}','detailUrl',this.value)">
-          <button class="detail-open-btn" onclick="openDetail('${row.id}')" ${row.detailUrl?'':'disabled'} title="상세 열기">보기</button>
-        </td>
+        <td class="detail-url-cell"><input type="text" class="detail-url-input" value="${esc(row.detailUrl||'')}" placeholder="URL" onchange="upd('${row.id}','detailUrl',this.value)"><button class="detail-open-btn" onclick="openDetail('${row.id}')" ${row.detailUrl?'':'disabled'}>보기</button></td>
         <td><button class="danger-icon" onclick="delRow('${row.id}')" title="삭제">✕</button></td>
       </tr>
     `;
