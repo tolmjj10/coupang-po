@@ -907,9 +907,7 @@ function initColumnResize() {
       const th = handle.closest('th');
       const allThs = Array.from(th.parentElement.children);
       const idx = allThs.indexOf(th);
-      const leftThs = allThs.slice(0, idx);
       const rightThs = allThs.slice(idx + 1);
-      leftThs.forEach(t => { t.style.width = t.getBoundingClientRect().width + 'px'; });
       const rightStart = rightThs.map(t => t.getBoundingClientRect().width);
       const totalRight = rightStart.reduce((a,b)=>a+b,0);
       const minPerRight = 40;
