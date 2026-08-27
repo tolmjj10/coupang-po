@@ -905,14 +905,30 @@ function initColumnResize() {
       e.preventDefault();
       e.stopPropagation();
       const th = handle.closest('th');
+      const allThs = Array.from(th.parentElement.children);
+      const idx = allThs.indexOf(th);
+      const leftThs = allThs.slice(0, idx);
+      const rightThs = allThs.slice(idx + 1);
+      leftThs.forEach(t => { t.style.width = t.getBoundingClientRect().width + 'px'; });
+      const rightStart = rightThs.map(t => t.getBoundingClientRect().width);
+      const totalRight = rightStart.reduce((a,b)=>a+b,0);
+      const minPerRight = 40;
+      const minTotalRight = rightThs.length * minPerRight;
+      const maxDelta = totalRight - minTotalRight;
       const startX = e.clientX;
       const startW = th.getBoundingClientRect().width;
       handle.classList.add('dragging');
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
       function onMove(ev) {
-        const w = Math.max(80, Math.round(startW + (ev.clientX - startX)));
-        th.style.width = w + 'px';
+        let delta = ev.clientX - startX;
+        if (delta > maxDelta) delta = maxDelta;
+        if (startW + delta < 80) delta = 80 - startW;
+        th.style.width = Math.round(startW + delta) + 'px';
+        const ratio = totalRight > 0 ? (totalRight - delta) / totalRight : 1;
+        rightThs.forEach((t, i) => {
+          t.style.width = Math.max(minPerRight, Math.round(rightStart[i] * ratio)) + 'px';
+        });
       }
       function onUp() {
         document.removeEventListener('mousemove', onMove);
