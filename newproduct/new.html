@@ -440,8 +440,8 @@
   ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
   ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
-  .detail-url-cell { white-space: nowrap; display: flex; gap: 4px; align-items: center; }
-  .detail-url-cell input.detail-url-input {
+  .detail-url-wrap { display: flex; gap: 4px; align-items: center; white-space: nowrap; }
+  .detail-url-wrap input.detail-url-input {
     flex: 1; min-width: 0; width: auto;
     padding: 6px 8px; font-size: 12px;
   }
@@ -830,7 +830,7 @@ function render() {
         ${checkCell(row,'venple')}
         ${checkCell(row,'ad')}
         <td>${st.label ? `<span class="status-badge ${st.cls}">${st.label}</span>` : ''}</td>
-        <td class="detail-url-cell"><input type="text" class="detail-url-input" value="${esc(row.detailUrl||'')}" placeholder="URL" onchange="upd('${row.id}','detailUrl',this.value)"><button class="detail-open-btn" onclick="openDetail('${row.id}')" ${row.detailUrl?'':'disabled'}>보기</button></td>
+        <td><div class="detail-url-wrap"><input type="text" class="detail-url-input" value="${esc(row.detailUrl||'')}" placeholder="URL" onchange="upd('${row.id}','detailUrl',this.value)"><button class="detail-open-btn" onclick="openDetail('${row.id}')" ${row.detailUrl?'':'disabled'}>보기</button></div></td>
         <td><button class="danger-icon" onclick="delRow('${row.id}')" title="삭제">✕</button></td>
       </tr>
     `;
