@@ -321,17 +321,17 @@ const COLS=[
   {k:'sku',     label:'SKU #',       w:70,  align:'center', editable:true, type:'text'},
   {k:'name',    label:'상품명',      w:320, align:'left',   editable:true, type:'text', cls:'col-name'},
   {k:'status',  label:'상태',        w:60,  align:'center', editable:true, type:'select', options:['판매','중지','단종','품절','예정']},
-  {k:'cost',    label:'매입가',      w:72,  align:'right',  editable:true, type:'num'},
+  {k:'cost',    label:'매입가',      w:72,  align:'right',  editable:true, type:'num', hi:true},
   {k:'supply',  label:'공급가',      w:72,  align:'right',  calc:r=>r.cost!=null? r.cost/1.1 : null,           type:'num'},
   {k:'vat',     label:'부가세',      w:60,  align:'right',  calc:r=>r.cost!=null? r.cost - r.cost/1.1 : null,  type:'num'},
-  {k:'margin1', label:'마진\n(+VAT)', w:70, align:'right',  calc:r=>(r.price!=null&&r.cost!=null)? r.price - r.cost : null, type:'num'},
-  {k:'mRate',   label:'마진율',      w:58,  align:'right',  calc:r=>(r.price&&r.cost!=null)? 1-(r.cost/r.price) : null,      type:'pct'},
-  {k:'price',   label:'소비자가',    w:72,  align:'right',  editable:true, type:'num'},
+  {k:'margin1', label:'쿠팡마진\n(+VAT)', w:70, align:'right',  calc:r=>(r.price!=null&&r.cost!=null)? r.price - r.cost : null, type:'num', hi:true},
+  {k:'mRate',   label:'마진율',      w:58,  align:'right',  calc:r=>(r.price&&r.cost!=null)? 1-(r.cost/r.price) : null,      type:'pct', hi:true},
+  {k:'price',   label:'소비자가',    w:72,  align:'right',  editable:true, type:'num', hi:true},
   {k:'origin',  label:'원가',        w:70,  align:'right',  editable:true, type:'num'},
   {k:'originN', label:'원가\n(NEW)', w:70,  align:'right',  editable:true, type:'num'},
   {k:'diff',    label:'증감',        w:52,  align:'center', render:renderDiff},
-  {k:'margin2', label:'마진\n(-VAT)', w:70, align:'right',  calc:r=>(r.cost!=null&&r.originN!=null)? (r.cost/1.1) - r.originN : null, type:'num'},
-  {k:'pRate',   label:'이익율',      w:58,  align:'right',  calc:r=>{ if(r.cost==null||r.originN==null) return null; const g=r.cost/1.1, o=g-r.originN; return g? o/g:null; }, type:'pct'},
+  {k:'margin2', label:'마진\n(-VAT)', w:70, align:'right',  calc:r=>(r.cost!=null&&r.originN!=null)? (r.cost/1.1) - r.originN : null, type:'num', hi:true},
+  {k:'pRate',   label:'이익율',      w:58,  align:'right',  calc:r=>{ if(r.cost==null||r.originN==null) return null; const g=r.cost/1.1, o=g-r.originN; return g? o/g:null; }, type:'pct', hi:true},
   {k:'roas',    label:'광고 ROAS\n(상시가)', w:72, align:'right', calc:r=>{ if(r.cost==null||r.originN==null||r.price==null) return null; const g=r.cost/1.1, o=g-r.originN; return o? r.price/o:null; }, type:'pctInt'},
   {k:'_act',    label:'',            w:64,  align:'center', render:renderActions},
 ];
@@ -521,10 +521,11 @@ function renderCell(r, col){
   const v=getCellValue(r,col);
   if(col.calc){
     let inner;
-    if(col.type==='pct')         inner=`<span class="pct">${fmtPct(v)}</span>`;
-    else if(col.type==='pctInt') inner=`<span class="pct">${fmtPctInt(v)}</span>`;
+    if(col.type==='pct')         inner=fmtPct(v);
+    else if(col.type==='pctInt') inner=fmtPctInt(v);
     else if(col.type==='num2')   inner=fmtNum2(v);
     else                         inner=fmtInt(v);
+    if(col.hi) inner=`<span class="pct">${inner}</span>`;
     const align=col.align==='right'?'num':(col.align==='center'?'center':'');
     return `<div class="cell calc ${align}">${inner}</div>`;
   }
@@ -535,6 +536,8 @@ function renderCell(r, col){
     const s=String(display).trim();
     const cls=s==='판매'?'sell':(s==='중지'||s==='단종'||s==='품절'?'stop':'');
     inner=`<span class="status-pill ${cls}">${esc(s)}</span>`;
+  } else if(col.hi && display){
+    inner=`<span class="pct">${inner}</span>`;
   }
   return `<div class="cell editable ${align}" data-k="${col.k}" data-type="${col.type}">${inner}</div>`;
 }
