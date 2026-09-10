@@ -948,14 +948,9 @@ function render() {
 
 function checkCell(row, key) {
   const item = row[key];
-  let warnHtml = '';
-  if (key === 'rocket' && !item.done && !item.date) {
-    warnHtml = dDayHtml(row.detailDueDate);
-  }
   return `<td class="check-cell">
     <input type="checkbox" ${item.done?'checked':''} onchange="updCheck('${row.id}','${key}',this.checked)">
     <input type="date" min="2026-01-01" value="${item.date||''}" onchange="updCheckDate('${row.id}','${key}',this.value)">
-    ${warnHtml}
   </td>`;
 }
 
