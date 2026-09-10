@@ -71,9 +71,23 @@
   .container { max-width: 1720px; margin: 0 auto; padding: 20px 24px 22px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
   .stats-row {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 14px;
+    background: var(--card);
+    border: 1px solid #eae1d8;
+    border-radius: 14px;
+    padding: 10px 14px;
+    box-shadow: 0 1px 2px rgba(139, 117, 108, 0.05);
   }
+  .stats-row .divider {
+    width: 1px; height: 22px; background: #eae1d8; margin: 0 4px;
+  }
+  button.btn.ghost {
+    background: transparent; border-color: transparent; color: #6b6960; padding: 6px 10px;
+  }
+  button.btn.ghost:hover { background: #f2ede9; border-color: transparent; color: #6b5f47; }
+  button.btn.ghost:disabled { opacity: 0.35; cursor: default; background: transparent; }
+  button.btn.ghost:disabled:hover { background: transparent; }
   .stats {
     display: flex;
     flex-wrap: wrap;
@@ -587,9 +601,16 @@
     <div class="toolbar-inline">
       <button class="btn primary" onclick="addRow()">＋ 신제품 추가</button>
       <button class="btn" onclick="saveNow()" title="지금 바로 공유 저장">저장</button>
+      <div class="divider"></div>
+      <button class="btn ghost" id="btnUndo" onclick="doUndo()" title="되돌리기 (Ctrl+Z)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
+      </button>
+      <button class="btn ghost" id="btnRedo" onclick="doRedo()" title="다시하기 (Ctrl+Y)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/></svg>
+      </button>
     </div>
-    <div class="stats" id="stats" style="margin-left:auto"></div>
-    <input class="search" id="search" placeholder="🔍 담당자 · 상품명 검색" oninput="render()">
+    <div class="stats" id="stats" style="display:none"></div>
+    <input class="search" id="search" style="margin-left:auto" placeholder="🔍 담당자 · 상품명 검색" oninput="render()">
   </div>
   <div class="alerts" id="alerts"></div>
 
@@ -697,6 +718,7 @@ async function loadRemote() {
       if (p.lastExcelProducts) lastExcelProducts = p.lastExcelProducts;
       migrateImportedToRealName();
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts })); } catch(e) {}
+      _prevSnapshot = JSON.stringify(data);
       render();
     }
   } catch (e) {
@@ -739,12 +761,63 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sub
 
 let _saveTimer = null;
 let _isDirty = false;
+/* ── Undo (Ctrl+Z) ─────────────────────────
+   save()가 호출될 때마다 이전 상태를 undoStack에 push. 실제 mutation 함수를
+   개별적으로 감싸지 않아도 되어 유지보수가 쉬움. */
+let _prevSnapshot = null;
+const undoStack = [];
+const redoStack = [];
+const UNDO_MAX = 100;
 function save() {
+  if (_prevSnapshot !== null) {
+    undoStack.push(_prevSnapshot);
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
+  }
+  /* 새로운 변경이 발생하면 redo 히스토리는 무효화 */
+  redoStack.length = 0;
+  _prevSnapshot = JSON.stringify(data);
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts }));
   _isDirty = true;
   const el = document.getElementById('saveStatus');
   if (el) el.textContent = '● 미저장 (자동 저장 대기 중)';
 }
+function _applySnapshot(snap, statusText) {
+  try {
+    data = JSON.parse(snap);
+    _prevSnapshot = snap;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts }));
+    _isDirty = true;
+    const el = document.getElementById('saveStatus');
+    if (el) el.textContent = statusText;
+    render();
+  } catch(e) { console.warn('[new] apply snapshot failed:', e); }
+}
+function doUndo() {
+  if (undoStack.length === 0) return;
+  const prev = undoStack.pop();
+  /* 현재 상태를 redoStack에 저장하여 Ctrl+Y로 복구 가능 */
+  if (_prevSnapshot !== null) redoStack.push(_prevSnapshot);
+  _applySnapshot(prev, '● 되돌림 (자동 저장 대기 중)');
+}
+function doRedo() {
+  if (redoStack.length === 0) return;
+  const next = redoStack.pop();
+  if (_prevSnapshot !== null) undoStack.push(_prevSnapshot);
+  _applySnapshot(next, '● 다시 실행 (자동 저장 대기 중)');
+}
+document.addEventListener('keydown', e => {
+  const mod = e.ctrlKey || e.metaKey;
+  if (!mod) return;
+  const key = e.key.toLowerCase();
+  const isUndo = !e.shiftKey && key === 'z';
+  const isRedo = (key === 'y') || (e.shiftKey && key === 'z');
+  if (!isUndo && !isRedo) return;
+  const t = e.target;
+  /* 입력창 안이면 브라우저의 기본 텍스트 undo/redo에 맡김 */
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+  e.preventDefault();
+  if (isUndo) doUndo(); else doRedo();
+});
 
 async function saveRemote() {
   const el = document.getElementById('saveStatus');
@@ -1373,6 +1446,7 @@ function delRow(id) {
 
 migrateImportedToRealName();
 backfillArrivalDates();
+_prevSnapshot = JSON.stringify(data);
 render();
 initColumnResize();
 loadRemote().then(() => fetchProductStatus());
