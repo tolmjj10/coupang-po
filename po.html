@@ -56,7 +56,8 @@ body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif
 .header .title-block h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.024em; margin: 0; color: var(--text); line-height: 1.15; }
 .header .title-block .sub { font-size: 12.5px; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; gap: 10px; }
 
-.main { max-width: 1720px; margin: 0 auto; padding: 22px 28px 60px; }
+.main { padding: 20px 24px 60px; }
+#results { max-width: 1440px; margin: 0 auto; }
 
 /* ── FLOW ── */
 .flow { display: flex; align-items: center; gap: 0; margin-bottom: 22px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 20px; overflow-x: auto; }
@@ -185,7 +186,8 @@ td.td-doc { text-align: center; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   height: calc(100vh - 250px);
   min-height: 300px;
 }
