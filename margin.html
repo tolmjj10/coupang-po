@@ -856,7 +856,11 @@ async function load(){
     let rowArr=[], colWidths=null;
     if(Array.isArray(data)) rowArr=data;
     else if(data && typeof data==='object'){ rowArr=Array.isArray(data.rows)?data.rows:[]; colWidths=data.colWidths||null; }
-    rows=rowArr.map(r=>({_id:uid(),...r}));
+    rows=rowArr.map(r=>{
+      const row={_id:uid(),...r};
+      if(row.status==='예정') row.status='단종예정'; // 옛 값 마이그레이션
+      return row;
+    });
     if(colWidths){
       COLS.forEach(c=>{ if(colWidths[c.k]!=null && isFinite(colWidths[c.k])) c.w=colWidths[c.k]; });
       applyColWidths();
