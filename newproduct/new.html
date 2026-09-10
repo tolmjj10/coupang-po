@@ -442,6 +442,25 @@
   ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
   ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
+  #confirmMask {
+    position: fixed; inset: 0; background: rgba(15,23,42,0.28);
+    display: none; align-items: center; justify-content: center; z-index: 2000;
+  }
+  #confirmMask.open { display: flex; }
+  #confirmBox {
+    background: white; border-radius: 12px; padding: 20px 22px 16px;
+    width: 300px; box-shadow: 0 12px 32px rgba(15,23,42,0.25);
+    font-family: inherit;
+  }
+  #confirmBox .msg { font-size: 14px; color: var(--text); margin-bottom: 16px; line-height: 1.5; }
+  #confirmBox .actions { display: flex; gap: 8px; justify-content: flex-end; }
+  #confirmBox button {
+    padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    border: 1px solid #d1d5db; background: white; color: var(--text); font-family: inherit;
+  }
+  #confirmBox button.primary { background: #2b7a4b; border-color: #2b7a4b; color: white; }
+  #confirmBox button.primary:hover { background: #246a41; }
+
   #memoPopover {
     position: absolute;
     z-index: 1000;
@@ -474,6 +493,14 @@
   #memoPopover .memo-actions button.primary { background: #b78900; border-color: #b78900; color: white; }
   #memoPopover .memo-actions button.danger { color: #a4423b; border-color: #f0b6b1; }
 
+  input.reg-name:focus {
+    position: relative;
+    z-index: 20;
+    background: white !important;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.15);
+    border-color: var(--accent) !important;
+  }
+
   input.real-name.has-memo {
     background: #fff4f3;
     border-color: #f0b6b1 !important;
@@ -505,6 +532,16 @@
 </style>
 </head>
 <body>
+
+<div id="confirmMask">
+  <div id="confirmBox" role="dialog" aria-modal="true">
+    <div class="msg" id="confirmMsg"></div>
+    <div class="actions">
+      <button type="button" id="confirmNo">아니오</button>
+      <button type="button" class="primary" id="confirmYes">예</button>
+    </div>
+  </div>
+</div>
 
 <div id="memoPopover" role="dialog" aria-label="메모">
   <textarea id="memoText" placeholder="이슈/메모를 입력하세요..."></textarea>
@@ -888,7 +925,7 @@ function render() {
         ${checkCell(row,'ad')}
         <td>${st.label ? `<span class="status-badge ${st.cls}">${st.label}</span>` : ''}</td>
         <td><div class="detail-url-wrap"><input type="text" size="1" class="detail-url-input" value="${esc(row.detailUrl||'')}" placeholder="URL" onchange="upd('${row.id}','detailUrl',this.value)"><button class="detail-open-btn" onclick="openDetail('${row.id}')" ${row.detailUrl?'':'disabled'}>보기</button></div></td>
-        <td class="check-cell"><input type="checkbox" ${row.registered?'checked':''} onchange="updRegistered('${row.id}',this.checked)" title="등록완료 시 '완료' 탭으로 이동"></td>
+        <td class="check-cell"><input type="checkbox" ${row.registered?'checked':''} onclick="confirmRegistered(event,'${row.id}')" title="등록완료 시 '완료' 탭으로 이동"></td>
         <td><button class="danger-icon" onclick="delRow('${row.id}')" title="삭제">✕</button></td>
       </tr>
     `;
@@ -976,6 +1013,31 @@ function deleteMemo() {
   if (row) { row.memo = ''; save(); render(); }
   closeMemo();
 }
+function expandRegName(el) {
+  const orig = el.style.width;
+  el.dataset._origWidth = orig || '';
+  // 텍스트 폭 측정
+  const measurer = document.createElement('span');
+  const cs = getComputedStyle(el);
+  measurer.style.cssText = `position:absolute;visibility:hidden;white-space:pre;font:${cs.font};letter-spacing:${cs.letterSpacing};padding:${cs.padding};`;
+  measurer.textContent = el.value || el.placeholder || '';
+  document.body.appendChild(measurer);
+  const textW = measurer.offsetWidth;
+  measurer.remove();
+  const cellW = el.parentElement.offsetWidth;
+  const need = Math.max(cellW, textW + 40);
+  const max = Math.min(1400, window.innerWidth - el.getBoundingClientRect().left - 40);
+  el.style.width = Math.min(need, max) + 'px';
+}
+function collapseRegName(el) {
+  el.style.width = el.dataset._origWidth || '';
+}
+document.addEventListener('focusin', e => {
+  if (e.target.classList && e.target.classList.contains('reg-name')) expandRegName(e.target);
+});
+document.addEventListener('focusout', e => {
+  if (e.target.classList && e.target.classList.contains('reg-name')) collapseRegName(e.target);
+});
 document.addEventListener('DOMContentLoaded', () => {
   const pop = document.getElementById('memoPopover');
   document.getElementById('memoSave').addEventListener('click', saveMemo);
@@ -997,6 +1059,44 @@ document.addEventListener('DOMContentLoaded', () => {
 function updRegistered(id, val) {
   const row = data.find(r => r.id === id);
   if (row) { row.registered = !!val; save(); render(); }
+}
+function askConfirm(msg) {
+  return new Promise(resolve => {
+    const mask = document.getElementById('confirmMask');
+    document.getElementById('confirmMsg').textContent = msg;
+    mask.classList.add('open');
+    const yes = document.getElementById('confirmYes');
+    const no = document.getElementById('confirmNo');
+    const cleanup = (v) => {
+      mask.classList.remove('open');
+      yes.removeEventListener('click', onYes);
+      no.removeEventListener('click', onNo);
+      mask.removeEventListener('click', onMask);
+      document.removeEventListener('keydown', onKey);
+      resolve(v);
+    };
+    const onYes = () => cleanup(true);
+    const onNo = () => cleanup(false);
+    const onMask = e => { if (e.target === mask) cleanup(false); };
+    const onKey = e => {
+      if (e.key === 'Escape') { e.preventDefault(); cleanup(false); }
+      if (e.key === 'Enter') { e.preventDefault(); cleanup(true); }
+    };
+    yes.addEventListener('click', onYes);
+    no.addEventListener('click', onNo);
+    mask.addEventListener('click', onMask);
+    document.addEventListener('keydown', onKey);
+    setTimeout(() => yes.focus(), 0);
+  });
+}
+async function confirmRegistered(ev, id) {
+  const el = ev.currentTarget;
+  const wantChecked = el.checked; // 클릭 후 상태
+  ev.preventDefault();
+  el.checked = !wantChecked; // 사용자 확인 전까지 원복
+  const msg = wantChecked ? '등록완료 처리하시겠습니까? (완료 탭으로 이동)' : '등록완료를 해제하시겠습니까?';
+  const ok = await askConfirm(msg);
+  if (ok) updRegistered(id, wantChecked);
 }
 function updCheck(id, key, val) {
   const row = data.find(r => r.id === id);
