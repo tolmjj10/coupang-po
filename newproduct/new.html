@@ -647,7 +647,7 @@ try {
 } catch(e) {}
 
 function isUrgentRow(r) {
-  if (isCompleted(r)) return false;
+  if (isCompleted(r) || r.registered) return false;
   const a = daysUntil(r.arrivalDate);
   return a !== null && a <= 3;
 }
@@ -790,8 +790,8 @@ function isCompleted(row) {
 }
 
 function statusOf(row) {
-  /* 긴급: 입고예정일이 D-3 이하부터 표기. 완료된 제품은 제외 */
-  if (isCompleted(row)) return {label: '', cls: ''};
+  /* 긴급: 입고예정일이 D-3 이하부터 표기. 완료된 제품(등록완료 또는 4개 체크)은 제외 */
+  if (isCompleted(row) || row.registered) return {label: '', cls: ''};
   const arrival = daysUntil(row.arrivalDate);
   if (arrival !== null && arrival <= 3) {
     return {label: '긴급', cls: 'status-urgent'};
