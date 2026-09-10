@@ -442,6 +442,47 @@
   ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
   ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
+  #memoPopover {
+    position: absolute;
+    z-index: 1000;
+    background: #fffdf5;
+    border: 1px solid #e5c76b;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+    padding: 10px;
+    width: 280px;
+    display: none;
+  }
+  #memoPopover.open { display: block; }
+  #memoPopover textarea {
+    width: 100%;
+    min-height: 72px;
+    resize: vertical;
+    border: 1px solid #e5c76b;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font: 13px 'Pretendard', inherit;
+    background: white;
+    box-sizing: border-box;
+  }
+  #memoPopover textarea:focus { outline: none; border-color: #b78900; box-shadow: 0 0 0 3px rgba(229,199,107,0.25); }
+  #memoPopover .memo-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; }
+  #memoPopover .memo-actions button {
+    padding: 4px 10px; font-size: 12px; border-radius: 6px; cursor: pointer;
+    border: 1px solid #d1d5db; background: white; color: var(--text); font-family: inherit;
+  }
+  #memoPopover .memo-actions button.primary { background: #b78900; border-color: #b78900; color: white; }
+  #memoPopover .memo-actions button.danger { color: #a4423b; border-color: #f0b6b1; }
+
+  input.real-name.has-memo {
+    background: #fff4f3;
+    border-color: #f0b6b1 !important;
+    color: #a4423b;
+    font-weight: 600;
+  }
+  input.real-name.has-memo:hover { background: #ffe9e7; }
+  input.real-name.has-memo:focus { background: #ffffff; }
+
   .detail-url-wrap { display: flex; gap: 4px; align-items: center; white-space: nowrap; }
   .detail-url-wrap input.detail-url-input {
     flex: 1; min-width: 0; width: auto;
@@ -464,6 +505,15 @@
 </style>
 </head>
 <body>
+
+<div id="memoPopover" role="dialog" aria-label="메모">
+  <textarea id="memoText" placeholder="이슈/메모를 입력하세요..."></textarea>
+  <div class="memo-actions">
+    <button type="button" class="danger" id="memoDelete">삭제</button>
+    <button type="button" id="memoCancel">취소</button>
+    <button type="button" class="primary" id="memoSave">저장</button>
+  </div>
+</div>
 
 <div class="page-header">
   <div class="title-block">
@@ -819,7 +869,7 @@ function render() {
           </select>
         </td>
         <td><input type="text" class="reg-name ${row.regName ? 'filled' : ''}" value="${esc(row.regName)}" title="${esc(row.regName)}" placeholder="✎ 등록시 기입" onchange="upd('${row.id}','regName',this.value)"></td>
-        <td><input type="text" value="${esc(row.realName)}" title="${esc(row.realName)}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)"></td>
+        <td><input type="text" class="real-name ${row.memo?'has-memo':''}" value="${esc(row.realName)}" title="${row.memo?'📝 '+esc(row.memo)+' (우클릭: 메모 편집)':esc(row.realName)+' (우클릭: 메모 추가)'}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)" oncontextmenu="editMemo(event,'${row.id}')"></td>
         <td>
           <input type="date" min="2026-01-01" value="${row.productionDate||''}" onchange="upd('${row.id}','productionDate',this.value)">
           ${(() => { const d = daysUntil(row.productionDate); return (d !== null && d >= 0) ? dDayHtml(row.productionDate) : ''; })()}
@@ -880,6 +930,70 @@ function openDetail(id) {
   }
   window.open(url, '_blank');
 }
+let memoTargetId = null;
+function editMemo(ev, id) {
+  ev.preventDefault();
+  const row = data.find(r => r.id === id);
+  if (!row) return;
+  memoTargetId = id;
+  const pop = document.getElementById('memoPopover');
+  const ta = document.getElementById('memoText');
+  ta.value = row.memo || '';
+  document.getElementById('memoDelete').style.display = row.memo ? '' : 'none';
+  // 위치: 클릭한 셀 오른쪽에 배치
+  pop.classList.add('open');
+  const target = ev.currentTarget.getBoundingClientRect();
+  const popW = pop.offsetWidth;
+  const popH = pop.offsetHeight;
+  let left = window.scrollX + target.right + 8;
+  let top = window.scrollY + target.top;
+  if (left + popW > window.scrollX + window.innerWidth - 8) {
+    left = window.scrollX + target.left - popW - 8;
+  }
+  if (top + popH > window.scrollY + window.innerHeight - 8) {
+    top = window.scrollY + window.innerHeight - popH - 8;
+  }
+  pop.style.left = left + 'px';
+  pop.style.top = Math.max(window.scrollY + 8, top) + 'px';
+  setTimeout(() => ta.focus(), 0);
+}
+function closeMemo() {
+  memoTargetId = null;
+  document.getElementById('memoPopover').classList.remove('open');
+}
+function saveMemo() {
+  if (!memoTargetId) return closeMemo();
+  const row = data.find(r => r.id === memoTargetId);
+  if (row) {
+    row.memo = document.getElementById('memoText').value.trim();
+    save(); render();
+  }
+  closeMemo();
+}
+function deleteMemo() {
+  if (!memoTargetId) return closeMemo();
+  const row = data.find(r => r.id === memoTargetId);
+  if (row) { row.memo = ''; save(); render(); }
+  closeMemo();
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const pop = document.getElementById('memoPopover');
+  document.getElementById('memoSave').addEventListener('click', saveMemo);
+  document.getElementById('memoCancel').addEventListener('click', closeMemo);
+  document.getElementById('memoDelete').addEventListener('click', deleteMemo);
+  document.getElementById('memoText').addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); closeMemo(); }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveMemo(); }
+  });
+  document.addEventListener('mousedown', e => {
+    if (!pop.classList.contains('open')) return;
+    if (pop.contains(e.target)) return;
+    // 다른 real-name 입력에서 우클릭한 경우는 editMemo가 재배치 처리
+    if (e.button === 2 && e.target.classList && e.target.classList.contains('real-name')) return;
+    closeMemo();
+  });
+  window.addEventListener('scroll', closeMemo, true);
+});
 function updRegistered(id, val) {
   const row = data.find(r => r.id === id);
   if (row) { row.registered = !!val; save(); render(); }
