@@ -828,6 +828,15 @@ function dDayHtml(dateStr) {
   return '<span class="' + cls + '">' + text + '</span>';
 }
 
+/* D-3 이하일 때만 뱃지 표시. colorCls: 'danger'(빨강) 또는 'safe'(초록) */
+function dDayBadge(dateStr, colorCls) {
+  if (!dateStr) return '';
+  const d = daysUntil(dateStr);
+  if (d === null || d > 3) return '';
+  const text = d < 0 ? 'D+' + Math.abs(d) : d === 0 ? 'D-DAY' : 'D-' + d;
+  return '<span class="d-day ' + colorCls + '">' + text + '</span>';
+}
+
 function renderAlerts() {
   /* 긴급 경고창은 표시하지 않음 — '긴급' 탭에서 확인 가능 */
   const box = document.getElementById('alerts');
@@ -935,15 +944,14 @@ function render() {
         <td><input type="text" class="real-name ${row.memo?'has-memo':''}" value="${esc(row.realName)}" title="${row.memo?'📝 '+esc(row.memo)+' (우클릭: 메모 편집)':esc(row.realName)+' (우클릭: 메모 추가)'}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)" oncontextmenu="editMemo(event,'${row.id}')"></td>
         <td>
           <input type="date" min="2026-01-01" value="${row.productionDate||''}" onchange="updProductionDate('${row.id}',this.value)">
-          ${(() => { const d = daysUntil(row.productionDate); return (d !== null && d >= 0) ? dDayHtml(row.productionDate) : ''; })()}
         </td>
         <td>
           <input type="date" min="2026-01-01" value="${row.arrivalDate||''}" onchange="upd('${row.id}','arrivalDate',this.value)">
-          ${dDayHtml(row.arrivalDate)}
+          ${dDayBadge(row.arrivalDate, 'danger')}
         </td>
         <td>
           <input type="date" min="2026-01-01" value="${row.detailDueDate||''}" onchange="upd('${row.id}','detailDueDate',this.value)">
-          ${(row.rocket.done || row.rocket.date) ? '' : dDayHtml(row.detailDueDate)}
+          ${(row.rocket.done || row.rocket.date) ? '' : dDayBadge(row.detailDueDate, 'safe')}
         </td>
         ${checkCell(row,'rocket')}
         ${checkCell(row,'wing')}
