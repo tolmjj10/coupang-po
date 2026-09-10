@@ -658,7 +658,7 @@ const BRANDS = [
   { key: 'done',  label: '완료' }
 ];
 let activeBrand = 'all';
-let sortKey = null;   // 'prod' | 'arrival' | 'detail'
+let sortKey = 'prod'; // 초기 정렬: 생산완료일 오름차순(빠른 순)
 let sortAsc = true;
 const URGENT_DISMISS_KEY = 'coupang_new_urgent_dismiss_v1';
 let urgentDismissedIds = new Set();
