@@ -771,8 +771,13 @@ function statusOf(row) {
   return {label: '', cls: ''};
 }
 
+function hasAnyProgress(row) {
+  return row.rocket.done || row.wing.done || row.venple.done || row.ad.done;
+}
+
 function rowClass(row) {
   if (isCompleted(row)) return 'completed';
+  if (!hasAnyProgress(row)) return '';
   const detail = daysUntil(row.detailDueDate);
   if (detail !== null && detail <= 2) return 'urgent-row';
   if (detail !== null && detail <= 5) return 'warning-row';
