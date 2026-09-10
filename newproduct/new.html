@@ -36,6 +36,8 @@
     color: var(--text);
     -webkit-font-smoothing: antialiased;
     letter-spacing: -0.01em;
+    height: 100vh;
+    overflow: hidden;
   }
   .page-header {
     display: flex;
@@ -66,14 +68,19 @@
     font-size: 12px;
     font-weight: 500;
   }
-  .container { max-width: 1720px; margin: 0 auto; padding: 22px 28px 60px; }
+  .container { max-width: 1720px; margin: 0 auto; padding: 20px 24px 22px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
+  .stats-row {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
   .stats {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    margin-bottom: 14px;
+    align-items: center;
   }
+  .toolbar-inline { display: flex; gap: 8px; margin-left: auto; align-items: center; flex-wrap: wrap; }
   .stat-card {
     background: var(--card);
     padding: 6px 12px;
@@ -185,7 +192,8 @@
     background: white;
     border-radius: 16px;
     overflow: auto;
-    max-height: calc(100vh - 240px);
+    flex: 1;
+    min-height: 0;
     border: 1px solid var(--border);
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
   }
@@ -555,20 +563,18 @@
   <div class="page-header">
     <div class="title-block">
       <h1>신제품</h1>
-      <div class="sub">
-        <span>담당자별 신제품 등록 진행 현황 · 자동 저장</span>
-        <span id="saveStatus"></span>
-      </div>
+    </div>
+    <span id="saveStatus"></span>
+  </div>
+
+  <div class="stats-row">
+    <div class="stats" id="stats"></div>
+    <div class="toolbar-inline">
+      <button onclick="addRow()">＋ 신제품 추가</button>
+      <input class="search" id="search" placeholder="🔍 담당자 · 상품명 검색" oninput="render()">
     </div>
   </div>
-
-  <div class="stats" id="stats"></div>
   <div class="alerts" id="alerts"></div>
-
-  <div class="toolbar">
-    <button onclick="addRow()">＋ 신제품 추가</button>
-    <input class="search" id="search" placeholder="🔍 담당자 · 상품명 검색" oninput="render()">
-  </div>
 
   <div class="tabs" id="tabs"></div>
 
@@ -1223,13 +1229,27 @@ function attachDragHandlers() {
 }
 
 function addRow() {
+  const newId = uid();
   data.push({
-    id: uid(), manager: '', regName: '', realName: '',
+    id: newId, manager: '', regName: '', realName: '',
     productionDate: '', arrivalDate: '', detailDueDate: '',
     rocket:{done:false,date:''}, wing:{done:false,date:''},
     venple:{done:false,date:''}, ad:{done:false,date:''}
   });
+  // 새 행이 필터에 걸려 안 보이지 않도록 초기화
+  activeBrand = 'all';
+  const searchEl = document.getElementById('search');
+  if (searchEl) searchEl.value = '';
   save(); render();
+  requestAnimationFrame(() => {
+    const wrap = document.querySelector('.table-wrap');
+    const tr = document.querySelector(`tr[data-id="${newId}"]`);
+    if (wrap) wrap.scrollTop = wrap.scrollHeight;
+    if (tr) {
+      const firstInput = tr.querySelector('input.reg-name') || tr.querySelector('input, select');
+      if (firstInput) firstInput.focus();
+    }
+  });
 }
 
 let _suppressRemoteLoadUntil = 0;
