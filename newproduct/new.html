@@ -228,7 +228,7 @@
     opacity: 0.5;
   }
   td {
-    padding: 10px 12px;
+    padding: 6px 8px;
     border-bottom: 1px solid #f5f6f9;
     vertical-align: middle;
   }
@@ -256,7 +256,7 @@
 
   input[type="text"], input[type="date"], select.manager-select {
     border: 1px solid transparent;
-    padding: 8px 10px;
+    padding: 6px 8px;
     border-radius: 8px;
     font-size: 13px;
     font-family: inherit;
@@ -277,7 +277,7 @@
     -webkit-appearance: none;
     -moz-appearance: none;
     cursor: pointer;
-    padding-right: 26px;
+    padding-right: 20px;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b6960' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
     background-repeat: no-repeat;
     background-position: right 8px center;
@@ -313,7 +313,9 @@
 
   .check-cell {
     text-align: center;
-    min-width: 130px;
+    min-width: 78px;
+    padding-left: 4px;
+    padding-right: 4px;
   }
   .check-cell input[type="checkbox"] {
     appearance: none;
@@ -490,9 +492,9 @@
       <thead>
         <tr>
           <th style="width:28px;"></th>
-          <th style="width:140px;">담당자</th>
-          <th class="resizable" style="width:360px;" data-col="reg">등록 상품명<span class="col-resizer"></span></th>
-          <th class="resizable" style="width:300px;" data-col="real">전산명<span class="col-resizer"></span></th>
+          <th style="width:96px;">담당자</th>
+          <th class="resizable" style="width:600px;" data-col="reg">등록 상품명<span class="col-resizer"></span></th>
+          <th class="resizable" style="width:600px;" data-col="real">전산명<span class="col-resizer"></span></th>
           <th style="width:120px; cursor:pointer; user-select:none;" onclick="toggleSort('prod')" title="클릭하여 정렬">생산완료일 <span id="sortProdIcon" style="opacity:.6;">⇅</span></th>
           <th style="width:140px; cursor:pointer; user-select:none;" onclick="toggleSort('arrival')" title="클릭하여 정렬">입고예정일 <span id="sortArrivalIcon" style="opacity:.6;">⇅</span></th>
           <th style="width:140px; cursor:pointer; user-select:none;" onclick="toggleSort('detail')" title="클릭하여 정렬">상세전달일자 <span id="sortDetailIcon" style="opacity:.6;">⇅</span></th>
@@ -501,7 +503,7 @@
           <th class="check-cell">🔗 벤플 매핑</th>
           <th class="check-cell">📢 광고 생성</th>
           <th style="width:100px;">상태</th>
-          <th style="width:170px;">상세페이지</th>
+          <th style="width:200px;">상세페이지</th>
           <th class="check-cell" style="width:80px;">✅ 등록완료</th>
           <th style="width:50px;"></th>
         </tr>
@@ -835,7 +837,7 @@ function render() {
         ${checkCell(row,'venple')}
         ${checkCell(row,'ad')}
         <td>${st.label ? `<span class="status-badge ${st.cls}">${st.label}</span>` : ''}</td>
-        <td><div class="detail-url-wrap"><input type="text" class="detail-url-input" value="${esc(row.detailUrl||'')}" placeholder="URL" onchange="upd('${row.id}','detailUrl',this.value)"><button class="detail-open-btn" onclick="openDetail('${row.id}')" ${row.detailUrl?'':'disabled'}>보기</button></div></td>
+        <td><div class="detail-url-wrap"><input type="text" size="1" class="detail-url-input" value="${esc(row.detailUrl||'')}" placeholder="URL" onchange="upd('${row.id}','detailUrl',this.value)"><button class="detail-open-btn" onclick="openDetail('${row.id}')" ${row.detailUrl?'':'disabled'}>보기</button></div></td>
         <td class="check-cell"><input type="checkbox" ${row.registered?'checked':''} onchange="updRegistered('${row.id}',this.checked)" title="등록완료 시 '완료' 탭으로 이동"></td>
         <td><button class="danger-icon" onclick="delRow('${row.id}')" title="삭제">✕</button></td>
       </tr>
