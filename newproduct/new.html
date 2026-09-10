@@ -571,6 +571,7 @@
     <div class="stats" id="stats"></div>
     <div class="toolbar-inline">
       <button onclick="addRow()">＋ 신제품 추가</button>
+      <button onclick="saveNow()" title="지금 바로 공유 저장">💾 저장</button>
       <input class="search" id="search" placeholder="🔍 담당자 · 상품명 검색" oninput="render()">
     </div>
   </div>
@@ -665,6 +666,7 @@ function loadLocal() {
 }
 
 async function loadRemote() {
+  if (_isDirty) return; // 미저장 로컬 변경을 원격 값으로 덮어쓰지 않도록
   if (Date.now() < _suppressRemoteLoadUntil) return;
   try {
     const res = await fetch(API_URL, { cache: 'no-store' });
@@ -720,16 +722,17 @@ function sampleData() {
 function uid() { return Date.now().toString(36) + Math.random().toString(36).substr(2,5); }
 
 let _saveTimer = null;
+let _isDirty = false;
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts }));
+  _isDirty = true;
   const el = document.getElementById('saveStatus');
-  el.textContent = '저장 중...';
-  clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(saveRemote, 400);
+  if (el) el.textContent = '● 미저장 (자동 저장 대기 중)';
 }
 
 async function saveRemote() {
   const el = document.getElementById('saveStatus');
+  _suppressRemoteLoadUntil = Date.now() + 5000;
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
@@ -737,12 +740,20 @@ async function saveRemote() {
       body: JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    el.textContent = '✓ 공유 저장됨 ' + new Date().toLocaleTimeString('ko-KR');
-    setTimeout(() => { if (el.textContent.startsWith('✓')) el.textContent = ''; }, 2000);
+    _isDirty = false;
+    if (el) {
+      el.textContent = '✓ 공유 저장됨 ' + new Date().toLocaleTimeString('ko-KR');
+      setTimeout(() => { if (el.textContent.startsWith('✓')) el.textContent = ''; }, 2000);
+    }
   } catch (e) {
-    el.textContent = '⚠ 로컬만 저장 (' + e.message + ')';
+    if (el) el.textContent = '⚠ 로컬만 저장 (' + e.message + ')';
     console.warn('[new] remote save failed:', e);
   }
+}
+
+function saveNow() {
+  clearTimeout(_saveTimer);
+  saveRemote();
 }
 
 function today() {
@@ -917,7 +928,7 @@ function render() {
         <td><input type="text" class="reg-name ${row.regName ? 'filled' : ''}" value="${esc(row.regName)}" title="${esc(row.regName)}" placeholder="✎ 등록시 기입" onchange="upd('${row.id}','regName',this.value)"></td>
         <td><input type="text" class="real-name ${row.memo?'has-memo':''}" value="${esc(row.realName)}" title="${row.memo?'📝 '+esc(row.memo)+' (우클릭: 메모 편집)':esc(row.realName)+' (우클릭: 메모 추가)'}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)" oncontextmenu="editMemo(event,'${row.id}')"></td>
         <td>
-          <input type="date" min="2026-01-01" value="${row.productionDate||''}" onchange="upd('${row.id}','productionDate',this.value)">
+          <input type="date" min="2026-01-01" value="${row.productionDate||''}" onchange="updProductionDate('${row.id}',this.value)">
           ${(() => { const d = daysUntil(row.productionDate); return (d !== null && d >= 0) ? dDayHtml(row.productionDate) : ''; })()}
         </td>
         <td>
@@ -956,17 +967,34 @@ function checkCell(row, key) {
 
 function esc(s) { return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 
+function updProductionDate(id, val) {
+  const row = data.find(r => r.id === id);
+  if (!row) return;
+  row.productionDate = val;
+  // 생산완료일이 입력/변경되면 입고예정일은 자동으로 +14일. 입고예정일 필드
+  // 자체를 직접 편집한 경우엔 생산완료일에 영향을 주지 않음(별도 onchange).
+  if (val) {
+    const d = new Date(val);
+    d.setDate(d.getDate() + 14);
+    row.arrivalDate = d.toISOString().slice(0, 10);
+    // DOM에서 해당 행의 입고예정일 input 값을 직접 갱신(전체 render는 포커스 튕김 유발).
+    const tr = document.querySelector(`tr[data-id="${id}"]`);
+    if (tr) {
+      const dateInputs = tr.querySelectorAll('td > input[type="date"]');
+      // 컬럼 순서: 생산완료일(0), 입고예정일(1), 상세전달일자(2)
+      if (dateInputs[1]) dateInputs[1].value = row.arrivalDate;
+    }
+  }
+  save();
+}
 function upd(id, key, val) {
   const row = data.find(r => r.id === id);
   if (!row) return;
   row[key] = val;
   save();
-  // 텍스트/셀렉트 값 변경은 이미 DOM에 반영돼 있음. render()를 호출하면
-  // 사용자가 방금 클릭한 다음 input의 DOM이 교체돼 포커스를 잃고 "튕기는" 현상 발생.
-  // 날짜 변경만 D-day 뱃지/행 색상에 영향을 주므로 그 경우에만 다시 그린다.
-  if (key === 'productionDate' || key === 'arrivalDate' || key === 'detailDueDate') {
-    setTimeout(render, 0);
-  }
+  // 값은 이미 DOM에 반영돼 있음. render()를 호출하면 사용자가 방금 클릭한
+  // 다음 input의 DOM이 교체돼 포커스/달력 팝업이 사라지는 "튕김" 현상 발생.
+  // D-day 뱃지/행 색상은 다음 자연스러운 렌더(검색, 탭, 체크박스 등)에서 갱신됨.
 }
 function openDetail(id) {
   const row = data.find(r => r.id === id);
@@ -1124,7 +1152,7 @@ function updCheck(id, key, val) {
 }
 function updCheckDate(id, key, val) {
   const row = data.find(r => r.id === id);
-  if (row) { row[key].date = val; if (val) row[key].done = true; save(); setTimeout(render, 0); }
+  if (row) { row[key].date = val; if (val) row[key].done = true; save(); }
 }
 
 /* ═══════════════════════ 컬럼 리사이즈 ═══════════════════════ */
@@ -1283,6 +1311,16 @@ loadRemote().then(() => fetchProductStatus());
 setInterval(() => { renderAlerts(); renderStats(); }, 60000);
 setInterval(loadRemote, 30000);
 setInterval(fetchProductStatus, 5 * 60 * 1000);
+/* 1분마다 미저장 변경이 있으면 자동으로 공유 저장 */
+setInterval(() => { if (_isDirty) saveRemote(); }, 60000);
+/* 페이지 이탈 시 미저장 데이터 즉시 전송 */
+window.addEventListener('beforeunload', () => {
+  if (!_isDirty) return;
+  try {
+    const payload = JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts });
+    navigator.sendBeacon(API_URL, new Blob([payload], { type: 'application/json' }));
+  } catch(_) {}
+});
 window.addEventListener('focus', loadRemote);
 
 /* ═══════════════════════ 제품 현황 조회 자동 fetch ═══════════════════════ */
