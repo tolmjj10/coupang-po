@@ -602,10 +602,10 @@
       <button class="btn primary" onclick="addRow()">＋ 신제품 추가</button>
       <button class="btn" onclick="saveNow()" title="지금 바로 공유 저장">저장</button>
       <div class="divider"></div>
-      <button class="btn ghost" id="btnUndo" onclick="doUndo()" title="되돌리기 (Ctrl+Z)">
+      <button class="btn ghost" id="btnUndo" onclick="doUndo()" title="되돌리기 (Ctrl+Z)" disabled>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
       </button>
-      <button class="btn ghost" id="btnRedo" onclick="doRedo()" title="다시하기 (Ctrl+Y)">
+      <button class="btn ghost" id="btnRedo" onclick="doRedo()" title="다시하기 (Ctrl+Y)" disabled>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/></svg>
       </button>
     </div>
@@ -719,7 +719,11 @@ async function loadRemote() {
       migrateImportedToRealName();
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts })); } catch(e) {}
       _prevSnapshot = JSON.stringify(data);
+      /* 원격 동기화는 사용자 액션이 아니므로 undo 히스토리 초기화 */
+      undoStack.length = 0;
+      redoStack.length = 0;
       render();
+      refreshUndoUI();
     }
   } catch (e) {
     console.warn('[new] remote load skipped:', e.message);
@@ -768,6 +772,12 @@ let _prevSnapshot = null;
 const undoStack = [];
 const redoStack = [];
 const UNDO_MAX = 100;
+function refreshUndoUI() {
+  const u = document.getElementById('btnUndo');
+  const r = document.getElementById('btnRedo');
+  if (u) u.disabled = undoStack.length === 0;
+  if (r) r.disabled = redoStack.length === 0;
+}
 function save() {
   if (_prevSnapshot !== null) {
     undoStack.push(_prevSnapshot);
@@ -780,6 +790,7 @@ function save() {
   _isDirty = true;
   const el = document.getElementById('saveStatus');
   if (el) el.textContent = '● 미저장 (자동 저장 대기 중)';
+  refreshUndoUI();
 }
 function _applySnapshot(snap, statusText) {
   try {
@@ -790,6 +801,7 @@ function _applySnapshot(snap, statusText) {
     const el = document.getElementById('saveStatus');
     if (el) el.textContent = statusText;
     render();
+    refreshUndoUI();
   } catch(e) { console.warn('[new] apply snapshot failed:', e); }
 }
 function doUndo() {
@@ -1447,7 +1459,11 @@ function delRow(id) {
 migrateImportedToRealName();
 backfillArrivalDates();
 _prevSnapshot = JSON.stringify(data);
+/* 초기 마이그레이션은 undo 히스토리에서 제외 — 새로고침 직후엔 비활성화 상태 */
+undoStack.length = 0;
+redoStack.length = 0;
 render();
+refreshUndoUI();
 initColumnResize();
 loadRemote().then(() => fetchProductStatus());
 setInterval(() => { renderAlerts(); renderStats(); }, 60000);
