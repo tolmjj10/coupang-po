@@ -206,12 +206,12 @@
 
   .table-wrap {
     background: white;
-    border-radius: 16px;
+    border-radius: 14px;
     overflow: auto;
     flex: 1;
     min-height: 0;
-    border: 1px solid var(--border);
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+    border: 1px solid #eae1d8;
+    box-shadow: 0 1px 2px rgba(139, 117, 108, 0.05);
   }
   table {
     width: 100%;
@@ -790,7 +790,8 @@ function isCompleted(row) {
 }
 
 function statusOf(row) {
-  /* 긴급: 입고예정일이 D-3 이하부터 표기 */
+  /* 긴급: 입고예정일이 D-3 이하부터 표기. 완료된 제품은 제외 */
+  if (isCompleted(row)) return {label: '', cls: ''};
   const arrival = daysUntil(row.arrivalDate);
   if (arrival !== null && arrival <= 3) {
     return {label: '긴급', cls: 'status-urgent'};
