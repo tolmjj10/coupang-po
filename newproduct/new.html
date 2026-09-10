@@ -1138,15 +1138,36 @@ function updProductionDate(id, val) {
     }
   }
   save();
+  refreshRowBadges(id);
 }
 function upd(id, key, val) {
   const row = data.find(r => r.id === id);
   if (!row) return;
   row[key] = val;
   save();
-  // 값은 이미 DOM에 반영돼 있음. render()를 호출하면 사용자가 방금 클릭한
-  // 다음 input의 DOM이 교체돼 포커스/달력 팝업이 사라지는 "튕김" 현상 발생.
-  // D-day 뱃지/행 색상은 다음 자연스러운 렌더(검색, 탭, 체크박스 등)에서 갱신됨.
+  // render()를 호출하면 방금 클릭한 다음 input의 DOM이 교체돼 "튕김" 현상 발생.
+  // 날짜 필드 변경 시엔 해당 행의 D-day 뱃지만 직접 갱신.
+  if (key === 'productionDate' || key === 'arrivalDate' || key === 'detailDueDate') {
+    refreshRowBadges(id);
+  }
+}
+
+function refreshRowBadges(id) {
+  const row = data.find(r => r.id === id);
+  const tr = document.querySelector(`tr[data-id="${id}"]`);
+  if (!row || !tr) return;
+  // 생산완료일(0), 입고예정일(1), 상세전달일자(2) 컬럼의 td를 찾아 뱃지 교체.
+  const tds = tr.querySelectorAll('td');
+  // 컬럼 순서: [drag-handle, 담당자, 등록상품명, 전산명, 생산완료일, 입고예정일, 상세전달일자, ...]
+  const setBadge = (td, html) => {
+    if (!td) return;
+    const existing = td.querySelector('.d-day');
+    if (existing) existing.remove();
+    if (html) td.insertAdjacentHTML('beforeend', html);
+  };
+  setBadge(tds[4], productionBadge(row));
+  setBadge(tds[5], arrivalBadge(row));
+  setBadge(tds[6], detailBadge(row));
 }
 function openDetail(id) {
   const row = data.find(r => r.id === id);
