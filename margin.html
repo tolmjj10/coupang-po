@@ -935,14 +935,25 @@ function normLabel(s){ return String(s==null?'':s).replace(/\s+/g,'').replace(/\
 
 document.getElementById('btnDownload').addEventListener('click',()=>{
   const list=currentFilteredRows();
-  const headers=COLS.map(c=>c.label.replace(/\n/g,' '));
+  const exportCols=COLS.filter(c=>c.k!=='_act' && c.k!=='diff');
+  const headers=exportCols.map(c=>c.label.replace(/\n/g,' '));
   const aoa=[headers];
   list.forEach(r=>{
-    aoa.push(COLS.map(col=>{
+    aoa.push(exportCols.map(col=>{
       const v=getCellValue(r,col);
+      if(col.type==='num'||col.type==='num2'){
+        if(v==null||!isFinite(v)) return '';
+        return {t:'n', v:Math.round(Number(v)), z:'#,##0'};
+      }
+      if(col.type==='pct'){
+        if(v==null||!isFinite(v)) return '';
+        return {t:'n', v:Number(v), z:'0.0%'};
+      }
+      if(col.type==='pctInt'){
+        if(v==null||!isFinite(v)) return '';
+        return {t:'n', v:Number(v), z:'0%'};
+      }
       if(v==null||v==='') return '';
-      if(col.type==='num'||col.type==='num2') return isFinite(v)?Number(v):'';
-      if(col.type==='pct'||col.type==='pctInt') return isFinite(v)?Number(v):'';
       return v;
     }));
   });
