@@ -80,7 +80,23 @@
     gap: 8px;
     align-items: center;
   }
-  .toolbar-inline { display: flex; gap: 8px; margin-left: auto; align-items: center; flex-wrap: wrap; }
+  .toolbar-inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  /* margin.html 스타일과 동일한 버튼 톤 */
+  button.btn {
+    font: 500 13px 'Pretendard', sans-serif; letter-spacing: -0.01em;
+    padding: 8px 14px; border-radius: 9px; border: 1px solid #e0d6cd;
+    background: #ffffff; color: var(--text); cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, transform .05s;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-weight: 500; box-shadow: none;
+  }
+  button.btn:hover { background: #f6f1ec; border-color: #d3c4b7; transform: none; box-shadow: none; }
+  button.btn:active { transform: scale(0.98); }
+  button.btn.primary {
+    background: #aa9791; color: #fff; border-color: #aa9791;
+    box-shadow: 0 1px 2px rgba(139,117,108,0.28);
+  }
+  button.btn.primary:hover { background: #8b756c; border-color: #8b756c; }
   .stat-card {
     background: var(--card);
     padding: 6px 12px;
@@ -568,12 +584,12 @@
   </div>
 
   <div class="stats-row">
-    <div class="stats" id="stats"></div>
     <div class="toolbar-inline">
-      <button onclick="addRow()">＋ 신제품 추가</button>
-      <button onclick="saveNow()" title="지금 바로 공유 저장">💾 저장</button>
-      <input class="search" id="search" placeholder="🔍 담당자 · 상품명 검색" oninput="render()">
+      <button class="btn primary" onclick="addRow()">＋ 신제품 추가</button>
+      <button class="btn" onclick="saveNow()" title="지금 바로 공유 저장">저장</button>
     </div>
+    <div class="stats" id="stats" style="margin-left:auto"></div>
+    <input class="search" id="search" placeholder="🔍 담당자 · 상품명 검색" oninput="render()">
   </div>
   <div class="alerts" id="alerts"></div>
 
@@ -633,7 +649,7 @@ try {
 function isUrgentRow(r) {
   if (isCompleted(r)) return false;
   const a = daysUntil(r.arrivalDate);
-  return a !== null && a <= 3 && !r.rocket.done;
+  return a !== null && a <= 3;
 }
 let importedNames = {}; // (구버전 호환용, 더 이상 dedup에 사용하지 않음)
 let lastExcelProducts = null; // 마지막으로 처리한 엑셀의 제품명 배열. 이 목록과 diff로 신규 판별
@@ -774,9 +790,9 @@ function isCompleted(row) {
 }
 
 function statusOf(row) {
-  /* 긴급: 입고예정일이 D-3 이하인데 로켓 등록 미완료 */
+  /* 긴급: 입고예정일이 D-3 이하부터 표기 */
   const arrival = daysUntil(row.arrivalDate);
-  if (arrival !== null && arrival <= 3 && !row.rocket.done) {
+  if (arrival !== null && arrival <= 3) {
     return {label: '긴급', cls: 'status-urgent'};
   }
   return {label: '', cls: ''};
@@ -833,11 +849,7 @@ function dismissUrgentAlert() {
 function renderStats() {
   const total = data.length;
   const done = data.filter(isCompleted).length;
-  const urgent = data.filter(r => {
-    if (isCompleted(r)) return false;
-    const a = daysUntil(r.arrivalDate);
-    return a !== null && a <= 3 && !r.rocket.done;
-  }).length;
+  const urgent = data.filter(isUrgentRow).length;
   const inProgress = total - done - urgent;
 
   document.getElementById('stats').innerHTML = `
