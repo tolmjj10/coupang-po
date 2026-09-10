@@ -1175,7 +1175,7 @@ function render() {
         ${checkCell(row,'venple')}
         ${checkCell(row,'ad')}
         <td>${st.label ? `<span class="status-badge ${st.cls}">${st.label}</span>` : ''}</td>
-        <td><div class="detail-url-wrap"><input type="text" size="1" class="detail-url-input" value="${esc(row.detailUrl||'')}" placeholder="URL" onchange="upd('${row.id}','detailUrl',this.value)"><button class="detail-open-btn" onclick="openDetail('${row.id}')" ${row.detailUrl?'':'disabled'}>보기</button></div></td>
+        <td><div class="detail-url-wrap"><input type="text" size="1" class="detail-url-input" value="${esc(row.detailUrl||'')}" placeholder="URL" onchange="upd('${row.id}','detailUrl',this.value)"><button class="detail-open-btn" onclick="openDetail('${row.id}')">보기</button></div></td>
         <td class="check-cell"><input type="checkbox" ${row.registered?'checked':''} onclick="confirmRegistered(event,'${row.id}')" title="등록완료 시 '완료' 탭으로 이동"></td>
         <td><button class="danger-icon" onclick="delRow('${row.id}')" title="삭제">✕</button></td>
       </tr>
