@@ -963,7 +963,15 @@ function esc(s) { return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 
 function upd(id, key, val) {
   const row = data.find(r => r.id === id);
-  if (row) { row[key] = val; save(); setTimeout(render, 0); }
+  if (!row) return;
+  row[key] = val;
+  save();
+  // 텍스트/셀렉트 값 변경은 이미 DOM에 반영돼 있음. render()를 호출하면
+  // 사용자가 방금 클릭한 다음 input의 DOM이 교체돼 포커스를 잃고 "튕기는" 현상 발생.
+  // 날짜 변경만 D-day 뱃지/행 색상에 영향을 주므로 그 경우에만 다시 그린다.
+  if (key === 'productionDate' || key === 'arrivalDate' || key === 'detailDueDate') {
+    setTimeout(render, 0);
+  }
 }
 function openDetail(id) {
   const row = data.find(r => r.id === id);
