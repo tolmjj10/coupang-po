@@ -389,6 +389,31 @@
     color: var(--muted);
     margin-top: 4px;
   }
+  .arrival-cell { display: flex; align-items: center; gap: 4px; }
+  .arrival-cell input[type="date"] { flex: 1; min-width: 0; }
+  .arrival-cell.done input[type="date"] {
+    width: 28px; flex: 0 0 28px; padding: 4px 2px; font-size: 0; color: transparent;
+  }
+  .arrival-done-btn {
+    flex-shrink: 0;
+    border: 1px solid #d5d3cc;
+    background: #fff;
+    color: #7a7669;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all .12s ease;
+  }
+  .arrival-done-btn:hover { background: #f4f5f8; }
+  .arrival-done-btn.active {
+    background: #2f7d4f;
+    border-color: #2f7d4f;
+    color: #fff;
+    font-weight: 600;
+  }
   .rocket-warn {
     display: inline-flex;
     align-items: center;
@@ -937,6 +962,7 @@ function productionBadge(row) {
 /* 입고예정일: 로켓 등록 전 + 생산완료일이 D-day를 지난 이후에만
    입고예정일까지 남은 일수를 표시. D- → 초록, D+ → 빨강 */
 function arrivalBadge(row) {
+  if (row.arrivalDone) return '';
   if (row.rocket.done || row.rocket.date) return '';
   const prod = daysUntil(row.productionDate);
   if (prod === null || prod >= 0) return '';
@@ -1067,7 +1093,10 @@ function render() {
           ${productionBadge(row)}
         </td>
         <td>
-          <input type="date" min="2026-01-01" value="${row.arrivalDate||''}" onchange="upd('${row.id}','arrivalDate',this.value)">
+          <div class="arrival-cell ${row.arrivalDone?'done':''}">
+            <input type="date" min="2026-01-01" value="${row.arrivalDate||''}" onchange="upd('${row.id}','arrivalDate',this.value)" title="${row.arrivalDate||'입고예정일'}">
+            <button type="button" class="arrival-done-btn ${row.arrivalDone?'active':''}" onclick="toggleArrivalDone('${row.id}')" title="클릭하여 입고완료 토글">${row.arrivalDone?'✓ 입고완료':'입고완료'}</button>
+          </div>
           ${arrivalBadge(row)}
         </td>
         <td>
@@ -1145,6 +1174,25 @@ function updProductionDate(id, val) {
   save();
   refreshRowBadges(id);
 }
+function toggleArrivalDone(id) {
+  const row = data.find(r => r.id === id);
+  if (!row) return;
+  row.arrivalDone = !row.arrivalDone;
+  save();
+  const tr = document.querySelector(`tr[data-id="${id}"]`);
+  if (!tr) return;
+  const cell = tr.querySelectorAll('td')[5];
+  if (!cell) return;
+  const wrap = cell.querySelector('.arrival-cell');
+  const btn = cell.querySelector('.arrival-done-btn');
+  if (wrap) wrap.classList.toggle('done', !!row.arrivalDone);
+  if (btn) {
+    btn.classList.toggle('active', !!row.arrivalDone);
+    btn.textContent = row.arrivalDone ? '✓ 입고완료' : '입고완료';
+  }
+  refreshRowBadges(id);
+}
+
 function upd(id, key, val) {
   const row = data.find(r => r.id === id);
   if (!row) return;
