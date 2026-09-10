@@ -837,6 +837,36 @@ function dDayBadge(dateStr, colorCls) {
   return '<span class="d-day ' + colorCls + '">' + text + '</span>';
 }
 
+/* 생산완료일: 로켓 등록 전에만, D-3 ~ D-DAY 구간에서 빨간색으로 표시.
+   D-day가 지나면 감춤(→ 이후엔 입고예정일에 카운트다운 표시). */
+function productionBadge(row) {
+  if (row.rocket.done || row.rocket.date) return '';
+  const d = daysUntil(row.productionDate);
+  if (d === null || d < 0 || d > 3) return '';
+  const text = d === 0 ? 'D-DAY' : 'D-' + d;
+  return '<span class="d-day danger">' + text + '</span>';
+}
+
+/* 입고예정일: 로켓 등록 전 + 생산완료일이 D-day를 지난 이후에만
+   입고예정일까지 남은 일수를 빨간색으로 표시(과거면 D+n). */
+function arrivalBadge(row) {
+  if (row.rocket.done || row.rocket.date) return '';
+  const prod = daysUntil(row.productionDate);
+  if (prod === null || prod >= 0) return '';
+  const d = daysUntil(row.arrivalDate);
+  if (d === null) return '';
+  const text = d < 0 ? 'D+' + Math.abs(d) : d === 0 ? 'D-DAY' : 'D-' + d;
+  return '<span class="d-day danger">' + text + '</span>';
+}
+
+/* 상세전달일자: 로켓 등록 전 + 상세전달일이 지난 경우(D+n)에만 초록색으로 표시. */
+function detailBadge(row) {
+  if (row.rocket.done || row.rocket.date) return '';
+  const d = daysUntil(row.detailDueDate);
+  if (d === null || d >= 0) return '';
+  return '<span class="d-day safe">D+' + Math.abs(d) + '</span>';
+}
+
 function renderAlerts() {
   /* 긴급 경고창은 표시하지 않음 — '긴급' 탭에서 확인 가능 */
   const box = document.getElementById('alerts');
@@ -944,14 +974,15 @@ function render() {
         <td><input type="text" class="real-name ${row.memo?'has-memo':''}" value="${esc(row.realName)}" title="${row.memo?'📝 '+esc(row.memo)+' (우클릭: 메모 편집)':esc(row.realName)+' (우클릭: 메모 추가)'}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)" oncontextmenu="editMemo(event,'${row.id}')"></td>
         <td>
           <input type="date" min="2026-01-01" value="${row.productionDate||''}" onchange="updProductionDate('${row.id}',this.value)">
+          ${productionBadge(row)}
         </td>
         <td>
           <input type="date" min="2026-01-01" value="${row.arrivalDate||''}" onchange="upd('${row.id}','arrivalDate',this.value)">
-          ${dDayBadge(row.arrivalDate, 'danger')}
+          ${arrivalBadge(row)}
         </td>
         <td>
           <input type="date" min="2026-01-01" value="${row.detailDueDate||''}" onchange="upd('${row.id}','detailDueDate',this.value)">
-          ${(row.rocket.done || row.rocket.date) ? '' : dDayBadge(row.detailDueDate, 'safe')}
+          ${detailBadge(row)}
         </td>
         ${checkCell(row,'rocket')}
         ${checkCell(row,'wing')}
