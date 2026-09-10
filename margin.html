@@ -290,6 +290,13 @@
         </button>
       </div>
       <div class="search">
+        <input type="file" id="fileUpload" accept=".xlsx,.xls" style="display:none;">
+        <button class="btn ghost" id="btnUpload" title="엑셀 업로드 (새로고침 시 반영)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </button>
+        <button class="btn ghost" id="btnDownload" title="현재 화면 엑셀 다운로드">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
         <select id="fOwner"><option value="">전체 담당자</option></select>
         <select id="fStatus"><option value="">전체 상태</option></select>
         <input id="fQ" type="search" placeholder="SKU# / 상품명 검색">
@@ -315,12 +322,12 @@ const CFG={owner:'tolmjj10',repo:'coupang-po',branch:'main',dir:'data',file:'마
    - type:     'text' | 'num' | 'select'
 */
 const COLS=[
-  {k:'owner',   label:'담당자',      w:52,  align:'center', editable:true, type:'text'},
+  {k:'owner',   label:'담당자',      w:52,  align:'center', editable:true, type:'select', options:['김현유','이병은','조민주']},
   {k:'cat',     label:'카테고리',    w:66,  align:'center', editable:true, type:'select', cls:'col-cat',
     options:['이미용','욕실가전','모바일','겨울가전','여름가전','건강가전','주방가전','생활가전','인테리어/조명','제습기','공기청정기','육아','차량','애견']},
   {k:'sku',     label:'SKU #',       w:70,  align:'center', editable:true, type:'text'},
   {k:'name',    label:'상품명',      w:320, align:'left',   editable:true, type:'text', cls:'col-name'},
-  {k:'status',  label:'상태',        w:60,  align:'center', editable:true, type:'select', options:['판매','중지','단종','품절','예정']},
+  {k:'status',  label:'상태',        w:60,  align:'center', editable:true, type:'select', options:['판매','중지','단종','품절','단종예정']},
   {k:'cost',    label:'매입가',      w:72,  align:'right',  editable:true, type:'num', hi:true},
   {k:'supply',  label:'공급가',      w:72,  align:'right',  calc:r=>r.cost!=null? r.cost/1.1 : null,           type:'num'},
   {k:'vat',     label:'부가세',      w:60,  align:'right',  calc:r=>r.cost!=null? r.cost - r.cost/1.1 : null,  type:'num'},
@@ -766,8 +773,17 @@ function markDirty(){
 function markDirtyNoHistory(){
   dirty=true;
   updateSaveInfo();
-  clearTimeout(autosaveTimer);
-  autosaveTimer=setTimeout(save,3000);
+  // 자동저장은 별도 60초 인터벌이 담당 (입력 중 render()로 포커스가 끊기는 걸 방지)
+}
+
+function isEditingActive(){
+  const tbody=document.getElementById('tbody');
+  if(!tbody) return false;
+  if(tbody.querySelector('[contenteditable="true"]')) return true;
+  if(tbody.querySelector('select')) return true;
+  const ae=document.activeElement;
+  if(ae && tbody.contains(ae)) return true;
+  return false;
 }
 
 function updateSaveInfo(){
@@ -816,7 +832,8 @@ async function save(){
     lastSavedAt=Date.now();
     // 저장 후 _new 배지 제거
     rows.forEach(r=>delete r._new);
-    render();
+    // 편집 중이면 render() 생략 — 포커스/캐럿 끊김 방지
+    if(!isEditingActive()) render();
     showToast('저장 완료');
   } catch(e){
     console.error(e);
@@ -872,7 +889,126 @@ document.getElementById('fOwner').addEventListener('change', render);
 document.getElementById('fStatus').addEventListener('change', render);
 document.getElementById('btnAdd').addEventListener('click',addRow);
 document.getElementById('btnSave').addEventListener('click',()=>{ clearTimeout(autosaveTimer); save(); });
+// 자동 저장: 60초마다, 변경사항 있고, 저장 중 아니고, 편집 중이 아닐 때만 실행
+setInterval(()=>{
+  if(!dirty || saving) return;
+  if(isEditingActive()) return; // 입력 중이면 다음 tick으로 미룸
+  save();
+}, 60000);
+// 업로드 대기 데이터 (새로고침 눌러야 반영)
+let pendingUploadRows=null;
+
+function currentFilteredRows(){
+  const q=document.getElementById('fQ').value.trim().toLowerCase();
+  const fo=document.getElementById('fOwner').value;
+  const fs=document.getElementById('fStatus').value;
+  let list=rows.filter(r=>{
+    if(activeCat && r.cat!==activeCat) return false;
+    if(fo && r.owner!==fo) return false;
+    if(fs && r.status!==fs) return false;
+    if(q){
+      const hay=((r.sku||'')+' '+(r.name||'')).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  if(sortKey){
+    const col=COLS.find(c=>c.k===sortKey);
+    list.sort((a,b)=>{
+      const va=getCellValue(a,col), vb=getCellValue(b,col);
+      const na=Number(va), nb=Number(vb);
+      const bothNum=isFinite(na)&&isFinite(nb);
+      let cmp;
+      if(bothNum) cmp=na-nb;
+      else cmp=String(va==null?'':va).localeCompare(String(vb==null?'':vb),'ko');
+      return cmp*sortDir;
+    });
+  }
+  return list;
+}
+
+function normLabel(s){ return String(s==null?'':s).replace(/\s+/g,'').replace(/\n/g,''); }
+
+document.getElementById('btnDownload').addEventListener('click',()=>{
+  const list=currentFilteredRows();
+  const headers=COLS.map(c=>c.label.replace(/\n/g,' '));
+  const aoa=[headers];
+  list.forEach(r=>{
+    aoa.push(COLS.map(col=>{
+      const v=getCellValue(r,col);
+      if(v==null||v==='') return '';
+      if(col.type==='num'||col.type==='num2') return isFinite(v)?Number(v):'';
+      if(col.type==='pct'||col.type==='pctInt') return isFinite(v)?Number(v):'';
+      return v;
+    }));
+  });
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'마진테이블');
+  const d=new Date();
+  const stamp=d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'_'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
+  XLSX.writeFile(wb,`마진테이블_${stamp}.xlsx`);
+  showToast('엑셀 다운로드 완료');
+});
+
+document.getElementById('btnUpload').addEventListener('click',()=>{
+  document.getElementById('fileUpload').click();
+});
+
+document.getElementById('fileUpload').addEventListener('change',async(ev)=>{
+  const file=ev.target.files&&ev.target.files[0];
+  ev.target.value='';
+  if(!file) return;
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    if(!aoa.length) throw new Error('빈 파일');
+    const header=aoa[0].map(normLabel);
+    // 라벨 → COLS 매핑 (editable 컬럼만 유효)
+    const idxMap={};
+    COLS.forEach(c=>{
+      if(!c.editable) return;
+      const key=normLabel(c.label);
+      const i=header.indexOf(key);
+      if(i>=0) idxMap[c.k]=i;
+    });
+    if(Object.keys(idxMap).length===0) throw new Error('헤더가 마진테이블 형식과 다릅니다');
+    const parsed=[];
+    for(let r=1;r<aoa.length;r++){
+      const row=aoa[r]; if(!row) continue;
+      const obj={owner:'',cat:'',sku:'',name:'',status:'',cost:null,price:null,origin:null,originN:null};
+      Object.keys(idxMap).forEach(k=>{
+        const v=row[idxMap[k]];
+        if(NUM_KEYS.has(k)) obj[k]=(v===''||v==null)?null:toNum(v);
+        else obj[k]=v==null?'':String(v).trim();
+      });
+      // 완전히 빈 행 스킵
+      const hasVal=Object.values(obj).some(v=>v!=null&&v!=='');
+      if(hasVal) parsed.push(obj);
+    }
+    pendingUploadRows=parsed;
+    showToast(`엑셀 ${parsed.length}건 준비됨 · [새로고침]을 눌러 반영`);
+  } catch(e){
+    console.error(e);
+    showToast('업로드 실패: '+e.message,'#b04a3a');
+  }
+});
+
 document.getElementById('btnReload').addEventListener('click',()=>{
+  if(pendingUploadRows){
+    if(dirty && !confirm('저장하지 않은 변경사항이 업로드 데이터로 덮어쓰기 됩니다. 진행할까요?')) return;
+    pushHistory();
+    rows=pendingUploadRows.map(r=>({_id:uid(),_new:true,...r}));
+    pendingUploadRows=null;
+    dirty=true;
+    fillFilters();
+    render();
+    updateSaveInfo();
+    showToast('업로드 데이터 반영됨 · 자동 저장 대기');
+    return;
+  }
   if(dirty && !confirm('저장하지 않은 변경사항이 있습니다. 버리시겠습니까?')) return;
   dirty=false; load();
 });
