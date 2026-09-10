@@ -710,9 +710,9 @@
           <th style="width:140px; cursor:pointer; user-select:none;" onclick="toggleSort('arrival')" title="클릭하여 정렬">입고예정일 <span id="sortArrivalIcon" style="opacity:.6;">⇅</span></th>
           <th style="width:140px; cursor:pointer; user-select:none;" onclick="toggleSort('detail')" title="클릭하여 정렬">상세전달일자 <span id="sortDetailIcon" style="opacity:.6;">⇅</span></th>
           <th class="check-cell">🚀 로켓 등록</th>
-          <th class="check-cell">✈️ 윙 등록</th>
           <th class="check-cell">🔗 벤플 매핑</th>
           <th class="check-cell">📢 광고 생성</th>
+          <th class="check-cell">✈️ 윙 등록</th>
           <th style="width:100px;">상태</th>
           <th style="width:200px;">상세페이지</th>
           <th class="check-cell" style="width:80px;">✅ 등록완료</th>
@@ -1171,9 +1171,9 @@ function render() {
           ${detailBadge(row)}
         </td>
         ${checkCell(row,'rocket')}
-        ${checkCell(row,'wing')}
         ${checkCell(row,'venple')}
         ${checkCell(row,'ad')}
+        ${checkCell(row,'wing')}
         <td>${st.label ? `<span class="status-badge ${st.cls}">${st.label}</span>` : ''}</td>
         <td><div class="detail-url-wrap"><input type="text" size="1" class="detail-url-input" value="${esc(row.detailUrl||'')}" placeholder="URL" oninput="this.nextElementSibling.disabled=!this.value.trim()" onchange="upd('${row.id}','detailUrl',this.value)"><button class="detail-open-btn" onclick="openDetail('${row.id}')" ${row.detailUrl?'':'disabled'}>보기</button></div></td>
         <td class="check-cell"><input type="checkbox" ${row.registered?'checked':''} onclick="confirmRegistered(event,'${row.id}')" title="등록완료 시 '완료' 탭으로 이동"></td>
