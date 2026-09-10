@@ -53,7 +53,7 @@
     width:0;padding:18px 0;border-right-color:transparent;overflow:hidden;
   }
   .side-toggle{
-    position:fixed;top:16px;left:198px;
+    position:fixed;top:64px;left:198px;
     width:22px;height:22px;border-radius:50%;
     background:var(--surface);border:1px solid var(--hairline-strong);
     display:flex;align-items:center;justify-content:center;
@@ -257,9 +257,9 @@
   .table-wrap::-webkit-scrollbar-track,.side::-webkit-scrollbar-track{background:transparent;}
 </style>
 </head>
-<body>
+<body class="sidebar-collapsed">
 <div class="shell">
-  <button class="side-toggle" id="btnSide" title="사이드바 열기/닫기" aria-label="사이드바 토글">«</button>
+  <button class="side-toggle" id="btnSide" title="사이드바 열기/닫기" aria-label="사이드바 토글">»</button>
   <aside class="side">
     <div class="side-title">카테고리</div>
     <div id="catList"></div>
