@@ -382,25 +382,71 @@
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
   }
-  .check-cell input[type="date"] {
+  .date-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .date-cell .cal-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: center;
+    min-height: 20px;
+  }
+  .cal-trigger {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 4px;
+    border-radius: 6px;
+    cursor: pointer;
+    line-height: 1;
+    color: #333;
+    transition: background .12s ease;
+  }
+  .cal-trigger:hover { background: #f4f5f8; }
+  .cal-trigger .cal-svg { width: 14px; height: 14px; display: block; }
+  .cal-trigger .date-txt {
+    display: none;
+    font-size: 12px;
+    color: #333;
+    white-space: nowrap;
+  }
+  .cal-trigger.has-date .cal-svg { display: none; }
+  .cal-trigger.has-date .date-txt { display: inline; }
+  .cal-trigger input[type="date"] {
+    position: absolute;
+    inset: 0;
+    width: 100%; height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    padding: 0;
+    border: 0;
+    margin: 0;
+  }
+  .cal-trigger input[type="date"]::-webkit-calendar-picker-indicator {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; cursor: pointer;
+  }
+  .check-cell .chk-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: center;
+  }
+  .check-cell .chk-date {
+    display: block;
     font-size: 11px;
-    padding: 3px 6px;
-    text-align: center;
     color: var(--muted);
-    margin-top: 4px;
+    margin-top: 3px;
+    text-align: center;
+    min-height: 14px;
   }
-  .arrival-cell { display: flex; align-items: center; gap: 4px; }
-  .arrival-cell input[type="date"] {
-    flex: 1 1 auto; min-width: 0;
-    transition: flex-basis .18s ease, padding .18s ease, color .18s ease;
-  }
-  .arrival-cell.done input[type="date"] {
-    flex: 0 0 20px;
-    padding: 4px 2px;
-    color: transparent;
-    overflow: hidden;
-  }
-  .arrival-cell.done input[type="date"]::-webkit-datetime-edit { opacity: 0; }
   .arrival-done-chk {
     flex-shrink: 0;
     display: inline-flex;
@@ -1099,18 +1145,28 @@ function render() {
         <td><input type="text" class="reg-name ${row.regName ? 'filled' : ''}" value="${esc(row.regName)}" title="${esc(row.regName)}" placeholder="✎ 등록시 기입" oninput="upd('${row.id}','regName',this.value); this.classList.toggle('filled', !!this.value); this.title=this.value;"></td>
         <td><input type="text" class="real-name ${row.memo?'has-memo':''}" value="${esc(row.realName)}" title="${row.memo?'📝 '+esc(row.memo)+' (우클릭: 메모 편집)':esc(row.realName)+' (우클릭: 메모 추가)'}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)" oncontextmenu="editMemo(event,'${row.id}')"></td>
         <td>
-          <input type="date" min="2026-01-01" value="${row.productionDate||''}" onchange="updProductionDate('${row.id}',this.value)">
+          <div class="date-cell">
+            <div class="cal-row">
+              <label class="cal-trigger ${row.productionDate?'has-date':''}" title="생산완료일 선택">${CAL_SVG}<span class="date-txt">${row.productionDate||''}</span><input type="date" min="2026-01-01" value="${row.productionDate||''}" onchange="updProductionDate('${row.id}',this.value); syncCalTrigger(this);"></label>
+            </div>
+          </div>
           ${productionBadge(row)}
         </td>
         <td>
-          <div class="arrival-cell ${row.arrivalDone?'done':''}">
-            <input type="date" min="2026-01-01" value="${row.arrivalDate||''}" onchange="upd('${row.id}','arrivalDate',this.value)" title="${row.arrivalDate||'입고예정일'}">
-            <label class="arrival-done-chk" title="입고완료 체크"><input type="checkbox" ${row.arrivalDone?'checked':''} onclick="toggleArrivalDone('${row.id}')"><span class="lbl">입고완료</span></label>
+          <div class="date-cell arrival-cell ${row.arrivalDone?'done':''}">
+            <div class="cal-row">
+              <label class="cal-trigger ${row.arrivalDate?'has-date':''}" title="입고예정일 선택">${CAL_SVG}<span class="date-txt">${row.arrivalDate||''}</span><input type="date" min="2026-01-01" value="${row.arrivalDate||''}" onchange="upd('${row.id}','arrivalDate',this.value); syncCalTrigger(this);"></label>
+              <label class="arrival-done-chk" title="입고완료 체크"><input type="checkbox" ${row.arrivalDone?'checked':''} onclick="toggleArrivalDone('${row.id}')"><span class="lbl">입고완료</span></label>
+            </div>
           </div>
           ${arrivalBadge(row)}
         </td>
         <td>
-          <input type="date" min="2026-01-01" value="${row.detailDueDate||''}" onchange="upd('${row.id}','detailDueDate',this.value)">
+          <div class="date-cell">
+            <div class="cal-row">
+              <label class="cal-trigger ${row.detailDueDate?'has-date':''}" title="상세전달일자 선택">${CAL_SVG}<span class="date-txt">${row.detailDueDate||''}</span><input type="date" min="2026-01-01" value="${row.detailDueDate||''}" onchange="upd('${row.id}','detailDueDate',this.value); syncCalTrigger(this);"></label>
+            </div>
+          </div>
           ${detailBadge(row)}
         </td>
         ${checkCell(row,'rocket')}
@@ -1131,11 +1187,23 @@ function render() {
   renderTabs();
 }
 
+const CAL_SVG = '<svg class="cal-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>';
+
+function syncCalTrigger(input) {
+  const label = input.closest('.cal-trigger');
+  if (!label) return;
+  const txt = label.querySelector('.date-txt');
+  if (txt) txt.textContent = input.value;
+  label.classList.toggle('has-date', !!input.value);
+}
+
 function checkCell(row, key) {
   const item = row[key];
   return `<td class="check-cell">
-    <input type="checkbox" ${item.done?'checked':''} onchange="updCheck('${row.id}','${key}',this.checked)">
-    <input type="date" min="2026-01-01" value="${item.date||''}" onchange="updCheckDate('${row.id}','${key}',this.value)">
+    <div class="chk-row">
+      <input type="checkbox" ${item.done?'checked':''} onchange="updCheck('${row.id}','${key}',this.checked)">
+      <label class="cal-trigger ${item.date?'has-date':''}" title="날짜 선택">${CAL_SVG}<span class="date-txt">${item.date||''}</span><input type="date" min="2026-01-01" value="${item.date||''}" onchange="updCheckDate('${row.id}','${key}',this.value); syncCalTrigger(this);"></label>
+    </div>
   </td>`;
 }
 
@@ -1176,9 +1244,13 @@ function updProductionDate(id, val) {
     // DOM에서 해당 행의 입고예정일 input 값을 직접 갱신(전체 render는 포커스 튕김 유발).
     const tr = document.querySelector(`tr[data-id="${id}"]`);
     if (tr) {
-      const dateInputs = tr.querySelectorAll('td > input[type="date"]');
-      // 컬럼 순서: 생산완료일(0), 입고예정일(1), 상세전달일자(2)
-      if (dateInputs[1]) dateInputs[1].value = row.arrivalDate;
+      const tds = tr.querySelectorAll('td');
+      // 컬럼 순서: 생산완료일(4), 입고예정일(5), 상세전달일자(6)
+      const arrivalTd = tds[5];
+      if (arrivalTd) {
+        const di = arrivalTd.querySelector('input[type="date"]');
+        if (di) { di.value = row.arrivalDate; syncCalTrigger(di); }
+      }
     }
   }
   save();
