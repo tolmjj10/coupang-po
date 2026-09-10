@@ -829,16 +829,9 @@ function dDayHtml(dateStr) {
 }
 
 function renderAlerts() {
+  /* 긴급 경고창은 표시하지 않음 — '긴급' 탭에서 확인 가능 */
   const box = document.getElementById('alerts');
-  const urgent = data.filter(isUrgentRow);
-  const active = urgent.filter(r => !urgentDismissedIds.has(r.id));
-  if (active.length === 0) { box.innerHTML = ''; return; }
-  const names = active.slice(0, 5).map(r => r.realName || r.regName || '(이름 없음)').join(', ');
-  const extra = active.length > 5 ? ` 외 ${active.length - 5}건` : '';
-  box.innerHTML = `<div class="alert urgent" style="justify-content:space-between;">
-    <span>⚠️ 확인 필요 — 입고예정일 3일 이내 신제품 ${active.length}건: ${esc(names)}${extra}. '긴급' 탭에서 확인하세요.</span>
-    <button class="ghost" style="padding:6px 12px;font-size:12px;" onclick="dismissUrgentAlert()">숨기기</button>
-  </div>`;
+  if (box) box.innerHTML = '';
 }
 
 function dismissUrgentAlert() {
