@@ -240,6 +240,16 @@
       <span>신제품</span>
     </div>
 
+    <div class="nav-item" data-target="promotion">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      <span>프로모션</span>
+    </div>
+
     <div class="sidebar-footer">v1.0</div>
   </aside>
 
@@ -279,14 +289,27 @@
               </svg>
             </div>
             <div class="pick-title">신제품</div>
-            <div class="pick-desc">담당자별 신제품 등록 진행 현황 · 로켓/윙/벤플/광고</div>
+            <div class="pick-desc">담당자별 신제품 등록 진행 현황 · 로켓/벤플/광고/윙</div>
+          </div>
+          <div class="pick-card" data-target="promotion">
+            <div class="pick-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </div>
+            <div class="pick-title">프로모션</div>
+            <div class="pick-desc">쿠팡 프로모션 일정 관리 · 타임라인/달력 뷰</div>
           </div>
         </div>
       </div>
     </div>
-    <iframe id="frame-order" src="po.html"></iframe>
-    <iframe id="frame-new" src="newproduct/new.html"></iframe>
-    <iframe id="frame-margin" src="margin.html"></iframe>
+    <iframe id="frame-order" data-src="po.html"></iframe>
+    <iframe id="frame-new" data-src="newproduct/new.html"></iframe>
+    <iframe id="frame-margin" data-src="margin.html"></iframe>
+    <iframe id="frame-promotion" data-src="promotion/promotion.html"></iframe>
   </main>
 </div>
 
@@ -294,13 +317,21 @@
   const items = document.querySelectorAll('.nav-item');
   const landing = document.getElementById('landing');
   const frames = {
-    order:  document.getElementById('frame-order'),
-    new:    document.getElementById('frame-new'),
-    margin: document.getElementById('frame-margin')
+    order:     document.getElementById('frame-order'),
+    new:       document.getElementById('frame-new'),
+    margin:    document.getElementById('frame-margin'),
+    promotion: document.getElementById('frame-promotion')
   };
+
+  function ensureLoaded(target) {
+    const f = frames[target];
+    if (!f) return;
+    if (!f.src && f.dataset.src) f.src = f.dataset.src;
+  }
 
   function showTarget(target) {
     items.forEach(i => i.classList.toggle('active', i.dataset.target === target));
+    if (target) ensureLoaded(target);
     Object.entries(frames).forEach(([k, f]) => f.classList.toggle('active', k === target));
     landing.classList.toggle('active', !target);
     try { history.replaceState(null, '', target ? '#' + target : location.pathname); } catch(e) {}
@@ -316,6 +347,18 @@
 
   const hash = (location.hash || '').replace('#','');
   showTarget(frames[hash] ? hash : null);
+
+  // 랜딩 진입 후, 아이들 상태에서 나머지 프레임을 백그라운드로 미리 로드해 다음 클릭 시 즉시 표시
+  window.addEventListener('load', () => {
+    const preload = () => {
+      ensureLoaded('order');
+      setTimeout(() => ensureLoaded('margin'), 300);
+      setTimeout(() => ensureLoaded('new'), 600);
+      setTimeout(() => ensureLoaded('promotion'), 900);
+    };
+    if ('requestIdleCallback' in window) requestIdleCallback(preload, { timeout: 1500 });
+    else setTimeout(preload, 400);
+  });
 </script>
 
 </body>
