@@ -425,6 +425,23 @@
   .date-cell .date-range .tilde { color: var(--hint); font-size: 11px; }
   .date-cell .plan-title { text-align: left; padding-left: 6px; }
   .date-cell .time-sel { max-width: 100%; }
+  /* 타임특가: 날짜 왼쪽에 시간만 클릭할 수 있는 컴팩트 배지 */
+  .date-cell .date-inline { display: flex; align-items: center; gap: 3px; }
+  .date-cell .time-sel-compact {
+    flex-shrink: 0;
+    width: 46px;
+    padding: 0 3px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent-dark);
+    background-color: var(--accent-soft);
+    border: 1px solid transparent;
+    text-align: center;
+    padding-right: 12px;
+    background-position: right 2px center;
+  }
+  .date-cell .time-sel-compact:hover { border-color: var(--accent); background-color: var(--accent-softer); }
+  .date-cell .date-inline input[type="date"] { min-width: 0; flex: 1; padding: 0 4px; }
 
   /* 골드박스·타임특가 14일 중복 경고 */
   td.sku-conflict input {
@@ -477,7 +494,7 @@
     <table id="tbl">
       <thead>
         <tr>
-          <th style="width:108px">날짜</th>
+          <th style="width:156px">날짜</th>
           <th style="width:112px">프로모션</th>
           <th style="width:124px">SKU ID</th>
           <th style="width:110px">VIID</th>
@@ -852,12 +869,12 @@ function analyticsCellsHtml(r, d) {
 function dateCellHtml(r) {
   const dateInput = `<input type="date" data-k="date" value="${esc(r.date||'')}">`;
   if (r.type === '타임특가') {
-    return `<div class="date-stack">
-      ${dateInput}
-      <select data-k="time" class="time-sel">
+    return `<div class="date-inline">
+      <select data-k="time" class="time-sel-compact" title="시간 선택">
         <option value="">시간</option>
         ${TIMES.map(t=>`<option value="${t}" ${r.time===t?'selected':''}>${t}시</option>`).join('')}
       </select>
+      ${dateInput}
     </div>`;
   }
   if (r.type === '기획전') {
