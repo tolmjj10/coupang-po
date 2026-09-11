@@ -587,7 +587,11 @@ let viidMap = {};     // skuId → {viid, pid}
 let activeTab = '전체';
 const _now = new Date();
 let activeMonth = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}`;
-let sortDir = (localStorage.getItem('promotion_sort_dir') === 'asc') ? 'asc' : 'desc';
+// 정렬 방향: 'none'(입력 순), 'asc'(오름차순), 'desc'(내림차순). 기본은 none — 사용자가 입력한 순서 유지
+let sortDir = (function() {
+  const v = localStorage.getItem('promotion_sort_dir');
+  return (v === 'asc' || v === 'desc') ? v : 'none';
+})();
 
 const $ = id => document.getElementById(id);
 const uid = () => 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -667,6 +671,7 @@ function rowInMonth(r, ym) {
 }
 
 function sortByDate(arr) {
+  if (sortDir === 'none') return arr; // 입력 순 유지
   const dir = sortDir === 'asc' ? 1 : -1;
   return [...arr].sort((a, b) => {
     const ad = String(a.date || '');
@@ -679,7 +684,10 @@ function sortByDate(arr) {
 }
 function updateSortIcon() {
   const el = document.getElementById('dateSortIcon');
-  if (el) el.textContent = sortDir === 'asc' ? '▲' : '▼';
+  if (!el) return;
+  if (sortDir === 'asc') { el.textContent = '▲'; el.style.opacity = '0.85'; }
+  else if (sortDir === 'desc') { el.textContent = '▼'; el.style.opacity = '0.85'; }
+  else { el.textContent = '⇅'; el.style.opacity = '0.35'; }
 }
 
 function renderMonthTabs() {
@@ -802,7 +810,9 @@ function renderExperience() {
     const key = r.date || '(날짜 없음)';
     (groups[key] = groups[key] || []).push(r);
   });
-  const dateKeys = Object.keys(groups).sort((a,b) => sortDir === 'asc' ? a.localeCompare(b) : b.localeCompare(a));
+  const dateKeys = sortDir === 'none'
+    ? Object.keys(groups) // 입력 순 유지
+    : Object.keys(groups).sort((a,b) => sortDir === 'asc' ? a.localeCompare(b) : b.localeCompare(a));
   let html = '';
   if (dateKeys.length === 0) {
     html = `<div class="empty" style="background:var(--card);border:1px solid var(--border);border-radius:12px;">
@@ -1294,7 +1304,8 @@ $('addBtn').addEventListener('click', () => {
 });
 $('saveBtn').addEventListener('click', () => { clearTimeout(_saveTimer); saveRemote({ force: true }); });
 document.getElementById('dateSortTh').addEventListener('click', () => {
-  sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  // 3단 토글: none → desc → asc → none
+  sortDir = sortDir === 'none' ? 'desc' : (sortDir === 'desc' ? 'asc' : 'none');
   try { localStorage.setItem('promotion_sort_dir', sortDir); } catch(_) {}
   render();
 });
