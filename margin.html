@@ -212,6 +212,7 @@
     font-size:10.5px;font-weight:600;letter-spacing:-0.01em;
     background:var(--tint);color:var(--muted);
   }
+  .cell.sku-alert{background:var(--accent-soft);color:var(--accent-dark);font-weight:600;border-radius:4px;}
   .status-pill.sell{background:var(--sage-soft);color:#4a5748;}
   .status-pill.stop{background:#f2e5df;color:#8a3a2e;}
 
@@ -546,7 +547,12 @@ function renderCell(r, col){
   } else if(col.hi && display){
     inner=`<span class="pct">${inner}</span>`;
   }
-  return `<div class="cell editable ${align}" data-k="${col.k}" data-type="${col.type}">${inner}</div>`;
+  let extra='';
+  if(col.k==='sku'){
+    const s=String(display).trim();
+    if(s && !/^\d+$/.test(s)) extra=' sku-alert';
+  }
+  return `<div class="cell editable ${align}${extra}" data-k="${col.k}" data-type="${col.type}">${inner}</div>`;
 }
 
 function render(){
@@ -858,6 +864,7 @@ async function load(){
     else if(data && typeof data==='object'){ rowArr=Array.isArray(data.rows)?data.rows:[]; colWidths=data.colWidths||null; }
     rows=rowArr.map(r=>{
       const row={_id:uid(),...r};
+      if(typeof row.status==='string') row.status=row.status.replace(/\s+/g,''); // 공백 제거해 '단종 예정' → '단종예정' 통합
       if(row.status==='예정') row.status='단종예정'; // 옛 값 마이그레이션
       return row;
     });
