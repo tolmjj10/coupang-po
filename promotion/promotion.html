@@ -505,9 +505,7 @@
   <div class="toolbar">
     <div class="tabs" id="tabs"></div>
     <div class="spacer"></div>
-    <button class="btn icon-btn" id="saveBtn" title="지금 저장" aria-label="저장">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-    </button>
+    <button class="btn" id="saveBtn" title="지금 바로 공유 저장">저장</button>
     <button class="btn icon-btn" id="calBtn" title="달력 보기" aria-label="달력 보기">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     </button>
@@ -1122,10 +1120,12 @@ function save() {
   _isDirty = true;
   saveStatus('● 미저장');
   clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(saveRemote, 800);
+  _saveTimer = setTimeout(saveRemote, 60000); // 1분 자동 저장
 }
-async function saveRemote() {
-  if (!_isDirty) return;
+async function saveRemote(opts) {
+  const force = opts && opts.force;
+  if (!_isDirty && !force) return;
+  saveStatus('저장 중…');
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
@@ -1283,7 +1283,7 @@ $('addBtn').addEventListener('click', () => {
   data.push({ id: uid(), date: ymd, type: initialType, skuId: '', discountRate: '', qty: '' });
   save(); render();
 });
-$('saveBtn').addEventListener('click', () => { clearTimeout(_saveTimer); saveRemote(); });
+$('saveBtn').addEventListener('click', () => { clearTimeout(_saveTimer); saveRemote({ force: true }); });
 document.getElementById('dateSortTh').addEventListener('click', () => {
   sortDir = sortDir === 'asc' ? 'desc' : 'asc';
   try { localStorage.setItem('promotion_sort_dir', sortDir); } catch(_) {}
