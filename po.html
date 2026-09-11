@@ -478,6 +478,37 @@ function initMaster(){
 
 window.addEventListener('DOMContentLoaded', initMaster);
 
+/* ═══════════════════════ 마진테이블 매입가 로드 ═══════════════════════ */
+let marginPriceMap = {}; // { normalizedSku: cost(매입가) }
+async function loadMarginPrices() {
+  try {
+    const cached = localStorage.getItem('po_margin_price_cache');
+    if (cached) {
+      const m = JSON.parse(cached);
+      if (m && typeof m === 'object') marginPriceMap = m;
+    }
+  } catch (_) {}
+  try {
+    const res = await fetch('/api/margin-state', { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const j = await res.json();
+    const rows = Array.isArray(j) ? j : (j.rows || []);
+    const map = {};
+    rows.forEach(r => {
+      const sku = String(r.sku || '').trim().toLowerCase();
+      if (!sku) return;
+      const cost = Number(String(r.cost || '').replace(/,/g,'')) || 0;
+      if (cost > 0) map[sku] = cost;
+    });
+    marginPriceMap = map;
+    try { localStorage.setItem('po_margin_price_cache', JSON.stringify(map)); } catch(_) {}
+    console.log('[po] 마진테이블 매입가 로드', Object.keys(map).length, '건');
+  } catch (e) {
+    console.warn('[po] loadMarginPrices 실패:', e.message);
+  }
+}
+window.addEventListener('DOMContentLoaded', loadMarginPrices);
+
 /* ═══════════════════════ EXCLUDED BRANDS ═══════════════════════ */
 const EXCLUDED_BRANDS=['삼대오백','뉴트리커먼','매시브','바이퍼','MXSSIVE','엠엑시브'];
 function isExcluded(name){ return EXCLUDED_BRANDS.some(b=>String(name||'').startsWith(b)); }
@@ -899,7 +930,8 @@ function runMatch(){
       hasSalesMatch:!!pivotEntry,
       transit: transitQty,
       price: masterEntry?.price||0,
-      orderPrice: orderPrice
+      orderPrice: orderPrice,
+      marginPrice: marginPriceMap[String(orderSku||'').trim().toLowerCase()] || null
     };
   }).filter(r=>!isExcluded(r.stockName||r.orderName));
 
@@ -1258,7 +1290,7 @@ async function downloadPO(poNum,btnEl){
     const rawQty=getEffectiveQty(r);
     const qty=rawQty>0?rawQty:0;
     if(qty<=0) return;
-    const price=(r.orderPrice!=null && !isNaN(r.orderPrice))?Number(r.orderPrice):(Number(r.price)||0);
+    const price=((r.marginPrice!=null && !isNaN(r.marginPrice) && Number(r.marginPrice)>0)?Number(r.marginPrice):(Number(r.price)||0));
     const procodeRaw=r.procode||'';
     const procodeVal=(procodeRaw!=='' && !isNaN(Number(procodeRaw))) ? Number(procodeRaw) : procodeRaw;
     aoa.push([
@@ -1377,7 +1409,7 @@ function computePoAmount(poNum){
     if(String(r.poNum)!==String(poNum)) return;
     const qty=getEffectiveQty(r);
     if(!qty || qty<=0) return;
-    const unit=(r.orderPrice!=null && !isNaN(r.orderPrice))?Number(r.orderPrice):(Number(r.price)||0);
+    const unit=((r.marginPrice!=null && !isNaN(r.marginPrice) && Number(r.marginPrice)>0)?Number(r.marginPrice):(Number(r.price)||0));
     sum += qty * unit;
   });
   return sum;
