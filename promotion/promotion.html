@@ -188,7 +188,23 @@
     font-variant-numeric: tabular-nums;
   }
   td.calc.strong { color: var(--text); font-weight: 600; }
+  td.calc.id-cell { color: var(--hint); }
   td.num { font-variant-numeric: tabular-nums; }
+
+  /* 날짜 입력의 달력 아이콘 숨기기 (클릭 시 달력은 정상 열림) */
+  input[type="date"] { cursor: pointer; position: relative; }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    background: transparent;
+    color: transparent;
+    cursor: pointer;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    opacity: 0;
+  }
+  input[type="date"]::-webkit-inner-spin-button { display: none; }
 
   /* number input spinner 제거 (수량/할인율 등) */
   td input[type="number"]::-webkit-outer-spin-button,
@@ -494,9 +510,9 @@
     <table id="tbl">
       <thead>
         <tr>
-          <th style="width:132px">날짜</th>
-          <th style="width:90px">프로모션</th>
-          <th style="width:104px">SKU ID</th>
+          <th style="width:112px">날짜</th>
+          <th style="width:108px">프로모션</th>
+          <th style="width:126px">SKU ID</th>
           <th style="width:104px">VIID</th>
           <th style="width:104px">PID</th>
           <th style="width:180px" class="left">SKU 명</th>
@@ -851,7 +867,8 @@ function wireExperience() {
 }
 
 function analyticsCellsHtml(r, d) {
-  const isAnalyzable = (r.type === '골드박스' || r.type === '타임특가');
+  // 체험단은 별도 뷰이므로 제외, 그 외 모든 유형에서 판매량/판매율/총매출/총마진 활성
+  const isAnalyzable = r.type && r.type !== '체험단';
   if (!isAnalyzable) {
     return `<td class="calc"></td><td class="calc"></td><td class="calc"></td><td class="calc"></td>`;
   }
@@ -911,8 +928,8 @@ function rowHtml(r) {
       </select>
     </td>
     <td class="${conflict?'sku-conflict':''}"><input type="text" data-k="skuId" value="${esc(r.skuId||'')}"${conflict?` title="14일 이내 동일 SKU ${conflict.other.type} 진행 (${conflict.other.date}, ${conflict.diff}일 차)"`:''}></td>
-    <td class="calc ${missingVP?'missing':''}">${esc(d.viid) || (missingVP?'―':'')}</td>
-    <td class="calc ${missingVP?'missing':''}">${esc(d.pid) || (missingVP?'―':'')}</td>
+    <td class="calc id-cell ${missingVP?'missing':''}">${esc(d.viid) || (missingVP?'―':'')}</td>
+    <td class="calc id-cell ${missingVP?'missing':''}">${esc(d.pid) || (missingVP?'―':'')}</td>
     <td class="left calc ${missingSku?'missing':''}" title="${esc(d.skuName)}">${esc(d.skuName) || (missingSku?'매칭 SKU 없음':'')}</td>
     <td><input type="text" inputmode="decimal" data-k="discountRate" value="${fmtDiscount(r.discountRate)}" title="100 미만 → % / 100 이상 → 원화" class="disc-input"></td>
     <td class="price-cell right">
@@ -1287,6 +1304,17 @@ function initColResize() {
 
 /* ═══════════════════════ Boot ═══════════════════════ */
 (async () => {
+  // 캐시된 로컬 데이터를 먼저 복원해 즉시 표시 (원격 로드는 백그라운드에서 진행)
+  try {
+    const cached = localStorage.getItem(STORAGE_KEY);
+    if (cached) {
+      const arr = JSON.parse(cached);
+      if (Array.isArray(arr)) {
+        data = arr;
+        data.forEach(r => { if (!r.id) r.id = uid(); });
+      }
+    }
+  } catch (_) {}
   render();
   initColResize();
   await Promise.all([loadMargin(), loadViidPid()]);
