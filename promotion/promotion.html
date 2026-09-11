@@ -494,25 +494,25 @@
     <table id="tbl">
       <thead>
         <tr>
-          <th style="width:156px">날짜</th>
-          <th style="width:112px">프로모션</th>
+          <th style="width:130px">날짜</th>
+          <th style="width:82px">프로모션</th>
           <th style="width:124px">SKU ID</th>
           <th style="width:110px">VIID</th>
           <th style="width:110px">PID</th>
           <th style="width:220px" class="left">SKU 명</th>
-          <th style="width:78px">할인율/금액</th>
-          <th style="width:96px">판매가</th>
-          <th style="width:82px">할인금액</th>
-          <th style="width:82px">프로모션가</th>
-          <th style="width:88px">현재오아마진</th>
-          <th style="width:92px">프로모션<br>마진(-vat)</th>
-          <th style="width:88px">프로모션<br>오아마진율</th>
-          <th style="width:88px">공급가(-vat)</th>
-          <th style="width:70px">수량</th>
-          <th style="width:70px">판매량</th>
-          <th style="width:70px">판매율</th>
-          <th style="width:92px">총 매출</th>
-          <th style="width:92px">총 마진</th>
+          <th style="width:96px">할인율/금액</th>
+          <th style="width:118px">판매가</th>
+          <th style="width:108px">할인금액</th>
+          <th style="width:118px">프로모션가</th>
+          <th style="width:110px">현재오아마진</th>
+          <th style="width:112px">프로모션<br>마진(-vat)</th>
+          <th style="width:96px">프로모션<br>오아마진율</th>
+          <th style="width:108px">공급가(-vat)</th>
+          <th style="width:78px">수량</th>
+          <th style="width:80px">판매량</th>
+          <th style="width:78px">판매율</th>
+          <th style="width:128px">총 매출</th>
+          <th style="width:118px">총 마진</th>
           <th style="width:32px"></th>
         </tr>
       </thead>
@@ -746,7 +746,7 @@ function renderExperience() {
         <td class="left calc ${missingSku?'missing':''}" title="${esc(m?m.name:'')}">${esc(m?m.name:'') || (missingSku?'매칭 SKU 없음':'')}</td>
         <td class="right calc num">${fmtN(EXPERIENCE_BASE_COST)}</td>
         <td class="right calc num">${fmtN(supply)}</td>
-        <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="qty" value="${esc(r.qty??'')}" placeholder="수량"></td>
+        <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="qty" value="${esc(r.qty??'')}"></td>
         <td class="right calc num strong">${fmtN(total)}</td>
         <td>
           <div class="exp-review-cell">
@@ -869,13 +869,17 @@ function analyticsCellsHtml(r, d) {
 function dateCellHtml(r) {
   const dateInput = `<input type="date" data-k="date" value="${esc(r.date||'')}">`;
   if (r.type === '타임특가') {
-    return `<div class="date-inline">
-      <select data-k="time" class="time-sel-compact" title="시간 선택">
-        <option value="">시간</option>
-        ${TIMES.map(t=>`<option value="${t}" ${r.time===t?'selected':''}>${t}시</option>`).join('')}
-      </select>
-      ${dateInput}
-    </div>`;
+    // 타임특가 탭에서만 시간 셀렉터 노출. 전체 탭에서는 골드박스와 동일하게 날짜만 표시
+    if (activeTab === '타임특가') {
+      return `<div class="date-inline">
+        <select data-k="time" class="time-sel-compact" title="시간 선택">
+          <option value="">시간</option>
+          ${TIMES.map(t=>`<option value="${t}" ${r.time===t?'selected':''}>${t}시</option>`).join('')}
+        </select>
+        ${dateInput}
+      </div>`;
+    }
+    return dateInput;
   }
   if (r.type === '기획전') {
     return `<div class="date-stack">
@@ -904,7 +908,7 @@ function rowHtml(r) {
         ${TYPES.map(t=>`<option value="${t}" ${r.type===t?'selected':''}>${t}</option>`).join('')}
       </select>
     </td>
-    <td class="${conflict?'sku-conflict':''}"><input type="text" data-k="skuId" value="${esc(r.skuId||'')}"${conflict?` title="14일 이내 동일 SKU ${conflict.other.type} 진행 (${conflict.other.date}, ${conflict.diff}일 차)"`:''}>${conflict?`<span class="conflict-tip" title="14일 이내 동일 SKU ${conflict.other.type} 진행 (${conflict.other.date})">!</span>`:''}</td>
+    <td class="${conflict?'sku-conflict':''}"><input type="text" data-k="skuId" value="${esc(r.skuId||'')}"${conflict?` title="14일 이내 동일 SKU ${conflict.other.type} 진행 (${conflict.other.date}, ${conflict.diff}일 차)"`:''}></td>
     <td class="calc ${missingVP?'missing':''}">${esc(d.viid) || (missingVP?'―':'')}</td>
     <td class="calc ${missingVP?'missing':''}">${esc(d.pid) || (missingVP?'―':'')}</td>
     <td class="left calc ${missingSku?'missing':''}" title="${esc(d.skuName)}">${esc(d.skuName) || (missingSku?'매칭 SKU 없음':'')}</td>
@@ -919,7 +923,7 @@ function rowHtml(r) {
     <td class="right calc num strong">${fmtN(d.promoMargin)}</td>
     <td class="right calc num">${fmtPct(d.promoMarginRate)}</td>
     <td class="right calc num">${fmtN(d.supply)}</td>
-    <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="qty" value="${esc(r.qty??'')}" placeholder="수량"></td>
+    <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="qty" value="${esc(r.qty??'')}"></td>
     ${analyticsCellsHtml(r, d)}
     <td><button class="row-del" title="삭제">✕</button></td>
   </tr>`;
