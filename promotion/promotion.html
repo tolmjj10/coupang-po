@@ -892,7 +892,7 @@ function wireExperience() {
         if (el.type === 'checkbox') row[k] = el.checked;
         else row[k] = el.value;
         save();
-        if (k === 'skuId' || k === 'qty' || k === 'reviewChecked') setTimeout(render, 0);
+        if (k === 'skuId' || k === 'qty' || k === 'reviewChecked') scheduleRender();
       });
     });
   });
@@ -1046,12 +1046,18 @@ function wireRow() {
         }
         save();
         if (k === 'skuId' || k === 'discountRate' || k === 'type' || k === 'date' || k === 'sold' || k === 'qty' || k === 'priceEdit') {
-          // 클릭 시퀀스 도중 DOM을 교체하면 click 이벤트가 유실됨. 다음 tick으로 지연
-          setTimeout(render, 0);
+          // 클릭·드롭다운이 완전히 끝난 뒤 재렌더. 인접 select/버튼 클릭이 유실되지 않도록 여유 지연
+          scheduleRender();
         }
       });
     });
   });
+}
+// 렌더 디바운스 — 짧은 시간 내 여러 change가 발생해도 한 번만 렌더
+let _renderTimer = null;
+function scheduleRender(delay = 150) {
+  clearTimeout(_renderTimer);
+  _renderTimer = setTimeout(() => { _renderTimer = null; render(); }, delay);
 }
 window.deletePromoRow = async function(id) {
   const targetId = String(id||'').trim();
@@ -1209,7 +1215,7 @@ async function loadMargin() {
     });
     try { localStorage.setItem(MARGIN_CACHE_KEY, JSON.stringify(marginMap)); } catch(_) {}
     console.log('[promotion] margin 로드', Object.keys(marginMap).length,'건');
-    setTimeout(render, 0);
+    scheduleRender();
   } catch (e) {
     console.warn('[promotion] loadMargin 실패:', e.message);
   }
@@ -1272,7 +1278,7 @@ async function loadViidPid() {
     }
     try { localStorage.setItem(VIID_CACHE_KEY, JSON.stringify(viidMap)); } catch(_) {}
     console.log('[promotion] VIID/PID 매핑 로드', Object.keys(viidMap).length,'건');
-    setTimeout(render, 0);
+    scheduleRender();
   } catch (e) {
     console.warn('[promotion] loadViidPid 실패:', e.message);
   }
