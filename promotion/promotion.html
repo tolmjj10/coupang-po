@@ -212,6 +212,26 @@
   .empty .big { font-size: 15px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
 
   .missing { color: #b89968; font-weight: 600; }
+
+  /* 골드박스·타임특가 14일 중복 경고 */
+  td.sku-conflict input {
+    background: #fbe9e5;
+    border-color: #e8b8ae;
+    color: #b04a3a;
+    font-weight: 700;
+  }
+  td.sku-conflict input:focus {
+    border-color: #b04a3a;
+    box-shadow: 0 0 0 3px rgba(176,74,58,0.15);
+  }
+  .conflict-tip {
+    display: inline-block;
+    margin-left: 4px;
+    color: #b04a3a;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: help;
+  }
 </style>
 </head>
 <body>
@@ -263,8 +283,10 @@
 <script>
 const API_URL = '/api/promotion-state';
 const MARGIN_URL = '/api/margin-state';
-const REPO_CFG = { owner:'tolmjj10', repo:'coupang-po', branch:'main', dir:'promotion' };
+const REPO_CFG = { owner:'tolmjj10', repo:'coupang-po', branch:'main', dir:'promotion/viid_pid' };
 const TYPES = ['골드박스','타임특가','기획전','즉시할인'];
+const RESTRICTED_TYPES = new Set(['골드박스','타임특가']);
+const RESTRICT_DAYS = 14;
 const STORAGE_KEY = 'promotion_state_local';
 
 let data = [];        // rows
@@ -278,6 +300,24 @@ const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<'
 const fmtN = n => (n==null||!isFinite(n)) ? '' : Math.round(n).toLocaleString('ko-KR');
 const fmtPct = n => (n==null||!isFinite(n)) ? '' : (n*100).toFixed(1)+'%';
 const parseN = v => { if(v==null||v==='') return null; const n=parseFloat(String(v).replace(/[,\s%]/g,'')); return isFinite(n)?n:null; };
+
+/* ═══════════════════════ 14일 중복 검사 (골드박스/타임특가) ═══════════════════════ */
+function findConflict(row) {
+  if (!RESTRICTED_TYPES.has(row.type)) return null;
+  const sku = String(row.skuId||'').trim();
+  if (!sku || !row.date) return null;
+  const d0 = new Date(row.date); if (isNaN(d0)) return null;
+  for (const other of data) {
+    if (other.id === row.id) continue;
+    if (!RESTRICTED_TYPES.has(other.type)) continue;
+    if (String(other.skuId||'').trim() !== sku) continue;
+    if (!other.date) continue;
+    const d1 = new Date(other.date); if (isNaN(d1)) continue;
+    const diff = Math.abs(Math.round((d0 - d1) / 86400000));
+    if (diff < RESTRICT_DAYS) return { other, diff };
+  }
+  return null;
+}
 
 /* ═══════════════════════ 파생 계산 ═══════════════════════ */
 function derive(r) {
@@ -326,6 +366,7 @@ function rowHtml(r) {
   const typeCls = d ? (r.type||'') : '';
   const missingSku = r.skuId && !d.m;
   const missingVP = r.skuId && !d.viid;
+  const conflict = findConflict(r);
   return `<tr data-id="${r.id}">
     <td><input type="date" data-k="date" value="${esc(r.date||'')}"></td>
     <td>
@@ -334,7 +375,7 @@ function rowHtml(r) {
         ${TYPES.map(t=>`<option value="${t}" ${r.type===t?'selected':''}>${t}</option>`).join('')}
       </select>
     </td>
-    <td><input type="text" data-k="skuId" value="${esc(r.skuId||'')}" placeholder="SKU"></td>
+    <td class="${conflict?'sku-conflict':''}"><input type="text" data-k="skuId" value="${esc(r.skuId||'')}" placeholder="SKU"${conflict?` title="14일 이내 동일 SKU ${conflict.other.type} 진행 (${conflict.other.date}, ${conflict.diff}일 차)"`:''}>${conflict?`<span class="conflict-tip" title="14일 이내 동일 SKU ${conflict.other.type} 진행 (${conflict.other.date})">!</span>`:''}</td>
     <td class="calc ${missingVP?'missing':''}">${esc(d.viid) || (missingVP?'―':'')}</td>
     <td class="calc ${missingVP?'missing':''}">${esc(d.pid) || (missingVP?'―':'')}</td>
     <td class="left calc ${missingSku?'missing':''}" title="${esc(d.skuName)}">${esc(d.skuName) || (missingSku?'매칭 SKU 없음':'')}</td>
@@ -360,7 +401,7 @@ function wireRow() {
         row[el.dataset.k] = el.value;
         save();
         // SKU/할인율 변경 시 즉시 파생값 다시 그리기
-        if (el.dataset.k === 'skuId' || el.dataset.k === 'discountRate' || el.dataset.k === 'type') {
+        if (el.dataset.k === 'skuId' || el.dataset.k === 'discountRate' || el.dataset.k === 'type' || el.dataset.k === 'date') {
           render();
         }
       });
