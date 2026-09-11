@@ -279,6 +279,28 @@
 
   .missing { color: #b89968; font-weight: 600; }
 
+  /* 기획전·즉시할인 그룹 헤더 (같은 날짜 범위/기획전명끼리 묶음) */
+  tbody tr.group-header td {
+    background: var(--surface-alt);
+    border-top: 2px solid var(--border-strong);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  tbody tr.group-header .group-count {
+    display: inline-block;
+    margin-left: 10px;
+    padding: 1px 8px;
+    background: var(--accent-soft);
+    color: var(--accent-dark);
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
   /* 판매가 편집 셀 (사이트 자체할인 델타 표시) */
   td.price-cell { position: relative; padding: 4px 8px; }
   td.price-cell .price-delta {
@@ -767,9 +789,38 @@ function render() {
   });
   visible = sortByDate(visible);
   $('emptyState').style.display = visible.length ? 'none' : 'block';
-  $('tbody').innerHTML = visible.map(r => rowHtml(r)).join('');
+  // 기획전·즉시할인 탭은 날짜 범위별 그룹 헤더로 묶어 표시
+  if (activeTab === '기획전' || activeTab === '즉시할인') {
+    $('tbody').innerHTML = buildGroupedRows(visible, activeTab);
+  } else {
+    $('tbody').innerHTML = visible.map(r => rowHtml(r)).join('');
+  }
   wireRow();
   restoreFocus(focusInfo);
+}
+
+function buildGroupedRows(rows, tabType) {
+  // 그룹 키: 시작일~종료일 (+ 기획전은 title 포함)
+  const groups = [];
+  const map = new Map();
+  rows.forEach(r => {
+    const range = `${r.date||''}~${r.endDate||''}`;
+    const key = tabType === '기획전' ? `${range}|${r.title||''}` : range;
+    if (!map.has(key)) {
+      const g = { key, range, title: r.title||'', rows: [] };
+      map.set(key, g);
+      groups.push(g);
+    }
+    map.get(key).rows.push(r);
+  });
+  // 컬럼 수: 이 표는 총 20 컬럼 (날짜부터 삭제까지)
+  const COLSPAN = 20;
+  return groups.map(g => {
+    const rangeText = g.range === '~' ? '(날짜 미지정)' : g.range.replace(/^~/, '(시작일 없음) ~ ').replace(/~$/, ' ~ (종료일 없음)');
+    const titlePart = (tabType === '기획전' && g.title) ? ` · <b>${esc(g.title)}</b>` : '';
+    const header = `<tr class="group-header"><td colspan="${COLSPAN}">${esc(rangeText)}${titlePart}<span class="group-count">${g.rows.length}건</span></td></tr>`;
+    return header + g.rows.map(r => rowHtml(r)).join('');
+  }).join('');
 }
 
 function captureFocus() {
