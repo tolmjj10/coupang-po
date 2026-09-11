@@ -355,6 +355,32 @@
     font-variant-numeric: tabular-nums;
   }
   .exp-group-total .label { font-size: 11px; color: var(--hint); font-weight: 500; margin-right: 6px; letter-spacing: 0.02em; }
+
+  /* 기획전 뷰 */
+  .plan-group-head { gap: 12px; flex-wrap: wrap; }
+  .plan-range { display: flex; align-items: center; gap: 4px; }
+  .plan-range input[type="date"] {
+    height: 30px; padding: 0 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 13px; font-weight: 600;
+    background: #fff; color: var(--text);
+    width: 140px;
+  }
+  .plan-range .tilde { color: var(--hint); font-size: 12px; padding: 0 2px; }
+  .plan-title-input {
+    height: 30px; padding: 0 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    background: #fff; color: var(--text);
+    min-width: 200px; flex: 1;
+    outline: none;
+  }
+  .plan-title-input:focus { border-color: var(--accent); }
+  .plan-table-wrap { overflow-x: auto; }
+  .plan-table-wrap table { min-width: 100%; }
   .exp-group table { width: 100%; border-collapse: collapse; }
   .exp-add-row {
     padding: 8px 14px;
@@ -570,6 +596,7 @@
   </div>
 
   <div id="expWrap" style="display:none"></div>
+  <div id="planWrap" style="display:none"></div>
 </div>
 
 <!-- 달력 모달 -->
@@ -775,12 +802,22 @@ function render() {
   if (activeTab === '체험단') {
     $('mainWrap').style.display = 'none';
     $('expWrap').style.display = 'block';
+    $('planWrap').style.display = 'none';
     renderExperience();
+    restoreFocus(focusInfo);
+    return;
+  }
+  if (activeTab === '기획전') {
+    $('mainWrap').style.display = 'none';
+    $('expWrap').style.display = 'none';
+    $('planWrap').style.display = 'block';
+    renderPlan();
     restoreFocus(focusInfo);
     return;
   }
   $('mainWrap').style.display = 'block';
   $('expWrap').style.display = 'none';
+  $('planWrap').style.display = 'none';
   // 전체 탭에선 체험단 제외 (별도 뷰이므로) + 월 필터
   let visible = data.filter(r => {
     if (r.type === '체험단') return false;
@@ -790,7 +827,7 @@ function render() {
   visible = sortByDate(visible);
   $('emptyState').style.display = visible.length ? 'none' : 'block';
   // 기획전·즉시할인 탭은 날짜 범위별 그룹 헤더로 묶어 표시
-  if (activeTab === '기획전' || activeTab === '즉시할인') {
+  if (activeTab === '즉시할인') {
     $('tbody').innerHTML = buildGroupedRows(visible, activeTab);
   } else {
     $('tbody').innerHTML = visible.map(r => rowHtml(r)).join('');
@@ -922,13 +959,181 @@ function renderExperience() {
       </div>
     </div>`;
   });
-  html += `<div class="exp-new-date">
-    <span>새 날짜 그룹 만들기:</span>
-    <input type="date" id="expNewDate">
-    <button class="btn primary" id="expNewBtn">＋ 그룹 추가</button>
-  </div>`;
   $('expWrap').innerHTML = html;
   wireExperience();
+}
+
+/* ═══════════════════════ 기획전 뷰 (체험단과 동일한 그룹 카드 구조) ═══════════════════════ */
+function renderPlan() {
+  const rows = data.filter(r => r.type === '기획전' && rowInMonth(r, activeMonth));
+  // 그룹 키: 시작일 + 종료일 + 기획전명
+  const groups = [];
+  const map = new Map();
+  rows.forEach(r => {
+    const key = `${r.date||''}|${r.endDate||''}|${r.title||''}`;
+    if (!map.has(key)) {
+      const g = { key, date: r.date||'', endDate: r.endDate||'', title: r.title||'', rows: [] };
+      map.set(key, g);
+      groups.push(g);
+    }
+    map.get(key).rows.push(r);
+  });
+  const sortedGroups = sortDir === 'none' ? groups : [...groups].sort((a,b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return (a.date||'').localeCompare(b.date||'') * dir;
+  });
+  let html = '';
+  if (sortedGroups.length === 0) {
+    html = `<div class="empty" style="background:var(--card);border:1px solid var(--border);border-radius:12px;">
+      <div class="big">등록된 기획전이 없습니다</div>
+      <div>상단 [＋ 프로모션 추가] 버튼으로 시작하세요</div>
+    </div>`;
+  }
+  sortedGroups.forEach(g => {
+    const rowsHtml = g.rows.map(r => planRowHtml(r)).join('');
+    html += `<div class="exp-group" data-plan-key="${esc(g.key)}">
+      <div class="exp-group-head plan-group-head">
+        <div class="plan-range">
+          <input type="date" class="plan-date-start" value="${esc(g.date)}" data-plan-key="${esc(g.key)}">
+          <span class="tilde">~</span>
+          <input type="date" class="plan-date-end" value="${esc(g.endDate)}" data-plan-key="${esc(g.key)}">
+        </div>
+        <input type="text" class="plan-title-input" value="${esc(g.title)}" placeholder="기획전명" data-plan-key="${esc(g.key)}">
+        <span class="exp-group-total"><span class="label">SKU</span>${g.rows.length}건</span>
+      </div>
+      <div class="plan-table-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:120px">SKU ID</th>
+            <th style="width:104px">VIID</th>
+            <th style="width:104px">PID</th>
+            <th style="width:180px" class="left">SKU 명</th>
+            <th style="width:88px">할인율/금액</th>
+            <th style="width:118px">판매가</th>
+            <th style="width:90px">할인금액</th>
+            <th style="width:118px">프로모션가</th>
+            <th style="width:100px">현재오아마진</th>
+            <th style="width:92px">프로모션<br>마진(-vat)</th>
+            <th style="width:92px">프로모션<br>오아마진율</th>
+            <th style="width:98px">공급가(-vat)</th>
+            <th style="width:70px">수량</th>
+            <th style="width:76px">판매량</th>
+            <th style="width:74px">판매율</th>
+            <th style="width:90px">총 매출</th>
+            <th style="width:86px">총 마진</th>
+            <th style="width:32px"></th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+      <div class="exp-add-row">
+        <button class="btn" data-add-plan="${esc(g.key)}">＋ 이 기획전에 SKU 추가</button>
+      </div>
+    </div>`;
+  });
+  $('planWrap').innerHTML = html;
+  wirePlan();
+}
+
+function planRowHtml(r) {
+  const d = derive(r);
+  const missingSku = r.skuId && !d.m;
+  const missingVP = r.skuId && !d.viid;
+  let rateCls = 'calc num';
+  if (d.soldRate != null) {
+    if (d.soldRate >= 0.8) rateCls += ' rate-good';
+    else if (d.soldRate >= 0.5) rateCls += ' rate-mid';
+    else rateCls += ' rate-bad';
+  }
+  return `<tr data-id="${r.id}">
+    <td><input type="text" data-k="skuId" value="${esc(r.skuId||'')}"></td>
+    <td class="calc id-cell ${missingVP?'missing':''}">${esc(d.viid) || (missingVP?'―':'')}</td>
+    <td class="calc id-cell ${missingVP?'missing':''}">${esc(d.pid) || (missingVP?'―':'')}</td>
+    <td class="left calc name-cell ${missingSku?'missing':''}" title="${esc(d.skuName)}">${esc(d.skuName) || (missingSku?'매칭 SKU 없음':'')}</td>
+    <td><input type="text" inputmode="decimal" data-k="discountRate" value="${fmtDiscount(r.discountRate)}" title="100 미만 → % / 100 이상 → 원화" class="disc-input"></td>
+    <td class="price-cell right">
+      ${(d.priceDelta && d.priceDelta > 0) ? `<div class="price-delta">-${fmtN(d.priceDelta)}</div>` : ''}
+      <input type="text" inputmode="numeric" data-k="priceEdit" value="${d.salePrice!=null?fmtN(d.salePrice):''}" class="num-input">
+    </td>
+    <td class="right calc num">${fmtN(d.discAmt)}</td>
+    <td class="right calc num strong">${fmtN(d.promoPrice)}</td>
+    <td class="right calc num">${fmtN(d.curMargin)}</td>
+    <td class="right calc num strong">${fmtN(d.promoMargin)}</td>
+    <td class="right calc num">${fmtPct(d.promoMarginRate)}</td>
+    <td class="right calc num">${fmtN(d.supply)}</td>
+    <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="qty" value="${esc(r.qty??'')}"></td>
+    <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="sold" value="${esc(r.sold??'')}"></td>
+    <td class="right ${rateCls} strong">${fmtPct(d.soldRate)}</td>
+    <td class="right calc num">${fmtN(d.totalRevenue)}</td>
+    <td class="right calc num strong">${fmtN(d.totalMargin)}</td>
+    <td><button class="row-del" title="삭제" data-row-id="${esc(r.id)}" onmousedown="event.preventDefault()" onclick="window.deletePromoRow(this.dataset.rowId)">✕</button></td>
+  </tr>`;
+}
+
+function wirePlan() {
+  // SKU 행 편집
+  $('planWrap').querySelectorAll('tr[data-id]').forEach(tr => {
+    const id = tr.dataset.id;
+    tr.querySelectorAll('input.disc-input, input.num-input').forEach(el => {
+      el.addEventListener('focus', () => {
+        const raw = parseN(el.value);
+        el.value = raw != null ? String(raw) : '';
+        el.select();
+      });
+    });
+    tr.querySelectorAll('input').forEach(el => {
+      el.addEventListener('change', () => {
+        const row = data.find(x => x.id === id); if (!row) return;
+        const k = el.dataset.k;
+        if (k === 'priceEdit') {
+          const v = el.value.replace(/[,\s]/g,'');
+          row.priceEdit = v === '' ? null : v;
+        } else {
+          row[k] = el.value;
+        }
+        if (k === 'skuId') {
+          const m = marginMap[String(row.skuId||'').trim()];
+          row.priceBase = m ? m.price : null;
+          row.priceEdit = null;
+        }
+        save();
+        if (k === 'skuId' || k === 'discountRate' || k === 'sold' || k === 'qty' || k === 'priceEdit') {
+          scheduleRender();
+        }
+      });
+    });
+  });
+  // 그룹 헤더의 시작일/종료일/기획전명 변경 → 그룹의 모든 행에 반영
+  const applyGroupEdit = (key, patch) => {
+    const [d0, d1, t] = key.split('|');
+    data.forEach(r => {
+      if (r.type === '기획전' && (r.date||'') === d0 && (r.endDate||'') === d1 && (r.title||'') === t) {
+        Object.assign(r, patch);
+      }
+    });
+    save(); render();
+  };
+  $('planWrap').querySelectorAll('.plan-date-start').forEach(el => {
+    el.addEventListener('change', () => applyGroupEdit(el.dataset.planKey, { date: el.value }));
+  });
+  $('planWrap').querySelectorAll('.plan-date-end').forEach(el => {
+    el.addEventListener('change', () => applyGroupEdit(el.dataset.planKey, { endDate: el.value }));
+  });
+  $('planWrap').querySelectorAll('.plan-title-input').forEach(el => {
+    el.addEventListener('change', () => applyGroupEdit(el.dataset.planKey, { title: el.value }));
+  });
+  // 이 기획전에 SKU 추가
+  $('planWrap').querySelectorAll('[data-add-plan]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const [d0, d1, t] = btn.dataset.addPlan.split('|');
+      data.push({
+        id: uid(), type: '기획전',
+        date: d0, endDate: d1, title: t,
+        skuId: '', discountRate: '', qty: ''
+      });
+      save(); render();
+    });
+  });
 }
 
 window.deleteExpRow = async function(id) {
@@ -981,17 +1186,6 @@ function wireExperience() {
       });
       save(); render();
     });
-  });
-  // 새 날짜 그룹
-  const newBtn = document.getElementById('expNewBtn');
-  if (newBtn) newBtn.addEventListener('click', () => {
-    const v = document.getElementById('expNewDate').value;
-    if (!v) { alert('날짜를 선택하세요'); return; }
-    data.push({
-      id: uid(), type: '체험단', date: v,
-      skuId: '', qty: '', reviewCount: '', reviewChecked: false
-    });
-    save(); render();
   });
 }
 
