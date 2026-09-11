@@ -144,6 +144,20 @@
     z-index: 2;
     letter-spacing: -0.01em;
     line-height: 1.25;
+    overflow: visible;
+  }
+  th .col-resizer {
+    position: absolute;
+    top: 0; right: -3px;
+    width: 8px; height: 100%;
+    cursor: col-resize;
+    user-select: none;
+    z-index: 3;
+    background: transparent;
+  }
+  th .col-resizer:hover, th .col-resizer.active {
+    background: var(--accent);
+    opacity: 0.5;
   }
   th:last-child, td:last-child { border-right: 0; }
   tbody tr:hover td { background: var(--accent-softer); }
@@ -189,20 +203,11 @@
     background-position: right 5px center;
   }
 
-  /* 유형별 행 배경 (은은한 톤) */
-  tbody tr.row-골드박스 td { background: #fbf4e2; }
-  tbody tr.row-타임특가 td { background: #faece0; }
-  tbody tr.row-기획전   td { background: #edf1ec; }
-  tbody tr.row-즉시할인 td { background: #f2e9ef; }
-  tbody tr.row-골드박스:hover td { background: #f6ebd0; }
-  tbody tr.row-타임특가:hover td { background: #f4e0cd; }
-  tbody tr.row-기획전:hover td   { background: #e2eae1; }
-  tbody tr.row-즉시할인:hover td { background: #e9dce4; }
-  /* 유형별 배경 적용 시에도 계산 셀은 살짝 더 진한 톤 유지 */
-  tbody tr.row-골드박스 td.calc { background: #f6ecd0; }
-  tbody tr.row-타임특가 td.calc { background: #f4dfc9; }
-  tbody tr.row-기획전   td.calc { background: #e2ebe1; }
-  tbody tr.row-즉시할인 td.calc { background: #ebdde5; }
+  /* 유형별 색상: 프로모션(2번째) 컬럼에만 적용 */
+  tbody tr.row-골드박스 td:nth-child(2) { background: #f5eddb; color: #7a5a1a; font-weight: 600; }
+  tbody tr.row-타임특가 td:nth-child(2) { background: #f5e6d9; color: #8a4a2a; font-weight: 600; }
+  tbody tr.row-기획전   td:nth-child(2) { background: #e6ece6; color: #4a5748; font-weight: 600; }
+  tbody tr.row-즉시할인 td:nth-child(2) { background: #efe4ea; color: #6a4a5a; font-weight: 600; }
 
   .type-pill {
     display: inline-flex; align-items: center;
@@ -448,9 +453,9 @@
     <table id="tbl">
       <thead>
         <tr>
-          <th style="width:170px">날짜</th>
+          <th style="width:130px">날짜</th>
           <th style="width:98px">프로모션</th>
-          <th style="width:82px">SKU ID</th>
+          <th style="width:110px">SKU ID</th>
           <th style="width:110px">VIID</th>
           <th style="width:110px">PID</th>
           <th style="width:220px" class="left">SKU 명</th>
@@ -771,7 +776,7 @@ function analyticsCellsHtml(r, d) {
     else rateCls += ' rate-bad';
   }
   return `
-    <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="sold" value="${esc(r.sold??'')}" placeholder="판매"></td>
+    <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="sold" value="${esc(r.sold??'')}"></td>
     <td class="right ${rateCls} strong">${fmtPct(d.soldRate)}</td>
     <td class="right calc num">${fmtN(d.totalRevenue)}</td>
     <td class="right calc num strong">${fmtN(d.totalMargin)}</td>`;
@@ -1134,9 +1139,54 @@ $('reloadBtn').addEventListener('click', async () => {
   saveStatus('갱신 완료');
 });
 
+/* ═══════════════════════ 컬럼 리사이즈 ═══════════════════════ */
+const COL_WIDTH_KEY = 'promotion_col_widths';
+function initColResize() {
+  const ths = document.querySelectorAll('#tbl thead th');
+  // 저장된 너비 복원
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(COL_WIDTH_KEY)||'{}') || {}; } catch(_) {}
+  ths.forEach((th, idx) => {
+    if (saved[idx] && idx < ths.length - 1) th.style.width = saved[idx] + 'px';
+    // 마지막(삭제 버튼) 컬럼은 리사이즈 제외
+    if (idx === ths.length - 1) return;
+    // 이미 붙어있으면 재삽입 방지
+    if (th.querySelector('.col-resizer')) return;
+    const grip = document.createElement('span');
+    grip.className = 'col-resizer';
+    th.appendChild(grip);
+    grip.addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation();
+      grip.classList.add('active');
+      const startX = e.clientX;
+      const startW = th.getBoundingClientRect().width;
+      document.body.style.cursor = 'col-resize';
+      function onMove(ev) {
+        const w = Math.max(40, startW + (ev.clientX - startX));
+        th.style.width = w + 'px';
+      }
+      function onUp() {
+        grip.classList.remove('active');
+        document.body.style.cursor = '';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        // 저장
+        const widths = {};
+        document.querySelectorAll('#tbl thead th').forEach((h, i) => {
+          widths[i] = Math.round(h.getBoundingClientRect().width);
+        });
+        try { localStorage.setItem(COL_WIDTH_KEY, JSON.stringify(widths)); } catch(_) {}
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
+}
+
 /* ═══════════════════════ Boot ═══════════════════════ */
 (async () => {
   render();
+  initColResize();
   await Promise.all([loadMargin(), loadViidPid()]);
   await loadRemote();
 })();
