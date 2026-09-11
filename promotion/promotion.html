@@ -108,6 +108,25 @@
     font-size: 11px; font-weight: 700;
   }
   .tab:not(.active) .count { background: var(--accent-soft); color: var(--accent-dark); }
+  .month-bar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    flex-wrap: wrap;
+  }
+  .month-bar-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--hint);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .month-tabs .tab { height: 28px; padding: 0 11px; font-size: 12px; font-weight: 500; }
+  .month-tabs .tab.active { font-weight: 600; }
+
   .tab.tab-icon { width: 34px; padding: 0; justify-content: center; color: var(--hint); }
   .tab.tab-icon:disabled { opacity: 0.35; cursor: not-allowed; }
   .tab.tab-icon:not(:disabled):hover { color: var(--text); }
@@ -204,10 +223,10 @@
   }
 
   /* 유형별 색상: 프로모션(2번째) 컬럼에만 적용 */
-  tbody tr.row-골드박스 td:nth-child(2) { background: #f5eddb; color: #7a5a1a; font-weight: 600; }
-  tbody tr.row-타임특가 td:nth-child(2) { background: #f5e6d9; color: #8a4a2a; font-weight: 600; }
-  tbody tr.row-기획전   td:nth-child(2) { background: #e6ece6; color: #4a5748; font-weight: 600; }
-  tbody tr.row-즉시할인 td:nth-child(2) { background: #efe4ea; color: #6a4a5a; font-weight: 600; }
+  tbody tr.row-골드박스 td:nth-child(2) { background: #efe4ea; color: #6a4a5a; font-weight: 600; }
+  tbody tr.row-타임특가 td:nth-child(2) { background: #e6ece6; color: #4a5748; font-weight: 600; }
+  tbody tr.row-기획전   td:nth-child(2) { background: #f5e6d9; color: #8a4a2a; font-weight: 600; }
+  tbody tr.row-즉시할인 td:nth-child(2) { background: #f5eddb; color: #7a5a1a; font-weight: 600; }
 
   .type-pill {
     display: inline-flex; align-items: center;
@@ -215,10 +234,10 @@
     border-radius: 10px;
     font-size: 11px; font-weight: 600;
   }
-  .type-골드박스 { background: var(--gold-soft); color: #7a5a1a; }
-  .type-타임특가 { background: var(--warm-soft); color: #8a4a2a; }
-  .type-기획전   { background: var(--sage-soft); color: #4a5748; }
-  .type-즉시할인 { background: var(--plum-soft); color: #6a4a5a; }
+  .type-골드박스 { background: var(--plum-soft); color: #6a4a5a; }
+  .type-타임특가 { background: var(--sage-soft); color: #4a5748; }
+  .type-기획전   { background: var(--warm-soft); color: #8a4a2a; }
+  .type-즉시할인 { background: var(--gold-soft); color: #7a5a1a; }
 
   .row-del {
     width: 22px; height: 22px;
@@ -395,10 +414,10 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     cursor: default;
   }
-  .cal-entry.골드박스 { background: var(--gold-soft); color: #7a5a1a; }
-  .cal-entry.타임특가 { background: var(--warm-soft); color: #8a4a2a; }
-  .cal-entry.기획전   { background: var(--sage-soft); color: #4a5748; }
-  .cal-entry.즉시할인 { background: var(--plum-soft); color: #6a4a5a; }
+  .cal-entry.골드박스 { background: var(--plum-soft); color: #6a4a5a; }
+  .cal-entry.타임특가 { background: var(--sage-soft); color: #4a5748; }
+  .cal-entry.기획전   { background: var(--warm-soft); color: #8a4a2a; }
+  .cal-entry.즉시할인 { background: var(--gold-soft); color: #7a5a1a; }
   .cal-entry.체험단   { background: var(--slate-soft); color: #3a4a5a; }
 
   .date-cell .date-stack { display: flex; flex-direction: column; gap: 3px; align-items: stretch; }
@@ -436,6 +455,11 @@
     <span id="saveStatus">—</span>
   </div>
 
+  <div class="month-bar">
+    <span class="month-bar-label">월별</span>
+    <div class="tabs month-tabs" id="monthTabs"></div>
+  </div>
+
   <div class="toolbar">
     <div class="tabs" id="tabs"></div>
     <div class="spacer"></div>
@@ -453,14 +477,14 @@
     <table id="tbl">
       <thead>
         <tr>
-          <th style="width:130px">날짜</th>
-          <th style="width:98px">프로모션</th>
-          <th style="width:110px">SKU ID</th>
+          <th style="width:108px">날짜</th>
+          <th style="width:112px">프로모션</th>
+          <th style="width:124px">SKU ID</th>
           <th style="width:110px">VIID</th>
           <th style="width:110px">PID</th>
           <th style="width:220px" class="left">SKU 명</th>
           <th style="width:78px">할인율/금액</th>
-          <th style="width:82px">판매가</th>
+          <th style="width:96px">판매가</th>
           <th style="width:82px">할인금액</th>
           <th style="width:82px">프로모션가</th>
           <th style="width:88px">현재오아마진</th>
@@ -516,13 +540,21 @@ let data = [];        // rows
 let marginMap = {};   // skuId → {name, cost, price, originN, supply, curMargin}
 let viidMap = {};     // skuId → {viid, pid}
 let activeTab = '전체';
+const _now = new Date();
+let activeMonth = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}`;
 
 const $ = id => document.getElementById(id);
 const uid = () => 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtN = n => (n==null||!isFinite(n)) ? '' : Math.round(n).toLocaleString('ko-KR');
 const fmtPct = n => (n==null||!isFinite(n)) ? '' : (n*100).toFixed(1)+'%';
-const parseN = v => { if(v==null||v==='') return null; const n=parseFloat(String(v).replace(/[,\s%]/g,'')); return isFinite(n)?n:null; };
+const parseN = v => { if(v==null||v==='') return null; const n=parseFloat(String(v).replace(/[,\s%원]/g,'')); return isFinite(n)?n:null; };
+function fmtDiscount(v) {
+  const n = parseN(v);
+  if (n == null) return '';
+  if (n < 100) return String(n) + '%';
+  return Math.round(n).toLocaleString('ko-KR');
+}
 
 /* ═══════════════════════ 14일 중복 검사 (골드박스/타임특가) ═══════════════════════ */
 function findConflict(row) {
@@ -579,9 +611,42 @@ function derive(r) {
 }
 
 /* ═══════════════════════ Render ═══════════════════════ */
+function rowInMonth(r, ym) {
+  if (ym === '__ALL__') return true;
+  if (!r.date) return false;
+  const rowStart = r.date.slice(0,7);
+  const rowEnd = (r.endDate || r.date).slice(0,7);
+  // 기간이 걸치는 달이면 포함 (기획전/즉시할인 등)
+  return rowStart <= ym && ym <= rowEnd;
+}
+
+function renderMonthTabs() {
+  const monthsSet = new Set();
+  data.forEach(r => {
+    if (r.date && /^\d{4}-\d{2}/.test(r.date)) monthsSet.add(r.date.slice(0,7));
+    if (r.endDate && /^\d{4}-\d{2}/.test(r.endDate)) monthsSet.add(r.endDate.slice(0,7));
+  });
+  monthsSet.add(activeMonth); // 현재 활성 월은 데이터가 없어도 표시
+  const now = new Date();
+  monthsSet.add(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`);
+  const months = [...monthsSet].sort();
+  const options = [...months, '__ALL__'];
+  const counts = {};
+  months.forEach(m => counts[m] = data.filter(r => rowInMonth(r, m)).length);
+  counts['__ALL__'] = data.length;
+  $('monthTabs').innerHTML = options.map(m => {
+    const label = m === '__ALL__' ? '전체 기간' : `${m.slice(0,4)}년 ${parseInt(m.slice(5,7),10)}월`;
+    return `<button class="tab ${activeMonth===m?'active':''}" data-month="${m}">${label}<span class="count">${counts[m]||0}</span></button>`;
+  }).join('');
+  $('monthTabs').querySelectorAll('.tab').forEach(el => {
+    el.addEventListener('click', () => { activeMonth = el.dataset.month; render(); });
+  });
+}
+
 function renderTabs() {
-  const counts = { '전체': data.length };
-  TYPES.forEach(t => counts[t] = data.filter(r => r.type === t).length);
+  const inMonth = data.filter(r => rowInMonth(r, activeMonth));
+  const counts = { '전체': inMonth.filter(r => r.type !== '체험단').length };
+  TYPES.forEach(t => counts[t] = inMonth.filter(r => r.type === t).length);
   const tabs = ['전체', ...TYPES];
   const undoDisabled = undoStack.length === 0 ? 'disabled' : '';
   const redoDisabled = redoStack.length === 0 ? 'disabled' : '';
@@ -610,6 +675,7 @@ function renderTabs() {
 }
 
 function render() {
+  renderMonthTabs();
   renderTabs();
   if (activeTab === '체험단') {
     $('mainWrap').style.display = 'none';
@@ -619,9 +685,10 @@ function render() {
   }
   $('mainWrap').style.display = 'block';
   $('expWrap').style.display = 'none';
-  // 전체 탭에선 체험단 제외 (별도 뷰이므로)
+  // 전체 탭에선 체험단 제외 (별도 뷰이므로) + 월 필터
   const visible = data.filter(r => {
     if (r.type === '체험단') return false;
+    if (!rowInMonth(r, activeMonth)) return false;
     return activeTab==='전체' || r.type === activeTab;
   });
   $('emptyState').style.display = visible.length ? 'none' : 'block';
@@ -631,7 +698,7 @@ function render() {
 
 /* ═══════════════════════ 체험단 뷰 ═══════════════════════ */
 function renderExperience() {
-  const rows = data.filter(r => r.type === '체험단');
+  const rows = data.filter(r => r.type === '체험단' && rowInMonth(r, activeMonth));
   // 날짜별 그룹화
   const groups = {};
   rows.forEach(r => {
@@ -742,7 +809,7 @@ function wireExperience() {
   $('expWrap').querySelectorAll('[data-add-exp]').forEach(btn => {
     btn.addEventListener('click', () => {
       const dk = btn.dataset.addExp;
-      data.unshift({
+      data.push({
         id: uid(),
         type: '체험단',
         date: dk === '(날짜 없음)' ? '' : dk,
@@ -756,7 +823,7 @@ function wireExperience() {
   if (newBtn) newBtn.addEventListener('click', () => {
     const v = document.getElementById('expNewDate').value;
     if (!v) { alert('날짜를 선택하세요'); return; }
-    data.unshift({
+    data.push({
       id: uid(), type: '체험단', date: v,
       skuId: '', qty: '', reviewCount: '', reviewChecked: false
     });
@@ -820,14 +887,14 @@ function rowHtml(r) {
         ${TYPES.map(t=>`<option value="${t}" ${r.type===t?'selected':''}>${t}</option>`).join('')}
       </select>
     </td>
-    <td class="${conflict?'sku-conflict':''}"><input type="text" data-k="skuId" value="${esc(r.skuId||'')}" placeholder="SKU"${conflict?` title="14일 이내 동일 SKU ${conflict.other.type} 진행 (${conflict.other.date}, ${conflict.diff}일 차)"`:''}>${conflict?`<span class="conflict-tip" title="14일 이내 동일 SKU ${conflict.other.type} 진행 (${conflict.other.date})">!</span>`:''}</td>
+    <td class="${conflict?'sku-conflict':''}"><input type="text" data-k="skuId" value="${esc(r.skuId||'')}"${conflict?` title="14일 이내 동일 SKU ${conflict.other.type} 진행 (${conflict.other.date}, ${conflict.diff}일 차)"`:''}>${conflict?`<span class="conflict-tip" title="14일 이내 동일 SKU ${conflict.other.type} 진행 (${conflict.other.date})">!</span>`:''}</td>
     <td class="calc ${missingVP?'missing':''}">${esc(d.viid) || (missingVP?'―':'')}</td>
     <td class="calc ${missingVP?'missing':''}">${esc(d.pid) || (missingVP?'―':'')}</td>
     <td class="left calc ${missingSku?'missing':''}" title="${esc(d.skuName)}">${esc(d.skuName) || (missingSku?'매칭 SKU 없음':'')}</td>
-    <td><input type="number" data-k="discountRate" step="0.1" value="${r.discountRate??''}" placeholder="% 또는 원" title="100 미만 → % / 100 이상 → 원화"></td>
+    <td><input type="text" inputmode="decimal" data-k="discountRate" value="${fmtDiscount(r.discountRate)}" title="100 미만 → % / 100 이상 → 원화" class="disc-input"></td>
     <td class="price-cell right">
       ${(d.priceDelta && d.priceDelta > 0) ? `<div class="price-delta">-${fmtN(d.priceDelta)}</div>` : ''}
-      <input type="text" inputmode="numeric" data-k="priceEdit" value="${d.salePrice!=null?fmtN(d.salePrice):''}" placeholder="판매가" class="num-input">
+      <input type="text" inputmode="numeric" data-k="priceEdit" value="${d.salePrice!=null?fmtN(d.salePrice):''}" class="num-input">
     </td>
     <td class="right calc num">${fmtN(d.discAmt)}</td>
     <td class="right calc num strong">${fmtN(d.promoPrice)}</td>
@@ -844,6 +911,14 @@ function rowHtml(r) {
 function wireRow() {
   $('tbody').querySelectorAll('tr').forEach(tr => {
     const id = tr.dataset.id;
+    // 할인율/금액·판매가 편집 편의: 포커스 시 원본값(포맷 제거) 보이도록
+    tr.querySelectorAll('input.disc-input, input.num-input').forEach(el => {
+      el.addEventListener('focus', () => {
+        const raw = parseN(el.value);
+        el.value = raw != null ? String(raw) : '';
+        el.select();
+      });
+    });
     tr.querySelectorAll('input, select').forEach(el => {
       el.addEventListener('change', () => {
         const row = data.find(x => x.id === id); if (!row) return;
@@ -1054,7 +1129,7 @@ $('addBtn').addEventListener('click', () => {
   const today = new Date();
   const ymd = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   const initialType = (activeTab && activeTab !== '전체') ? activeTab : '';
-  data.unshift({ id: uid(), date: ymd, type: initialType, skuId: '', discountRate: '', qty: '' });
+  data.push({ id: uid(), date: ymd, type: initialType, skuId: '', discountRate: '', qty: '' });
   save(); render();
 });
 $('saveBtn').addEventListener('click', () => { clearTimeout(_saveTimer); saveRemote(); });
@@ -1120,7 +1195,7 @@ function calEntriesForDate(d) {
       if (inRange) out.push({ type:'즉시할인', text:`즉시할인: ${name}`, tooltip:`${r.date||''}${r.endDate?'~'+r.endDate:''} ${name}` });
     } else if (r.date === ymd) {
       if (r.type === '골드박스') out.push({ type:'골드박스', text:`골드박스: ${name}`, tooltip:name });
-      else if (r.type === '타임특가') out.push({ type:'타임특가', text:`타임특가${r.time?' '+r.time+'시':''}: ${name}`, tooltip:name });
+      else if (r.type === '타임특가') out.push({ type:'타임특가', text:`${r.time?r.time+'시 ':''}타임특가: ${name}`, tooltip:name });
       else if (r.type === '체험단') out.push({ type:'체험단', text:`체험단: ${name}`, tooltip:name });
     }
   });
