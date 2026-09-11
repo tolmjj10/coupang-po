@@ -189,6 +189,7 @@
   }
   td.calc.strong { color: var(--text); font-weight: 600; }
   td.calc.id-cell { color: var(--hint); }
+  td.calc.name-cell { color: var(--text); }
   td.num { font-variant-numeric: tabular-nums; }
 
   /* 날짜 입력의 달력 아이콘 숨기기 (클릭 시 달력은 정상 열림) */
@@ -670,11 +671,11 @@ function renderMonthTabs() {
     if (r.date && /^\d{4}-\d{2}/.test(r.date)) monthsSet.add(r.date.slice(0,7));
     if (r.endDate && /^\d{4}-\d{2}/.test(r.endDate)) monthsSet.add(r.endDate.slice(0,7));
   });
-  monthsSet.add(activeMonth); // 현재 활성 월은 데이터가 없어도 표시
+  if (activeMonth && activeMonth !== '__ALL__') monthsSet.add(activeMonth); // 현재 활성 월은 데이터 없어도 표시. '__ALL__'은 뒤에서 붙이므로 제외
   const now = new Date();
   monthsSet.add(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`);
-  const months = [...monthsSet].sort();
-  const options = [...months, '__ALL__'];
+  const months = [...monthsSet].sort().reverse();
+  const options = ['__ALL__', ...months];
   const counts = {};
   months.forEach(m => counts[m] = data.filter(r => rowInMonth(r, m)).length);
   counts['__ALL__'] = data.length;
@@ -945,7 +946,7 @@ function rowHtml(r) {
     <td class="${conflict?'sku-conflict':''}"><input type="text" data-k="skuId" value="${esc(r.skuId||'')}"${conflict?` title="14일 이내 동일 SKU ${conflict.other.type} 진행 (${conflict.other.date}, ${conflict.diff}일 차)"`:''}></td>
     <td class="calc id-cell ${missingVP?'missing':''}">${esc(d.viid) || (missingVP?'―':'')}</td>
     <td class="calc id-cell ${missingVP?'missing':''}">${esc(d.pid) || (missingVP?'―':'')}</td>
-    <td class="left calc ${missingSku?'missing':''}" title="${esc(d.skuName)}">${esc(d.skuName) || (missingSku?'매칭 SKU 없음':'')}</td>
+    <td class="left calc name-cell ${missingSku?'missing':''}" title="${esc(d.skuName)}">${esc(d.skuName) || (missingSku?'매칭 SKU 없음':'')}</td>
     <td><input type="text" inputmode="decimal" data-k="discountRate" value="${fmtDiscount(r.discountRate)}" title="100 미만 → % / 100 이상 → 원화" class="disc-input"></td>
     <td class="price-cell right">
       ${(d.priceDelta && d.priceDelta > 0) ? `<div class="price-delta">-${fmtN(d.priceDelta)}</div>` : ''}
