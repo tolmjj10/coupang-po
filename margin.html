@@ -328,7 +328,7 @@ const COLS=[
     options:['이미용','욕실가전','모바일','겨울가전','여름가전','건강가전','주방가전','생활가전','인테리어/조명','제습기','공기청정기','육아','차량','애견']},
   {k:'sku',     label:'SKU #',       w:70,  align:'center', editable:true, type:'text'},
   {k:'name',    label:'상품명',      w:320, align:'left',   editable:true, type:'text', cls:'col-name'},
-  {k:'status',  label:'상태',        w:60,  align:'center', editable:true, type:'select', options:['판매','중지','단종','품절','단종예정']},
+  {k:'status',  label:'상태',        w:60,  align:'center', editable:true, type:'select', options:['판매','단종','품절','단종예정']},
   {k:'cost',    label:'매입가',      w:72,  align:'right',  editable:true, type:'num', hi:true},
   {k:'supply',  label:'공급가',      w:72,  align:'right',  calc:r=>r.cost!=null? r.cost/1.1 : null,           type:'num'},
   {k:'vat',     label:'부가세',      w:60,  align:'right',  calc:r=>r.cost!=null? r.cost - r.cost/1.1 : null,  type:'num'},
@@ -542,7 +542,7 @@ function renderCell(r, col){
   let inner=esc(display);
   if(col.k==='status' && display){
     const s=String(display).trim();
-    const cls=s==='판매'?'sell':(s==='중지'||s==='단종'||s==='품절'?'stop':'');
+    const cls=s==='판매'?'sell':(s==='단종'||s==='품절'?'stop':'');
     inner=`<span class="status-pill ${cls}">${esc(s)}</span>`;
   } else if(col.hi && display){
     inner=`<span class="pct">${inner}</span>`;
@@ -866,6 +866,7 @@ async function load(){
       const row={_id:uid(),...r};
       if(typeof row.status==='string') row.status=row.status.replace(/\s+/g,''); // 공백 제거해 '단종 예정' → '단종예정' 통합
       if(row.status==='예정') row.status='단종예정'; // 옛 값 마이그레이션
+      if(row.status==='중지') row.status=''; // '중지' 상태 제거
       return row;
     });
     if(colWidths){
