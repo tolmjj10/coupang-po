@@ -494,25 +494,25 @@
     <table id="tbl">
       <thead>
         <tr>
-          <th style="width:130px">날짜</th>
-          <th style="width:82px">프로모션</th>
-          <th style="width:124px">SKU ID</th>
-          <th style="width:110px">VIID</th>
-          <th style="width:110px">PID</th>
-          <th style="width:220px" class="left">SKU 명</th>
-          <th style="width:96px">할인율/금액</th>
-          <th style="width:118px">판매가</th>
-          <th style="width:108px">할인금액</th>
-          <th style="width:118px">프로모션가</th>
-          <th style="width:110px">현재오아마진</th>
-          <th style="width:112px">프로모션<br>마진(-vat)</th>
-          <th style="width:96px">프로모션<br>오아마진율</th>
-          <th style="width:108px">공급가(-vat)</th>
-          <th style="width:78px">수량</th>
-          <th style="width:80px">판매량</th>
-          <th style="width:78px">판매율</th>
-          <th style="width:128px">총 매출</th>
-          <th style="width:118px">총 마진</th>
+          <th style="width:132px">날짜</th>
+          <th style="width:90px">프로모션</th>
+          <th style="width:104px">SKU ID</th>
+          <th style="width:104px">VIID</th>
+          <th style="width:104px">PID</th>
+          <th style="width:180px" class="left">SKU 명</th>
+          <th style="width:88px">할인율/금액</th>
+          <th style="width:92px">판매가</th>
+          <th style="width:90px">할인금액</th>
+          <th style="width:92px">프로모션가</th>
+          <th style="width:100px">현재오아마진</th>
+          <th style="width:92px">프로모션<br>마진(-vat)</th>
+          <th style="width:92px">프로모션<br>오아마진율</th>
+          <th style="width:98px">공급가(-vat)</th>
+          <th style="width:70px">수량</th>
+          <th style="width:76px">판매량</th>
+          <th style="width:74px">판매율</th>
+          <th style="width:90px">총 매출</th>
+          <th style="width:86px">총 마진</th>
           <th style="width:32px"></th>
         </tr>
       </thead>
@@ -801,10 +801,12 @@ function wireExperience() {
         if (el.type === 'checkbox') row[k] = el.checked;
         else row[k] = el.value;
         save();
-        if (k === 'skuId' || k === 'qty' || k === 'reviewChecked') render();
+        if (k === 'skuId' || k === 'qty' || k === 'reviewChecked') setTimeout(render, 0);
       });
     });
-    tr.querySelector('.row-del').addEventListener('click', () => {
+    const delBtn = tr.querySelector('.row-del');
+    delBtn.addEventListener('mousedown', e => e.preventDefault());
+    delBtn.addEventListener('click', () => {
       if (!confirm('이 SKU를 삭제할까요?')) return;
       data = data.filter(x => x.id !== id);
       save(); render();
@@ -959,11 +961,15 @@ function wireRow() {
         }
         save();
         if (k === 'skuId' || k === 'discountRate' || k === 'type' || k === 'date' || k === 'sold' || k === 'qty' || k === 'priceEdit') {
-          render();
+          // 클릭 시퀀스 도중 DOM을 교체하면 click 이벤트가 유실됨. 다음 tick으로 지연
+          setTimeout(render, 0);
         }
       });
     });
-    tr.querySelector('.row-del').addEventListener('click', () => {
+    // 삭제: mousedown에서 preventDefault로 입력창 blur 방지 → 첫 클릭에 확실히 반응
+    const delBtn = tr.querySelector('.row-del');
+    delBtn.addEventListener('mousedown', e => e.preventDefault());
+    delBtn.addEventListener('click', () => {
       if (!confirm('이 행을 삭제할까요?')) return;
       data = data.filter(x => x.id !== id);
       save(); render();
