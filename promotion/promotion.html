@@ -814,10 +814,13 @@ function renderExperience() {
   wireExperience();
 }
 
-window.deleteExpRow = function(id) {
+window.deleteExpRow = async function(id) {
   if (!confirm('이 SKU를 삭제할까요?')) return;
   data = data.filter(x => String(x.id) !== String(id));
-  save(); render();
+  save();
+  render();
+  clearTimeout(_saveTimer);
+  await saveRemote();
 };
 
 function wireExperience() {
@@ -992,12 +995,16 @@ function wireRow() {
     });
   });
 }
-window.deletePromoRow = function(id) {
+window.deletePromoRow = async function(id) {
   if (!confirm('이 행을 삭제할까요?')) return;
   const before = data.length;
   data = data.filter(x => String(x.id) !== String(id));
   console.log('[promotion] delete', id, 'before=', before, 'after=', data.length);
-  save(); render();
+  save();
+  render();
+  // 800ms 디바운스 우회 — 즉시 원격 저장 (새로고침 후에도 삭제 유지)
+  clearTimeout(_saveTimer);
+  await saveRemote();
 };
 
 /* ═══════════════════════ 저장/로드 ═══════════════════════ */
