@@ -450,22 +450,22 @@
   .date-cell .date-range .tilde { color: var(--hint); font-size: 11px; padding: 0 3px; }
   .date-cell .plan-title { text-align: center; padding: 0 4px; }
   .date-cell .time-sel { max-width: 100%; }
-  /* 타임특가: 날짜 왼쪽에 시간만 클릭할 수 있는 컴팩트 배지 */
+  /* 타임특가: 날짜 뒤에 시간 셀렉터. 배경 없이 날짜 입력과 동일한 느낌 */
   .date-cell .date-inline { display: flex; align-items: center; gap: 3px; }
   .date-cell .time-sel-compact {
     flex-shrink: 0;
-    width: 46px;
+    width: 52px;
     padding: 0 3px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--accent-dark);
-    background-color: var(--accent-soft);
+    font-size: 12px;
+    color: var(--text);
+    background-color: transparent;
     border: 1px solid transparent;
     text-align: center;
-    padding-right: 12px;
-    background-position: right 2px center;
+    padding-right: 14px;
+    background-position: right 3px center;
   }
-  .date-cell .time-sel-compact:hover { border-color: var(--accent); background-color: var(--accent-softer); }
+  .date-cell .time-sel-compact:hover { border-color: var(--border-strong); background-color: #fff; }
+  .date-cell .time-sel-compact:focus { border-color: var(--accent); background-color: #fff; }
   .date-cell .date-inline input[type="date"] { min-width: 0; flex: 1; padding: 0 4px; }
 
   /* 골드박스·타임특가 14일 중복 경고 */
@@ -959,11 +959,11 @@ function dateCellHtml(r) {
     // 타임특가 탭에서만 시간 셀렉터 노출. 전체 탭에서는 골드박스와 동일하게 날짜만 표시
     if (activeTab === '타임특가') {
       return `<div class="date-inline">
+        ${dateInput}
         <select data-k="time" class="time-sel-compact" title="시간 선택">
           <option value="">시간</option>
           ${TIMES.map(t=>`<option value="${t}" ${r.time===t?'selected':''}>${t}시</option>`).join('')}
         </select>
-        ${dateInput}
       </div>`;
     }
     return dateInput;
