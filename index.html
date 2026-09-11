@@ -155,7 +155,9 @@
   }
   .pick-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 720px;
+    margin: 0 auto;
     gap: 18px;
   }
   .pick-card {
@@ -233,13 +235,6 @@
       <span>발주</span>
     </div>
 
-    <div class="nav-item" data-target="new">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 3l1.9 5.8L20 10.5l-4.7 3.9L16.9 21 12 17.6 7.1 21l1.6-6.6L4 10.5l6.1-1.7L12 3z"/>
-      </svg>
-      <span>신제품</span>
-    </div>
-
     <div class="nav-item" data-target="promotion">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
@@ -248,6 +243,13 @@
         <line x1="3" y1="10" x2="21" y2="10"/>
       </svg>
       <span>프로모션</span>
+    </div>
+
+    <div class="nav-item" data-target="new">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3l1.9 5.8L20 10.5l-4.7 3.9L16.9 21 12 17.6 7.1 21l1.6-6.6L4 10.5l6.1-1.7L12 3z"/>
+      </svg>
+      <span>신제품</span>
     </div>
 
     <div class="sidebar-footer">v1.0</div>
@@ -282,15 +284,6 @@
             <div class="pick-title">발주</div>
             <div class="pick-desc">발주리스트 · 입고수량 관리 · 매입가/전산재고 매칭</div>
           </div>
-          <div class="pick-card" data-target="new">
-            <div class="pick-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 3l1.9 5.8L20 10.5l-4.7 3.9L16.9 21 12 17.6 7.1 21l1.6-6.6L4 10.5l6.1-1.7L12 3z"/>
-              </svg>
-            </div>
-            <div class="pick-title">신제품</div>
-            <div class="pick-desc">담당자별 신제품 등록 진행 현황 · 로켓/벤플/광고/윙</div>
-          </div>
           <div class="pick-card" data-target="promotion">
             <div class="pick-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -302,6 +295,15 @@
             </div>
             <div class="pick-title">프로모션</div>
             <div class="pick-desc">쿠팡 프로모션 일정 관리 · 타임라인/달력 뷰</div>
+          </div>
+          <div class="pick-card" data-target="new">
+            <div class="pick-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3l1.9 5.8L20 10.5l-4.7 3.9L16.9 21 12 17.6 7.1 21l1.6-6.6L4 10.5l6.1-1.7L12 3z"/>
+              </svg>
+            </div>
+            <div class="pick-title">신제품</div>
+            <div class="pick-desc">담당자별 신제품 등록 진행 현황 · 로켓/벤플/광고/윙</div>
           </div>
         </div>
       </div>
