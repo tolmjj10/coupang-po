@@ -108,6 +108,9 @@
     font-size: 11px; font-weight: 700;
   }
   .tab:not(.active) .count { background: var(--accent-soft); color: var(--accent-dark); }
+  .tab.tab-icon { width: 34px; padding: 0; justify-content: center; color: var(--hint); }
+  .tab.tab-icon:disabled { opacity: 0.35; cursor: not-allowed; }
+  .tab.tab-icon:not(:disabled):hover { color: var(--text); }
 
   .spacer { flex: 1; }
 
@@ -154,6 +157,11 @@
   td.calc.strong { color: var(--text); font-weight: 600; }
   td.num { font-variant-numeric: tabular-nums; }
 
+  /* number input spinner 제거 (수량/할인율 등) */
+  td input[type="number"]::-webkit-outer-spin-button,
+  td input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  td input[type="number"] { -moz-appearance: textfield; }
+
   td input, td select {
     width: 100%;
     height: 26px;
@@ -180,6 +188,21 @@
     background-repeat: no-repeat;
     background-position: right 5px center;
   }
+
+  /* 유형별 행 배경 (은은한 톤) */
+  tbody tr.row-골드박스 td { background: #fbf4e2; }
+  tbody tr.row-타임특가 td { background: #faece0; }
+  tbody tr.row-기획전   td { background: #edf1ec; }
+  tbody tr.row-즉시할인 td { background: #f2e9ef; }
+  tbody tr.row-골드박스:hover td { background: #f6ebd0; }
+  tbody tr.row-타임특가:hover td { background: #f4e0cd; }
+  tbody tr.row-기획전:hover td   { background: #e2eae1; }
+  tbody tr.row-즉시할인:hover td { background: #e9dce4; }
+  /* 유형별 배경 적용 시에도 계산 셀은 살짝 더 진한 톤 유지 */
+  tbody tr.row-골드박스 td.calc { background: #f6ecd0; }
+  tbody tr.row-타임특가 td.calc { background: #f4dfc9; }
+  tbody tr.row-기획전   td.calc { background: #e2ebe1; }
+  tbody tr.row-즉시할인 td.calc { background: #ebdde5; }
 
   .type-pill {
     display: inline-flex; align-items: center;
@@ -213,6 +236,172 @@
 
   .missing { color: #b89968; font-weight: 600; }
 
+  /* 판매가 편집 셀 (사이트 자체할인 델타 표시) */
+  td.price-cell { position: relative; padding: 4px 8px; }
+  td.price-cell .price-delta {
+    font-size: 10px;
+    color: #b04a3a;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: 1px;
+    font-variant-numeric: tabular-nums;
+  }
+  td.price-cell input.num-input {
+    text-align: right;
+    padding-right: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 판매율 색상 */
+  td.rate-good { background: #e6efe6 !important; color: #3a5a3a; }
+  td.rate-mid  { background: #f5eddb !important; color: #7a5a1a; }
+  td.rate-bad  { background: #fbe9e5 !important; color: #b04a3a; }
+
+  .icon-btn { width: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+
+  /* ─────────── 체험단 뷰 ─────────── */
+  .exp-group {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .exp-group-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: var(--surface-alt);
+    border-bottom: 1px solid var(--border);
+  }
+  .exp-date-input {
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    background: #fff;
+    color: var(--text);
+  }
+  .exp-group-title { font-size: 13px; font-weight: 700; color: var(--text); }
+  .exp-group-total {
+    margin-left: auto;
+    font-size: 13px; font-weight: 700;
+    color: var(--accent-dark);
+    font-variant-numeric: tabular-nums;
+  }
+  .exp-group-total .label { font-size: 11px; color: var(--hint); font-weight: 500; margin-right: 6px; letter-spacing: 0.02em; }
+  .exp-group table { width: 100%; border-collapse: collapse; }
+  .exp-add-row {
+    padding: 8px 14px;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end;
+  }
+  .exp-review-cell { display: flex; align-items: center; gap: 6px; justify-content: center; }
+  .exp-review-cell input[type="text"] { max-width: 60px; }
+  .exp-review-cell input[type="text"]:disabled { background: var(--surface-alt); color: var(--hint); }
+  .exp-review-cell input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: var(--accent-dark); }
+  .exp-new-date {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    background: var(--card);
+    border: 1px dashed var(--border-strong);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  /* ─────────── 달력 모달 ─────────── */
+  .mask {
+    position: fixed; inset: 0;
+    background: rgba(32,24,20,0.32);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .mask.open { display: flex; }
+  .cal-modal {
+    width: min(1100px, 95vw);
+    max-height: 90vh;
+    background: var(--card);
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.16);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .cal-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-alt);
+  }
+  .cal-title { font-size: 15px; font-weight: 700; min-width: 130px; text-align: center; }
+  .nav-btn {
+    width: 30px; height: 30px;
+    border: 1px solid var(--border-strong);
+    background: var(--card);
+    color: var(--muted);
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .nav-btn:hover { background: var(--accent-soft); color: var(--text); }
+  .spacer { flex: 1; }
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-auto-rows: minmax(120px, 1fr);
+    gap: 1px;
+    background: var(--border);
+    padding: 1px;
+    overflow: auto;
+    flex: 1;
+  }
+  .cal-dow {
+    background: var(--surface-alt);
+    padding: 6px 0;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--hint);
+    letter-spacing: 0.04em;
+  }
+  .cal-dow.sun { color: #b04a3a; }
+  .cal-dow.sat { color: #5a6f8a; }
+  .cal-cell {
+    background: var(--card);
+    padding: 6px;
+    display: flex; flex-direction: column;
+    gap: 3px;
+    font-size: 11.5px;
+    min-height: 100px;
+  }
+  .cal-cell.other-month { background: var(--surface-alt); color: var(--hint); }
+  .cal-cell.today .cal-date-num { color: #b04a3a; font-weight: 700; }
+  .cal-date-num { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .cal-date-num.sun { color: #b04a3a; }
+  .cal-date-num.sat { color: #5a6f8a; }
+  .cal-entry {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    line-height: 1.35;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    cursor: default;
+  }
+  .cal-entry.골드박스 { background: var(--gold-soft); color: #7a5a1a; }
+  .cal-entry.타임특가 { background: var(--warm-soft); color: #8a4a2a; }
+  .cal-entry.기획전   { background: var(--sage-soft); color: #4a5748; }
+  .cal-entry.즉시할인 { background: var(--plum-soft); color: #6a4a5a; }
+  .cal-entry.체험단   { background: var(--slate-soft); color: #3a4a5a; }
+
+  .date-cell .date-stack { display: flex; flex-direction: column; gap: 3px; align-items: stretch; }
+  .date-cell .date-range { display: flex; align-items: center; gap: 2px; }
+  .date-cell .date-range .tilde { color: var(--hint); font-size: 11px; }
+  .date-cell .plan-title { text-align: left; padding-left: 6px; }
+  .date-cell .time-sel { max-width: 100%; }
+
   /* 골드박스·타임특가 14일 중복 경고 */
   td.sku-conflict input {
     background: #fbe9e5;
@@ -245,21 +434,27 @@
   <div class="toolbar">
     <div class="tabs" id="tabs"></div>
     <div class="spacer"></div>
+    <button class="btn icon-btn" id="saveBtn" title="지금 저장" aria-label="저장">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    </button>
+    <button class="btn icon-btn" id="calBtn" title="달력 보기" aria-label="달력 보기">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    </button>
     <button class="btn primary" id="addBtn">＋ 프로모션 추가</button>
     <button class="btn" id="reloadBtn" title="마진/VIID·PID 데이터 다시 불러오기">↻ 데이터 갱신</button>
   </div>
 
-  <div class="table-wrap">
+  <div class="table-wrap" id="mainWrap">
     <table id="tbl">
       <thead>
         <tr>
-          <th style="width:100px">날짜</th>
-          <th style="width:98px">프로모션 유형</th>
+          <th style="width:170px">날짜</th>
+          <th style="width:98px">프로모션</th>
           <th style="width:82px">SKU ID</th>
           <th style="width:110px">VIID</th>
           <th style="width:110px">PID</th>
           <th style="width:220px" class="left">SKU 명</th>
-          <th style="width:68px">할인율(%)</th>
+          <th style="width:78px">할인율/금액</th>
           <th style="width:82px">판매가</th>
           <th style="width:82px">할인금액</th>
           <th style="width:82px">프로모션가</th>
@@ -268,6 +463,10 @@
           <th style="width:88px">프로모션<br>오아마진율</th>
           <th style="width:88px">공급가(-vat)</th>
           <th style="width:70px">수량</th>
+          <th style="width:70px">판매량</th>
+          <th style="width:70px">판매율</th>
+          <th style="width:92px">총 매출</th>
+          <th style="width:92px">총 마진</th>
           <th style="width:32px"></th>
         </tr>
       </thead>
@@ -278,15 +477,34 @@
       <div>상단 [＋ 프로모션 추가] 버튼으로 시작하세요</div>
     </div>
   </div>
+
+  <div id="expWrap" style="display:none"></div>
+</div>
+
+<!-- 달력 모달 -->
+<div class="mask" id="calMask">
+  <div class="cal-modal">
+    <div class="cal-head">
+      <button class="nav-btn" id="calPrev">‹</button>
+      <div class="cal-title" id="calTitle">—</div>
+      <button class="nav-btn" id="calNext">›</button>
+      <button class="btn ghost" id="calToday">오늘</button>
+      <div class="spacer"></div>
+      <button class="btn ghost" id="calClose">닫기</button>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
 </div>
 
 <script>
 const API_URL = '/api/promotion-state';
 const MARGIN_URL = '/api/margin-state';
 const REPO_CFG = { owner:'tolmjj10', repo:'coupang-po', branch:'main', dir:'promotion/viid_pid' };
-const TYPES = ['골드박스','타임특가','기획전','즉시할인'];
+const TYPES = ['골드박스','타임특가','기획전','즉시할인','체험단'];
 const RESTRICTED_TYPES = new Set(['골드박스','타임특가']);
 const RESTRICT_DAYS = 14;
+const EXPERIENCE_BASE_COST = 125000;
+const TIMES = ['07','15','23'];
 const STORAGE_KEY = 'promotion_state_local';
 
 let data = [];        // rows
@@ -324,17 +542,35 @@ function derive(r) {
   const m = marginMap[String(r.skuId||'').trim()] || null;
   const vp = viidMap[String(r.skuId||'').trim()] || null;
   const skuName = m ? m.name : '';
-  const salePrice = m ? m.price : null;
+  // 판매가: 행 생성 시점의 마진 소비자가를 priceBase에 스냅샷, 사용자가 수정하면 priceEdit
+  const priceBase = (r.priceBase != null) ? parseN(r.priceBase) : (m ? m.price : null);
+  const priceEdit = (r.priceEdit != null && r.priceEdit !== '') ? parseN(r.priceEdit) : null;
+  const salePrice = (priceEdit != null) ? priceEdit : priceBase;
+  const priceDelta = (priceEdit != null && priceBase != null) ? (priceBase - priceEdit) : null; // 양수면 추가할인
   const supply = m ? m.supply : null;
   const curMargin = m ? m.curMargin : null;
   const viid = vp ? vp.viid : '';
   const pid = vp ? vp.pid : '';
-  const rate = parseN(r.discountRate); // 0~100
-  const discAmt = (salePrice!=null && rate!=null) ? Math.round(salePrice * rate/100) : null;
+  // 할인율/금액: <100 이면 %(퍼센트), >=100 이면 원화 금액으로 해석
+  const rate = parseN(r.discountRate);
+  let discAmt = null;
+  if (rate != null) {
+    if (rate < 100) {
+      discAmt = (salePrice != null) ? Math.round(salePrice * rate/100) : null;
+    } else {
+      discAmt = Math.round(rate);
+    }
+  }
   const promoPrice = (salePrice!=null && discAmt!=null) ? salePrice - discAmt : null;
   const promoMargin = (curMargin!=null && discAmt!=null) ? curMargin - discAmt : null;
   const promoMarginRate = (promoMargin!=null && supply) ? promoMargin/supply : null;
-  return { m, skuName, salePrice, supply, curMargin, viid, pid, discAmt, promoPrice, promoMargin, promoMarginRate };
+  // 분석 지표 (골드박스/타임특가에서만 의미 있음, 다른 유형은 계산되어도 표시 안 함)
+  const qty = parseN(r.qty);
+  const sold = parseN(r.sold);
+  const soldRate = (sold != null && qty) ? sold/qty : null;
+  const totalRevenue = (sold != null && promoPrice != null) ? sold * promoPrice : null;
+  const totalMargin  = (sold != null && promoMargin != null) ? sold * promoMargin : null;
+  return { m, skuName, salePrice, priceBase, priceDelta, supply, curMargin, viid, pid, discAmt, promoPrice, promoMargin, promoMarginRate, soldRate, totalRevenue, totalMargin };
 }
 
 /* ═══════════════════════ Render ═══════════════════════ */
@@ -342,23 +578,226 @@ function renderTabs() {
   const counts = { '전체': data.length };
   TYPES.forEach(t => counts[t] = data.filter(r => r.type === t).length);
   const tabs = ['전체', ...TYPES];
-  $('tabs').innerHTML = tabs.map(t => `
-    <button class="tab ${activeTab===t?'active':''}" data-tab="${t}">
+  const undoDisabled = undoStack.length === 0 ? 'disabled' : '';
+  const redoDisabled = redoStack.length === 0 ? 'disabled' : '';
+  const parts = [];
+  tabs.forEach(t => {
+    if (t === '체험단') {
+      parts.push(`<button class="tab tab-icon" id="undoBtn" ${undoDisabled} title="되돌리기 (Ctrl+Z)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
+      </button>`);
+      parts.push(`<button class="tab tab-icon" id="redoBtn" ${redoDisabled} title="다시하기 (Ctrl+Y)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/></svg>
+      </button>`);
+    }
+    parts.push(`<button class="tab ${activeTab===t?'active':''}" data-tab="${t}">
       ${t}<span class="count">${counts[t]||0}</span>
-    </button>
-  `).join('');
-  $('tabs').querySelectorAll('.tab').forEach(el => {
+    </button>`);
+  });
+  $('tabs').innerHTML = parts.join('');
+  $('tabs').querySelectorAll('.tab[data-tab]').forEach(el => {
     el.addEventListener('click', () => { activeTab = el.dataset.tab; render(); });
   });
+  const ub = document.getElementById('undoBtn');
+  const rb = document.getElementById('redoBtn');
+  if (ub) ub.addEventListener('click', doUndo);
+  if (rb) rb.addEventListener('click', doRedo);
 }
 
 function render() {
   renderTabs();
-  const visible = data.filter(r => activeTab==='전체' || r.type === activeTab);
+  if (activeTab === '체험단') {
+    $('mainWrap').style.display = 'none';
+    $('expWrap').style.display = 'block';
+    renderExperience();
+    return;
+  }
+  $('mainWrap').style.display = 'block';
+  $('expWrap').style.display = 'none';
+  // 전체 탭에선 체험단 제외 (별도 뷰이므로)
+  const visible = data.filter(r => {
+    if (r.type === '체험단') return false;
+    return activeTab==='전체' || r.type === activeTab;
+  });
   $('emptyState').style.display = visible.length ? 'none' : 'block';
-  const html = visible.map(r => rowHtml(r)).join('');
-  $('tbody').innerHTML = html;
+  $('tbody').innerHTML = visible.map(r => rowHtml(r)).join('');
   wireRow();
+}
+
+/* ═══════════════════════ 체험단 뷰 ═══════════════════════ */
+function renderExperience() {
+  const rows = data.filter(r => r.type === '체험단');
+  // 날짜별 그룹화
+  const groups = {};
+  rows.forEach(r => {
+    const key = r.date || '(날짜 없음)';
+    (groups[key] = groups[key] || []).push(r);
+  });
+  const dateKeys = Object.keys(groups).sort((a,b) => b.localeCompare(a));
+  let html = '';
+  if (dateKeys.length === 0) {
+    html = `<div class="empty" style="background:var(--card);border:1px solid var(--border);border-radius:12px;">
+      <div class="big">등록된 체험단이 없습니다</div>
+      <div>상단 [＋ 프로모션 추가] 버튼으로 새 날짜 그룹을 만드세요</div>
+    </div>`;
+  }
+  dateKeys.forEach(dk => {
+    const items = groups[dk];
+    let groupTotal = 0;
+    const rowsHtml = items.map(r => {
+      const m = marginMap[String(r.skuId||'').trim()] || null;
+      const supply = m ? m.supply : null;
+      const qty = parseN(r.qty) || 0;
+      const total = (supply != null) ? (EXPERIENCE_BASE_COST + supply) * qty : null;
+      if (total != null) groupTotal += total;
+      const missingSku = r.skuId && !m;
+      const reviewChecked = !!r.reviewChecked;
+      return `<tr data-id="${r.id}" class="row-체험단">
+        <td><input type="text" data-k="skuId" value="${esc(r.skuId||'')}" placeholder="SKU"></td>
+        <td class="left calc ${missingSku?'missing':''}" title="${esc(m?m.name:'')}">${esc(m?m.name:'') || (missingSku?'매칭 SKU 없음':'')}</td>
+        <td class="right calc num">${fmtN(EXPERIENCE_BASE_COST)}</td>
+        <td class="right calc num">${fmtN(supply)}</td>
+        <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="qty" value="${esc(r.qty??'')}" placeholder="수량"></td>
+        <td class="right calc num strong">${fmtN(total)}</td>
+        <td>
+          <div class="exp-review-cell">
+            ${reviewChecked ? '' : `<input type="text" inputmode="numeric" pattern="[0-9]*" data-k="reviewCount" value="${esc(r.reviewCount??'')}" placeholder="리뷰">`}
+            <input type="checkbox" data-k="reviewChecked" ${reviewChecked?'checked':''} title="리뷰 작성 완료">
+          </div>
+        </td>
+        <td><button class="row-del" title="삭제">✕</button></td>
+      </tr>`;
+    }).join('');
+    html += `<div class="exp-group" data-date="${esc(dk)}">
+      <div class="exp-group-head">
+        <input type="date" class="exp-date-input" value="${esc(dk==='(날짜 없음)'?'':dk)}" data-group-date="${esc(dk)}">
+        <span class="exp-group-title">체험단</span>
+        <span class="exp-group-total"><span class="label">총 비용</span>${fmtN(groupTotal)}원</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th style="width:100px">SKU ID</th>
+          <th style="width:260px" class="left">SKU 명</th>
+          <th style="width:100px">기본비</th>
+          <th style="width:110px">공급가(-vat)</th>
+          <th style="width:80px">수량</th>
+          <th style="width:120px">총 비용</th>
+          <th style="width:130px">리뷰여부</th>
+          <th style="width:32px"></th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div class="exp-add-row">
+        <button class="btn" data-add-exp="${esc(dk)}">＋ 이 날짜에 SKU 추가</button>
+      </div>
+    </div>`;
+  });
+  html += `<div class="exp-new-date">
+    <span>새 날짜 그룹 만들기:</span>
+    <input type="date" id="expNewDate">
+    <button class="btn primary" id="expNewBtn">＋ 그룹 추가</button>
+  </div>`;
+  $('expWrap').innerHTML = html;
+  wireExperience();
+}
+
+function wireExperience() {
+  $('expWrap').querySelectorAll('tr[data-id]').forEach(tr => {
+    const id = tr.dataset.id;
+    tr.querySelectorAll('input').forEach(el => {
+      const k = el.dataset.k;
+      const evt = (el.type === 'checkbox') ? 'change' : 'change';
+      el.addEventListener(evt, () => {
+        const row = data.find(x => x.id === id); if (!row) return;
+        if (el.type === 'checkbox') row[k] = el.checked;
+        else row[k] = el.value;
+        save();
+        if (k === 'skuId' || k === 'qty' || k === 'reviewChecked') render();
+      });
+    });
+    tr.querySelector('.row-del').addEventListener('click', () => {
+      if (!confirm('이 SKU를 삭제할까요?')) return;
+      data = data.filter(x => x.id !== id);
+      save(); render();
+    });
+  });
+  // 그룹 날짜 변경 → 그룹에 속한 모든 행의 날짜 일괄 수정
+  $('expWrap').querySelectorAll('.exp-date-input').forEach(el => {
+    el.addEventListener('change', () => {
+      const oldDate = el.dataset.groupDate;
+      const newDate = el.value;
+      if (!newDate) return;
+      data.forEach(r => {
+        if (r.type === '체험단' && (r.date||'(날짜 없음)') === oldDate) r.date = newDate;
+      });
+      save(); render();
+    });
+  });
+  // 이 날짜에 SKU 추가
+  $('expWrap').querySelectorAll('[data-add-exp]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const dk = btn.dataset.addExp;
+      data.unshift({
+        id: uid(),
+        type: '체험단',
+        date: dk === '(날짜 없음)' ? '' : dk,
+        skuId: '', qty: '', reviewCount: '', reviewChecked: false
+      });
+      save(); render();
+    });
+  });
+  // 새 날짜 그룹
+  const newBtn = document.getElementById('expNewBtn');
+  if (newBtn) newBtn.addEventListener('click', () => {
+    const v = document.getElementById('expNewDate').value;
+    if (!v) { alert('날짜를 선택하세요'); return; }
+    data.unshift({
+      id: uid(), type: '체험단', date: v,
+      skuId: '', qty: '', reviewCount: '', reviewChecked: false
+    });
+    save(); render();
+  });
+}
+
+function analyticsCellsHtml(r, d) {
+  const isAnalyzable = (r.type === '골드박스' || r.type === '타임특가');
+  if (!isAnalyzable) {
+    return `<td class="calc"></td><td class="calc"></td><td class="calc"></td><td class="calc"></td>`;
+  }
+  let rateCls = 'calc num';
+  if (d.soldRate != null) {
+    if (d.soldRate >= 0.8) rateCls += ' rate-good';
+    else if (d.soldRate >= 0.5) rateCls += ' rate-mid';
+    else rateCls += ' rate-bad';
+  }
+  return `
+    <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="sold" value="${esc(r.sold??'')}" placeholder="판매"></td>
+    <td class="right ${rateCls} strong">${fmtPct(d.soldRate)}</td>
+    <td class="right calc num">${fmtN(d.totalRevenue)}</td>
+    <td class="right calc num strong">${fmtN(d.totalMargin)}</td>`;
+}
+
+function dateCellHtml(r) {
+  const dateInput = `<input type="date" data-k="date" value="${esc(r.date||'')}">`;
+  if (r.type === '타임특가') {
+    return `<div class="date-stack">
+      ${dateInput}
+      <select data-k="time" class="time-sel">
+        <option value="">시간</option>
+        ${TIMES.map(t=>`<option value="${t}" ${r.time===t?'selected':''}>${t}시</option>`).join('')}
+      </select>
+    </div>`;
+  }
+  if (r.type === '기획전') {
+    return `<div class="date-stack">
+      <div class="date-range">${dateInput}<span class="tilde">~</span><input type="date" data-k="endDate" value="${esc(r.endDate||'')}"></div>
+      <input type="text" data-k="title" value="${esc(r.title||'')}" placeholder="기획전명" class="plan-title">
+    </div>`;
+  }
+  if (r.type === '즉시할인') {
+    return `<div class="date-range">${dateInput}<span class="tilde">~</span><input type="date" data-k="endDate" value="${esc(r.endDate||'')}"></div>`;
+  }
+  return dateInput;
 }
 
 function rowHtml(r) {
@@ -367,8 +806,9 @@ function rowHtml(r) {
   const missingSku = r.skuId && !d.m;
   const missingVP = r.skuId && !d.viid;
   const conflict = findConflict(r);
-  return `<tr data-id="${r.id}">
-    <td><input type="date" data-k="date" value="${esc(r.date||'')}"></td>
+  const rowCls = r.type ? `row-${r.type}` : '';
+  return `<tr data-id="${r.id}" class="${rowCls}">
+    <td class="date-cell">${dateCellHtml(r)}</td>
     <td>
       <select data-k="type">
         <option value="">-</option>
@@ -379,15 +819,19 @@ function rowHtml(r) {
     <td class="calc ${missingVP?'missing':''}">${esc(d.viid) || (missingVP?'―':'')}</td>
     <td class="calc ${missingVP?'missing':''}">${esc(d.pid) || (missingVP?'―':'')}</td>
     <td class="left calc ${missingSku?'missing':''}" title="${esc(d.skuName)}">${esc(d.skuName) || (missingSku?'매칭 SKU 없음':'')}</td>
-    <td><input type="number" data-k="discountRate" step="0.1" value="${r.discountRate??''}" placeholder="%"></td>
-    <td class="right calc num">${fmtN(d.salePrice)}</td>
+    <td><input type="number" data-k="discountRate" step="0.1" value="${r.discountRate??''}" placeholder="% 또는 원" title="100 미만 → % / 100 이상 → 원화"></td>
+    <td class="price-cell right">
+      ${(d.priceDelta && d.priceDelta > 0) ? `<div class="price-delta">-${fmtN(d.priceDelta)}</div>` : ''}
+      <input type="text" inputmode="numeric" data-k="priceEdit" value="${d.salePrice!=null?fmtN(d.salePrice):''}" placeholder="판매가" class="num-input">
+    </td>
     <td class="right calc num">${fmtN(d.discAmt)}</td>
     <td class="right calc num strong">${fmtN(d.promoPrice)}</td>
     <td class="right calc num">${fmtN(d.curMargin)}</td>
     <td class="right calc num strong">${fmtN(d.promoMargin)}</td>
     <td class="right calc num">${fmtPct(d.promoMarginRate)}</td>
     <td class="right calc num">${fmtN(d.supply)}</td>
-    <td><input type="number" data-k="qty" value="${r.qty??''}" placeholder="수량"></td>
+    <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="qty" value="${esc(r.qty??'')}" placeholder="수량"></td>
+    ${analyticsCellsHtml(r, d)}
     <td><button class="row-del" title="삭제">✕</button></td>
   </tr>`;
 }
@@ -398,10 +842,22 @@ function wireRow() {
     tr.querySelectorAll('input, select').forEach(el => {
       el.addEventListener('change', () => {
         const row = data.find(x => x.id === id); if (!row) return;
-        row[el.dataset.k] = el.value;
+        const k = el.dataset.k;
+        // priceEdit은 콤마 제거 후 숫자만
+        if (k === 'priceEdit') {
+          const v = el.value.replace(/[,\s]/g,'');
+          row.priceEdit = v === '' ? null : v;
+        } else {
+          row[k] = el.value;
+        }
+        // SKU 변경 시 → 신규 SKU의 현재 마진 가격을 priceBase에 스냅샷 + 사용자 오버라이드 리셋
+        if (k === 'skuId') {
+          const m = marginMap[String(row.skuId||'').trim()];
+          row.priceBase = m ? m.price : null;
+          row.priceEdit = null;
+        }
         save();
-        // SKU/할인율 변경 시 즉시 파생값 다시 그리기
-        if (el.dataset.k === 'skuId' || el.dataset.k === 'discountRate' || el.dataset.k === 'type' || el.dataset.k === 'date') {
+        if (k === 'skuId' || k === 'discountRate' || k === 'type' || k === 'date' || k === 'sold' || k === 'qty' || k === 'priceEdit') {
           render();
         }
       });
@@ -417,9 +873,45 @@ function wireRow() {
 /* ═══════════════════════ 저장/로드 ═══════════════════════ */
 let _saveTimer = null;
 let _isDirty = false;
+let undoStack = [];
+let redoStack = [];
+const UNDO_MAX = 30;
+let _prevSnapshot = null;
+function snapshot() { return JSON.stringify(data); }
+function doUndo() {
+  if (!undoStack.length) return;
+  redoStack.push(_prevSnapshot);
+  const snap = undoStack.pop();
+  data = JSON.parse(snap);
+  _prevSnapshot = snap;
+  _isDirty = true;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  clearTimeout(_saveTimer); _saveTimer = setTimeout(saveRemote, 400);
+  saveStatus('● 되돌림');
+  render();
+}
+function doRedo() {
+  if (!redoStack.length) return;
+  undoStack.push(_prevSnapshot);
+  const snap = redoStack.pop();
+  data = JSON.parse(snap);
+  _prevSnapshot = snap;
+  _isDirty = true;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  clearTimeout(_saveTimer); _saveTimer = setTimeout(saveRemote, 400);
+  saveStatus('● 다시하기');
+  render();
+}
 function saveStatus(t) { $('saveStatus').textContent = t; }
 
 function save() {
+  // 이전 스냅샷을 undo 스택에 push
+  if (_prevSnapshot !== null) {
+    undoStack.push(_prevSnapshot);
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
+  }
+  redoStack.length = 0;
+  _prevSnapshot = snapshot();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   _isDirty = true;
   saveStatus('● 미저장');
@@ -448,8 +940,15 @@ async function loadRemote() {
     if (!res.ok) throw new Error('HTTP '+res.status);
     const arr = await res.json();
     data = Array.isArray(arr) ? arr : (arr.rows || []);
-    // 하위호환: 예전 스키마 필드가 있으면 정리
-    data.forEach(r => { if (!r.id) r.id = uid(); });
+    // 하위호환: id 보장 + priceBase 미설정 행은 현재 마진에서 스냅샷
+    data.forEach(r => {
+      if (!r.id) r.id = uid();
+      if (r.priceBase == null && r.skuId) {
+        const m = marginMap[String(r.skuId).trim()];
+        if (m && m.price != null) r.priceBase = m.price;
+      }
+    });
+    _prevSnapshot = snapshot();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     render();
     saveStatus('불러옴');
@@ -553,6 +1052,81 @@ $('addBtn').addEventListener('click', () => {
   data.unshift({ id: uid(), date: ymd, type: initialType, skuId: '', discountRate: '', qty: '' });
   save(); render();
 });
+$('saveBtn').addEventListener('click', () => { clearTimeout(_saveTimer); saveRemote(); });
+document.addEventListener('keydown', e => {
+  const tag = (e.target && e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return; // 텍스트 편집 undo와 충돌 방지
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); doUndo(); }
+  else if ((e.ctrlKey || e.metaKey) && ((e.key === 'y' || e.key === 'Y') || (e.shiftKey && (e.key === 'z' || e.key === 'Z')))) { e.preventDefault(); doRedo(); }
+});
+
+/* ═══════════════════════ 달력 모달 ═══════════════════════ */
+let calAnchor = new Date();
+$('calBtn').addEventListener('click', () => { calAnchor = new Date(); openCal(); });
+$('calClose').addEventListener('click', () => $('calMask').classList.remove('open'));
+$('calMask').addEventListener('click', e => { if (e.target === $('calMask')) $('calMask').classList.remove('open'); });
+$('calPrev').addEventListener('click', () => { calAnchor = new Date(calAnchor.getFullYear(), calAnchor.getMonth()-1, 1); openCal(); });
+$('calNext').addEventListener('click', () => { calAnchor = new Date(calAnchor.getFullYear(), calAnchor.getMonth()+1, 1); openCal(); });
+$('calToday').addEventListener('click', () => { calAnchor = new Date(); openCal(); });
+
+function openCal() {
+  const year = calAnchor.getFullYear();
+  const month = calAnchor.getMonth();
+  $('calTitle').textContent = `${year}년 ${month+1}월`;
+  const first = new Date(year, month, 1);
+  const startDow = first.getDay();
+  const gridStart = new Date(year, month, 1 - startDow);
+  const cells = [];
+  for (let i=0;i<42;i++) {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + i);
+    cells.push(d);
+  }
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dowNames = ['일','월','화','수','목','금','토'];
+  let html = dowNames.map((n,i) => `<div class="cal-dow ${i===0?'sun':(i===6?'sat':'')}">${n}</div>`).join('');
+  cells.forEach(d => {
+    const dow = d.getDay();
+    const isOther = d.getMonth() !== month;
+    const isToday = d.getTime() === today.getTime();
+    const dayEntries = calEntriesForDate(d);
+    const dnCls = ['cal-date-num'];
+    if (dow===0) dnCls.push('sun'); else if (dow===6) dnCls.push('sat');
+    html += `<div class="cal-cell ${isOther?'other-month':''} ${isToday?'today':''}">
+      <div class="${dnCls.join(' ')}">${d.getDate()}</div>
+      ${dayEntries.map(e => `<div class="cal-entry ${e.type}" title="${esc(e.tooltip)}">${esc(e.text)}</div>`).join('')}
+    </div>`;
+  });
+  $('calGrid').innerHTML = html;
+  $('calMask').classList.add('open');
+}
+
+function calEntriesForDate(d) {
+  const ymd = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const out = [];
+  data.forEach(r => {
+    if (!r.type) return;
+    const m = marginMap[String(r.skuId||'').trim()];
+    const name = m ? m.name : (r.skuId||'-');
+    const inRange = (r.date && r.endDate) ? (ymd >= r.date && ymd <= r.endDate) : (r.date === ymd);
+    if (r.type === '기획전') {
+      if (inRange) out.push({ type:'기획전', text:`기획전: ${r.title||'(이름 없음)'}`, tooltip:`${r.date||''}${r.endDate?'~'+r.endDate:''} ${r.title||''}` });
+    } else if (r.type === '즉시할인') {
+      if (inRange) out.push({ type:'즉시할인', text:`즉시할인: ${name}`, tooltip:`${r.date||''}${r.endDate?'~'+r.endDate:''} ${name}` });
+    } else if (r.date === ymd) {
+      if (r.type === '골드박스') out.push({ type:'골드박스', text:`골드박스: ${name}`, tooltip:name });
+      else if (r.type === '타임특가') out.push({ type:'타임특가', text:`타임특가${r.time?' '+r.time+'시':''}: ${name}`, tooltip:name });
+      else if (r.type === '체험단') out.push({ type:'체험단', text:`체험단: ${name}`, tooltip:name });
+    }
+  });
+  // 기획전은 그룹당 하루에 1개만 (dedup)
+  const seen = new Set();
+  return out.filter(e => {
+    const key = e.type + '|' + e.text;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+}
 $('reloadBtn').addEventListener('click', async () => {
   saveStatus('갱신 중…');
   await Promise.all([loadMargin(), loadViidPid()]);
