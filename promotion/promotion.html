@@ -576,6 +576,9 @@ const TIMES = ['07','15','23'];
 const STORAGE_KEY = 'promotion_state_local';
 const MARGIN_CACHE_KEY = 'promotion_margin_cache';
 const VIID_CACHE_KEY = 'promotion_viid_cache';
+const TOMBSTONE_KEY = 'promotion_tombstones';
+const TOMBSTONE_TTL_MS = 120000; // 2분 — Cloudflare KV 전파 시간 여유
+let tombstones = {}; // { id: timestamp } — 최근 삭제된 행. loadRemote가 이걸 필터링해서 KV 지연으로 부활 방지
 
 let data = [];        // rows
 let marginMap = {};   // skuId → {name, cost, price, originN, supply, curMargin}
@@ -778,7 +781,7 @@ function renderExperience() {
             <input type="checkbox" data-k="reviewChecked" ${reviewChecked?'checked':''} title="리뷰 작성 완료">
           </div>
         </td>
-        <td><button class="row-del" title="삭제" onmousedown="event.preventDefault()" onclick="window.deleteExpRow('${r.id}')">✕</button></td>
+        <td><button class="row-del" title="삭제" data-row-id="${esc(r.id)}" onmousedown="event.preventDefault()" onclick="window.deleteExpRow(this.dataset.rowId)">✕</button></td>
       </tr>`;
     }).join('');
     html += `<div class="exp-group" data-date="${esc(dk)}">
@@ -815,8 +818,10 @@ function renderExperience() {
 }
 
 window.deleteExpRow = async function(id) {
+  const targetId = String(id||'').trim();
   if (!confirm('이 SKU를 삭제할까요?')) return;
-  data = data.filter(x => String(x.id) !== String(id));
+  data = data.filter(x => String(x.id) !== targetId);
+  addTombstone(targetId);
   save();
   render();
   clearTimeout(_saveTimer);
@@ -954,7 +959,7 @@ function rowHtml(r) {
     <td class="right calc num">${fmtN(d.supply)}</td>
     <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="qty" value="${esc(r.qty??'')}"></td>
     ${analyticsCellsHtml(r, d)}
-    <td><button class="row-del" title="삭제" onmousedown="event.preventDefault()" onclick="window.deletePromoRow('${r.id}')">✕</button></td>
+    <td><button class="row-del" title="삭제" data-row-id="${esc(r.id)}" onmousedown="event.preventDefault()" onclick="window.deletePromoRow(this.dataset.rowId)">✕</button></td>
   </tr>`;
 }
 
@@ -996,13 +1001,22 @@ function wireRow() {
   });
 }
 window.deletePromoRow = async function(id) {
+  const targetId = String(id||'').trim();
+  console.log('[promotion] deletePromoRow 호출 id=', JSON.stringify(targetId));
   if (!confirm('이 행을 삭제할까요?')) return;
   const before = data.length;
-  data = data.filter(x => String(x.id) !== String(id));
-  console.log('[promotion] delete', id, 'before=', before, 'after=', data.length);
+  const remaining = data.filter(x => String(x.id) !== targetId);
+  if (remaining.length === before) {
+    console.warn('[promotion] 매칭 실패. 현재 data ids:', data.map(r => r.id));
+    alert('삭제 실패: 이 행의 ID가 데이터에 존재하지 않습니다. 콘솔에서 ID 목록을 확인하세요.');
+    return;
+  }
+  data = remaining;
+  // 툼스톤 등록 — 2분간 loadRemote가 이 id를 자동 필터링해서 KV 지연으로 부활하지 않도록
+  addTombstone(targetId);
+  console.log('[promotion] delete 완료. before=', before, 'after=', data.length);
   save();
   render();
-  // 800ms 디바운스 우회 — 즉시 원격 저장 (새로고침 후에도 삭제 유지)
   clearTimeout(_saveTimer);
   await saveRemote();
 };
@@ -1071,12 +1085,33 @@ async function saveRemote() {
     console.warn('[promotion] saveRemote 실패:', e.message);
   }
 }
+function addTombstone(id) {
+  tombstones[id] = Date.now();
+  try { localStorage.setItem(TOMBSTONE_KEY, JSON.stringify(tombstones)); } catch(_) {}
+}
+function pruneTombstones() {
+  const now = Date.now();
+  let changed = false;
+  for (const k in tombstones) {
+    if (now - tombstones[k] > TOMBSTONE_TTL_MS) { delete tombstones[k]; changed = true; }
+  }
+  if (changed) { try { localStorage.setItem(TOMBSTONE_KEY, JSON.stringify(tombstones)); } catch(_) {} }
+}
 async function loadRemote() {
   try {
     const res = await fetch(API_URL, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP '+res.status);
     const arr = await res.json();
-    data = Array.isArray(arr) ? arr : (arr.rows || []);
+    let fresh = Array.isArray(arr) ? arr : (arr.rows || []);
+    // 툼스톤 필터 — 최근 삭제한 행이 KV 지연으로 돌아오는 것 차단
+    pruneTombstones();
+    const tombKeys = Object.keys(tombstones);
+    if (tombKeys.length) {
+      const before = fresh.length;
+      fresh = fresh.filter(r => !tombstones[String(r.id)]);
+      if (fresh.length < before) console.log('[promotion] 툼스톤 필터로', before - fresh.length, '건 차단');
+    }
+    data = fresh;
     // 하위호환: id 보장 + priceBase 미설정 행은 현재 마진에서 스냅샷
     data.forEach(r => {
       if (!r.id) r.id = uid();
@@ -1335,6 +1370,9 @@ function initColResize() {
     if (mCache) { const m = JSON.parse(mCache); if (m && typeof m === 'object') marginMap = m; }
     const vCache = localStorage.getItem(VIID_CACHE_KEY);
     if (vCache) { const v = JSON.parse(vCache); if (v && typeof v === 'object') viidMap = v; }
+    const tCache = localStorage.getItem(TOMBSTONE_KEY);
+    if (tCache) { const t = JSON.parse(tCache); if (t && typeof t === 'object') tombstones = t; }
+    pruneTombstones();
   } catch (_) {}
   render();
   initColResize();
