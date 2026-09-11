@@ -165,6 +165,8 @@
     line-height: 1.25;
     overflow: visible;
   }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { background: var(--accent-soft); color: var(--text); }
   th .col-resizer {
     position: absolute;
     top: 0; right: -3px;
@@ -517,7 +519,7 @@
     <table id="tbl">
       <thead>
         <tr>
-          <th style="width:206px">날짜</th>
+          <th style="width:206px" class="sortable" id="dateSortTh" title="클릭하여 정렬 방향 전환">날짜<span id="dateSortIcon" style="margin-left:4px; font-size:10px; opacity:.75;">▼</span></th>
           <th style="width:108px">프로모션</th>
           <th style="width:148px">SKU ID</th>
           <th style="width:104px">VIID</th>
@@ -587,6 +589,7 @@ let viidMap = {};     // skuId → {viid, pid}
 let activeTab = '전체';
 const _now = new Date();
 let activeMonth = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}`;
+let sortDir = (localStorage.getItem('promotion_sort_dir') === 'asc') ? 'asc' : 'desc';
 
 const $ = id => document.getElementById(id);
 const uid = () => 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -665,6 +668,22 @@ function rowInMonth(r, ym) {
   return rowStart <= ym && ym <= rowEnd;
 }
 
+function sortByDate(arr) {
+  const dir = sortDir === 'asc' ? 1 : -1;
+  return [...arr].sort((a, b) => {
+    const ad = String(a.date || '');
+    const bd = String(b.date || '');
+    if (!ad && !bd) return 0;
+    if (!ad) return 1;   // 빈 날짜는 항상 뒤로
+    if (!bd) return -1;
+    return ad < bd ? -1*dir : ad > bd ? 1*dir : 0;
+  });
+}
+function updateSortIcon() {
+  const el = document.getElementById('dateSortIcon');
+  if (el) el.textContent = sortDir === 'asc' ? '▲' : '▼';
+}
+
 function renderMonthTabs() {
   const monthsSet = new Set();
   data.forEach(r => {
@@ -720,25 +739,60 @@ function renderTabs() {
 }
 
 function render() {
+  // 재렌더 전 현재 포커스/커서 위치 스냅샷 → 재렌더 후 복원
+  const focusInfo = captureFocus();
   renderMonthTabs();
   renderTabs();
+  updateSortIcon();
   if (activeTab === '체험단') {
     $('mainWrap').style.display = 'none';
     $('expWrap').style.display = 'block';
     renderExperience();
+    restoreFocus(focusInfo);
     return;
   }
   $('mainWrap').style.display = 'block';
   $('expWrap').style.display = 'none';
   // 전체 탭에선 체험단 제외 (별도 뷰이므로) + 월 필터
-  const visible = data.filter(r => {
+  let visible = data.filter(r => {
     if (r.type === '체험단') return false;
     if (!rowInMonth(r, activeMonth)) return false;
     return activeTab==='전체' || r.type === activeTab;
   });
+  visible = sortByDate(visible);
   $('emptyState').style.display = visible.length ? 'none' : 'block';
   $('tbody').innerHTML = visible.map(r => rowHtml(r)).join('');
   wireRow();
+  restoreFocus(focusInfo);
+}
+
+function captureFocus() {
+  const el = document.activeElement;
+  if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'SELECT' && el.tagName !== 'TEXTAREA')) return null;
+  const tr = el.closest('tr[data-id]');
+  const groupEl = el.closest('[data-group-date]');
+  const info = { k: el.dataset.k, tag: el.tagName };
+  if (el.tagName !== 'SELECT') { info.start = el.selectionStart; info.end = el.selectionEnd; }
+  if (tr) { info.scope = 'row'; info.rowId = tr.dataset.id; }
+  else if (groupEl) { info.scope = 'group'; info.groupDate = groupEl.dataset.groupDate; }
+  else info.scope = 'byId', info.id = el.id;
+  return info;
+}
+function restoreFocus(info) {
+  if (!info) return;
+  let el = null;
+  if (info.scope === 'row' && info.rowId) {
+    el = document.querySelector(`tr[data-id="${CSS.escape(info.rowId)}"] [data-k="${info.k}"]`);
+  } else if (info.scope === 'group' && info.groupDate) {
+    el = document.querySelector(`[data-group-date="${CSS.escape(info.groupDate)}"]`);
+  } else if (info.scope === 'byId' && info.id) {
+    el = document.getElementById(info.id);
+  }
+  if (!el) return;
+  el.focus();
+  if (info.tag !== 'SELECT' && info.start != null) {
+    try { el.setSelectionRange(info.start, info.end); } catch(_) {}
+  }
 }
 
 /* ═══════════════════════ 체험단 뷰 ═══════════════════════ */
@@ -750,7 +804,7 @@ function renderExperience() {
     const key = r.date || '(날짜 없음)';
     (groups[key] = groups[key] || []).push(r);
   });
-  const dateKeys = Object.keys(groups).sort((a,b) => b.localeCompare(a));
+  const dateKeys = Object.keys(groups).sort((a,b) => sortDir === 'asc' ? a.localeCompare(b) : b.localeCompare(a));
   let html = '';
   if (dateKeys.length === 0) {
     html = `<div class="empty" style="background:var(--card);border:1px solid var(--border);border-radius:12px;">
@@ -1230,6 +1284,11 @@ $('addBtn').addEventListener('click', () => {
   save(); render();
 });
 $('saveBtn').addEventListener('click', () => { clearTimeout(_saveTimer); saveRemote(); });
+document.getElementById('dateSortTh').addEventListener('click', () => {
+  sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  try { localStorage.setItem('promotion_sort_dir', sortDir); } catch(_) {}
+  render();
+});
 document.addEventListener('keydown', e => {
   const tag = (e.target && e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return; // 텍스트 편집 undo와 충돌 방지
