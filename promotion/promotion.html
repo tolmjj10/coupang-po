@@ -440,11 +440,11 @@
   .date-cell .date-range { display: flex; align-items: center; gap: 0; justify-content: center; }
   .date-cell .date-range input[type="date"] {
     flex: 0 0 auto;
-    width: 44px;
+    width: 92px;
     padding: 0 2px;
     text-align: center;
   }
-  .date-cell .date-range .tilde { color: var(--hint); font-size: 11px; padding: 0 2px; }
+  .date-cell .date-range .tilde { color: var(--hint); font-size: 11px; padding: 0 3px; }
   .date-cell .plan-title { text-align: center; padding: 0 4px; }
   .date-cell .time-sel { max-width: 100%; }
   /* 타임특가: 날짜 왼쪽에 시간만 클릭할 수 있는 컴팩트 배지 */
@@ -516,7 +516,7 @@
     <table id="tbl">
       <thead>
         <tr>
-          <th style="width:104px">날짜</th>
+          <th style="width:206px">날짜</th>
           <th style="width:108px">프로모션</th>
           <th style="width:148px">SKU ID</th>
           <th style="width:104px">VIID</th>
@@ -574,6 +574,8 @@ const RESTRICT_DAYS = 14;
 const EXPERIENCE_BASE_COST = 125000;
 const TIMES = ['07','15','23'];
 const STORAGE_KEY = 'promotion_state_local';
+const MARGIN_CACHE_KEY = 'promotion_margin_cache';
+const VIID_CACHE_KEY = 'promotion_viid_cache';
 
 let data = [];        // rows
 let marginMap = {};   // skuId → {name, cost, price, originN, supply, curMargin}
@@ -776,7 +778,7 @@ function renderExperience() {
             <input type="checkbox" data-k="reviewChecked" ${reviewChecked?'checked':''} title="리뷰 작성 완료">
           </div>
         </td>
-        <td><button class="row-del" title="삭제">✕</button></td>
+        <td><button class="row-del" title="삭제" onmousedown="event.preventDefault()" onclick="window.deleteExpRow('${r.id}')">✕</button></td>
       </tr>`;
     }).join('');
     html += `<div class="exp-group" data-date="${esc(dk)}">
@@ -812,20 +814,11 @@ function renderExperience() {
   wireExperience();
 }
 
-// 체험단 삭제도 위임 방식 — 재렌더 시에도 안정적
-document.getElementById('expWrap').addEventListener('mousedown', e => {
-  if (e.target.closest('.row-del')) e.preventDefault();
-});
-document.getElementById('expWrap').addEventListener('click', e => {
-  const btn = e.target.closest('.row-del');
-  if (!btn) return;
-  const tr = btn.closest('tr');
-  if (!tr) return;
-  const id = tr.dataset.id;
+window.deleteExpRow = function(id) {
   if (!confirm('이 SKU를 삭제할까요?')) return;
-  data = data.filter(x => x.id !== id);
+  data = data.filter(x => String(x.id) !== String(id));
   save(); render();
-});
+};
 
 function wireExperience() {
   $('expWrap').querySelectorAll('tr[data-id]').forEach(tr => {
@@ -958,7 +951,7 @@ function rowHtml(r) {
     <td class="right calc num">${fmtN(d.supply)}</td>
     <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="qty" value="${esc(r.qty??'')}"></td>
     ${analyticsCellsHtml(r, d)}
-    <td><button class="row-del" title="삭제">✕</button></td>
+    <td><button class="row-del" title="삭제" onmousedown="event.preventDefault()" onclick="window.deletePromoRow('${r.id}')">✕</button></td>
   </tr>`;
 }
 
@@ -999,20 +992,13 @@ function wireRow() {
     });
   });
 }
-// 삭제 버튼은 tbody 자체에 위임 — 재렌더 시에도 리스너 유실 없음
-document.getElementById('tbody').addEventListener('mousedown', e => {
-  if (e.target.closest('.row-del')) e.preventDefault(); // 인접 입력창 blur 방지
-});
-document.getElementById('tbody').addEventListener('click', e => {
-  const btn = e.target.closest('.row-del');
-  if (!btn) return;
-  const tr = btn.closest('tr');
-  if (!tr) return;
-  const id = tr.dataset.id;
+window.deletePromoRow = function(id) {
   if (!confirm('이 행을 삭제할까요?')) return;
-  data = data.filter(x => x.id !== id);
+  const before = data.length;
+  data = data.filter(x => String(x.id) !== String(id));
+  console.log('[promotion] delete', id, 'before=', before, 'after=', data.length);
   save(); render();
-});
+};
 
 /* ═══════════════════════ 저장/로드 ═══════════════════════ */
 let _saveTimer = null;
@@ -1121,7 +1107,9 @@ async function loadMargin() {
       const curMargin = (supply!=null && originN!=null) ? supply - originN : null;
       marginMap[sku] = { name: r.name||'', cost, price, originN, supply, curMargin };
     });
+    try { localStorage.setItem(MARGIN_CACHE_KEY, JSON.stringify(marginMap)); } catch(_) {}
     console.log('[promotion] margin 로드', Object.keys(marginMap).length,'건');
+    setTimeout(render, 0);
   } catch (e) {
     console.warn('[promotion] loadMargin 실패:', e.message);
   }
@@ -1182,7 +1170,9 @@ async function loadViidPid() {
         pid:  pidCol>=0  ? String(row[pidCol] ||'').trim() : ''
       };
     }
+    try { localStorage.setItem(VIID_CACHE_KEY, JSON.stringify(viidMap)); } catch(_) {}
     console.log('[promotion] VIID/PID 매핑 로드', Object.keys(viidMap).length,'건');
+    setTimeout(render, 0);
   } catch (e) {
     console.warn('[promotion] loadViidPid 실패:', e.message);
   }
@@ -1324,7 +1314,7 @@ function initColResize() {
 
 /* ═══════════════════════ Boot ═══════════════════════ */
 (async () => {
-  // 캐시된 로컬 데이터를 먼저 복원해 즉시 표시 (원격 로드는 백그라운드에서 진행)
+  // 캐시된 로컬 데이터/마진/VIID·PID 를 먼저 복원해 즉시 표시 (원격 갱신은 백그라운드에서 진행)
   try {
     const cached = localStorage.getItem(STORAGE_KEY);
     if (cached) {
@@ -1334,6 +1324,10 @@ function initColResize() {
         data.forEach(r => { if (!r.id) r.id = uid(); });
       }
     }
+    const mCache = localStorage.getItem(MARGIN_CACHE_KEY);
+    if (mCache) { const m = JSON.parse(mCache); if (m && typeof m === 'object') marginMap = m; }
+    const vCache = localStorage.getItem(VIID_CACHE_KEY);
+    if (vCache) { const v = JSON.parse(vCache); if (v && typeof v === 'object') viidMap = v; }
   } catch (_) {}
   render();
   initColResize();
