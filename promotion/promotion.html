@@ -437,9 +437,15 @@
   .cal-entry.체험단   { background: var(--slate-soft); color: #3a4a5a; }
 
   .date-cell .date-stack { display: flex; flex-direction: column; gap: 3px; align-items: stretch; }
-  .date-cell .date-range { display: flex; align-items: center; gap: 2px; }
-  .date-cell .date-range .tilde { color: var(--hint); font-size: 11px; }
-  .date-cell .plan-title { text-align: left; padding-left: 6px; }
+  .date-cell .date-range { display: flex; align-items: center; gap: 0; justify-content: center; }
+  .date-cell .date-range input[type="date"] {
+    flex: 0 0 auto;
+    width: 44px;
+    padding: 0 2px;
+    text-align: center;
+  }
+  .date-cell .date-range .tilde { color: var(--hint); font-size: 11px; padding: 0 2px; }
+  .date-cell .plan-title { text-align: center; padding: 0 4px; }
   .date-cell .time-sel { max-width: 100%; }
   /* 타임특가: 날짜 왼쪽에 시간만 클릭할 수 있는 컴팩트 배지 */
   .date-cell .date-inline { display: flex; align-items: center; gap: 3px; }
@@ -510,9 +516,9 @@
     <table id="tbl">
       <thead>
         <tr>
-          <th style="width:112px">날짜</th>
+          <th style="width:104px">날짜</th>
           <th style="width:108px">프로모션</th>
-          <th style="width:126px">SKU ID</th>
+          <th style="width:148px">SKU ID</th>
           <th style="width:104px">VIID</th>
           <th style="width:104px">PID</th>
           <th style="width:180px" class="left">SKU 명</th>
@@ -806,6 +812,21 @@ function renderExperience() {
   wireExperience();
 }
 
+// 체험단 삭제도 위임 방식 — 재렌더 시에도 안정적
+document.getElementById('expWrap').addEventListener('mousedown', e => {
+  if (e.target.closest('.row-del')) e.preventDefault();
+});
+document.getElementById('expWrap').addEventListener('click', e => {
+  const btn = e.target.closest('.row-del');
+  if (!btn) return;
+  const tr = btn.closest('tr');
+  if (!tr) return;
+  const id = tr.dataset.id;
+  if (!confirm('이 SKU를 삭제할까요?')) return;
+  data = data.filter(x => x.id !== id);
+  save(); render();
+});
+
 function wireExperience() {
   $('expWrap').querySelectorAll('tr[data-id]').forEach(tr => {
     const id = tr.dataset.id;
@@ -819,13 +840,6 @@ function wireExperience() {
         save();
         if (k === 'skuId' || k === 'qty' || k === 'reviewChecked') setTimeout(render, 0);
       });
-    });
-    const delBtn = tr.querySelector('.row-del');
-    delBtn.addEventListener('mousedown', e => e.preventDefault());
-    delBtn.addEventListener('click', () => {
-      if (!confirm('이 SKU를 삭제할까요?')) return;
-      data = data.filter(x => x.id !== id);
-      save(); render();
     });
   });
   // 그룹 날짜 변경 → 그룹에 속한 모든 행의 날짜 일괄 수정
@@ -983,16 +997,22 @@ function wireRow() {
         }
       });
     });
-    // 삭제: mousedown에서 preventDefault로 입력창 blur 방지 → 첫 클릭에 확실히 반응
-    const delBtn = tr.querySelector('.row-del');
-    delBtn.addEventListener('mousedown', e => e.preventDefault());
-    delBtn.addEventListener('click', () => {
-      if (!confirm('이 행을 삭제할까요?')) return;
-      data = data.filter(x => x.id !== id);
-      save(); render();
-    });
   });
 }
+// 삭제 버튼은 tbody 자체에 위임 — 재렌더 시에도 리스너 유실 없음
+document.getElementById('tbody').addEventListener('mousedown', e => {
+  if (e.target.closest('.row-del')) e.preventDefault(); // 인접 입력창 blur 방지
+});
+document.getElementById('tbody').addEventListener('click', e => {
+  const btn = e.target.closest('.row-del');
+  if (!btn) return;
+  const tr = btn.closest('tr');
+  if (!tr) return;
+  const id = tr.dataset.id;
+  if (!confirm('이 행을 삭제할까요?')) return;
+  data = data.filter(x => x.id !== id);
+  save(); render();
+});
 
 /* ═══════════════════════ 저장/로드 ═══════════════════════ */
 let _saveTimer = null;
