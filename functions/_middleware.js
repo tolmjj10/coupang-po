@@ -111,7 +111,7 @@ function loginPage(errorMsg, nextUrl) {
 <html lang="ko"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>접근 인증 · PO Hub</title>
+<title>접근 인증 · Coupang Hub</title>
 <style>
   :root { --bg:#f6f3ee; --card:#fff; --text:#3a3530; --muted:#8a8378; --line:#e4ded3; --accent:#3a3530; --accent-hover:#26221e; --err:#b04a3a; }
   * { box-sizing: border-box; }
@@ -140,7 +140,7 @@ function loginPage(errorMsg, nextUrl) {
 </style></head>
 <body>
   <form class="card" method="POST" action="/login" autocomplete="off">
-    <div class="brand">PO HUB</div>
+    <div class="brand">COUPANG HUB</div>
     <h1>접근 인증</h1>
     <p class="sub">허용된 네트워크가 아닙니다. 접근하려면 비밀번호를 입력하세요.</p>
     <label for="pw">비밀번호</label>
