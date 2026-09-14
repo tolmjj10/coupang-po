@@ -928,10 +928,82 @@ async function saveRemote() {
       el.textContent = '✓ 공유 저장됨 ' + new Date().toLocaleTimeString('ko-KR');
       setTimeout(() => { if (el.textContent.startsWith('✓')) el.textContent = ''; }, 2000);
     }
+    // 신제품 저장 성공 후 마진테이블 동기화 시도 (실패해도 저장 UX엔 영향 X)
+    syncToMargin().catch(err => console.warn('[new→margin] sync failed:', err));
   } catch (e) {
     if (el) el.textContent = '⚠ 로컬만 저장 (' + e.message + ')';
     console.warn('[new] remote save failed:', e);
   }
+}
+
+/**
+ * 신제품 → 마진테이블 자동 동기화
+ * 전산명(realName)이 있는 신제품 중, 마진에 상품명 완전일치 행이 없는 것만 하단에 추가.
+ * SKU는 '신제품' 문자열, 담당자는 그대로 전달, 나머지 필드는 빈값.
+ */
+async function syncToMargin() {
+  // 1) 추가 후보 수집
+  const candidates = data
+    .map(r => ({ realName: (r.realName || '').trim(), manager: (r.manager || '').trim() }))
+    .filter(r => r.realName);
+  if (candidates.length === 0) return;
+
+  // 2) 현재 마진 상태 로드
+  const res = await fetch('/api/margin-state', { cache: 'no-store' });
+  if (!res.ok) throw new Error('margin GET HTTP ' + res.status);
+  const parsed = await res.json();
+
+  // 페이로드 형식: 배열 또는 { rows, colWidths }
+  let marginRows, colWidths;
+  if (Array.isArray(parsed)) {
+    marginRows = parsed;
+    colWidths = undefined;
+  } else if (parsed && Array.isArray(parsed.rows)) {
+    marginRows = parsed.rows;
+    colWidths = parsed.colWidths;
+  } else {
+    marginRows = [];
+    colWidths = undefined;
+  }
+
+  // 3) 이미 존재하는 상품명 집합 (대소문자·앞뒤공백 무시)
+  const norm = s => String(s || '').trim().toLowerCase();
+  const existing = new Set(marginRows.map(r => norm(r.name)));
+
+  // 4) 신규만 append
+  const toAdd = [];
+  const seenInBatch = new Set();
+  for (const c of candidates) {
+    const key = norm(c.realName);
+    if (existing.has(key) || seenInBatch.has(key)) continue;
+    seenInBatch.add(key);
+    toAdd.push({
+      owner: c.manager || '',
+      cat: '',
+      sku: '신제품',
+      name: c.realName,
+      status: '',
+      cost: null,
+      price: null,
+      origin: null,
+      originN: null
+    });
+  }
+  if (toAdd.length === 0) return;
+
+  const newRows = marginRows.concat(toAdd);
+  const payload = colWidths !== undefined
+    ? { rows: newRows, colWidths }
+    : { rows: newRows };
+
+  // 5) 저장
+  const putRes = await fetch('/api/margin-state', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!putRes.ok) throw new Error('margin POST HTTP ' + putRes.status);
+  console.log(`[new→margin] ${toAdd.length}건 마진테이블에 추가됨`);
 }
 
 function saveNow() {
