@@ -1802,7 +1802,7 @@ async function fetchProductStatus() {
     }
 
     const prevSet = new Set(lastExcelProducts);
-    const toAdd = picked.filter(name => !prevSet.has(name));
+    let toAdd = picked.filter(name => !prevSet.has(name));
 
     /* 현재 엑셀을 다음 실행의 기준으로 갱신 */
     lastExcelProducts = picked;
@@ -1811,6 +1811,34 @@ async function fetchProductStatus() {
       console.log('[new] 신규 없음 (엑셀: ' + picked.length + '건, 이전 대비 diff 0)');
       save();
       return;
+    }
+
+    /* 마진테이블에 이미 있는 상품명은 신제품에 끌어오지 않음 */
+    try {
+      const marginRes = await fetch('/api/margin-state', { cache: 'no-store' });
+      if (marginRes.ok) {
+        const parsed = await marginRes.json();
+        const marginRows = Array.isArray(parsed) ? parsed
+                        : (parsed && Array.isArray(parsed.rows)) ? parsed.rows
+                        : [];
+        const norm = s => String(s || '').trim().toLowerCase();
+        const marginNames = new Set(marginRows.map(r => norm(r.name)));
+        const before = toAdd.length;
+        toAdd = toAdd.filter(name => !marginNames.has(norm(name)));
+        const skipped = before - toAdd.length;
+        if (skipped > 0) {
+          console.log('[new] 마진테이블 중복 ' + skipped + '건 스킵');
+        }
+        if (toAdd.length === 0) {
+          console.log('[new] 마진 중복 제외 후 추가할 신제품 없음');
+          save();
+          return;
+        }
+      } else {
+        console.warn('[new] 마진 조회 실패(HTTP ' + marginRes.status + ') — 중복 체크 없이 진행');
+      }
+    } catch (e) {
+      console.warn('[new] 마진 조회 예외 — 중복 체크 없이 진행:', e.message);
     }
 
     toAdd.forEach(name => {
