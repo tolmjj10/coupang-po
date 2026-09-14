@@ -953,22 +953,29 @@ async function syncToMargin() {
   if (!res.ok) throw new Error('margin GET HTTP ' + res.status);
   const parsed = await res.json();
 
-  // 페이로드 형식: 배열 또는 { rows, colWidths }
-  let marginRows, colWidths;
+  // 페이로드 형식: 배열 또는 { rows, colWidths, tombstones }
+  let marginRows, colWidths, existingTombstones;
   if (Array.isArray(parsed)) {
     marginRows = parsed;
     colWidths = undefined;
+    existingTombstones = undefined;
   } else if (parsed && Array.isArray(parsed.rows)) {
     marginRows = parsed.rows;
     colWidths = parsed.colWidths;
+    existingTombstones = Array.isArray(parsed.tombstones) ? parsed.tombstones : undefined;
   } else {
     marginRows = [];
     colWidths = undefined;
+    existingTombstones = undefined;
   }
 
-  // 3) 이미 존재하는 상품명 집합 (대소문자·앞뒤공백 무시)
+  // 3) 이미 존재하는 상품명 + 삭제 이력(툼스톤) 집합
   const norm = s => String(s || '').trim().toLowerCase();
-  const existing = new Set(marginRows.map(r => norm(r.name)));
+  const marginTombstones = (parsed && Array.isArray(parsed.tombstones)) ? parsed.tombstones : [];
+  const existing = new Set([
+    ...marginRows.map(r => norm(r.name)),
+    ...marginTombstones.map(norm)
+  ]);
 
   // 4) 신규만 append
   const toAdd = [];
@@ -992,9 +999,9 @@ async function syncToMargin() {
   if (toAdd.length === 0) return;
 
   const newRows = marginRows.concat(toAdd);
-  const payload = colWidths !== undefined
-    ? { rows: newRows, colWidths }
-    : { rows: newRows };
+  const payload = { rows: newRows };
+  if (colWidths !== undefined) payload.colWidths = colWidths;
+  if (existingTombstones !== undefined) payload.tombstones = existingTombstones;
 
   // 5) 저장
   const putRes = await fetch('/api/margin-state', {
@@ -1821,13 +1828,17 @@ async function fetchProductStatus() {
         const marginRows = Array.isArray(parsed) ? parsed
                         : (parsed && Array.isArray(parsed.rows)) ? parsed.rows
                         : [];
+        const marginTombstones = (parsed && Array.isArray(parsed.tombstones)) ? parsed.tombstones : [];
         const norm = s => String(s || '').trim().toLowerCase();
-        const marginNames = new Set(marginRows.map(r => norm(r.name)));
+        const skipSet = new Set([
+          ...marginRows.map(r => norm(r.name)),
+          ...marginTombstones.map(norm)
+        ]);
         const before = toAdd.length;
-        toAdd = toAdd.filter(name => !marginNames.has(norm(name)));
+        toAdd = toAdd.filter(name => !skipSet.has(norm(name)));
         const skipped = before - toAdd.length;
         if (skipped > 0) {
-          console.log('[new] 마진테이블 중복 ' + skipped + '건 스킵');
+          console.log('[new] 마진테이블/삭제이력 중복 ' + skipped + '건 스킵');
         }
         if (toAdd.length === 0) {
           console.log('[new] 마진 중복 제외 후 추가할 신제품 없음');
