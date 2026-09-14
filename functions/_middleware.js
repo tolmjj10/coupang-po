@@ -15,6 +15,11 @@
 const COOKIE_NAME = 'po_auth';
 const MAX_AGE_SEC = 60 * 60 * 24 * 7; // 7일
 
+// 로그인 시도 제한
+const MAX_ATTEMPTS = 5;
+const LOCK_MS = 10 * 60 * 1000; // 10분
+const KV_ATTEMPT_TTL_SEC = 15 * 60; // KV 자동 만료 (15분)
+
 function getClientIP(request) {
   return request.headers.get('CF-Connecting-IP') || '';
 }
@@ -105,7 +110,46 @@ function getCookie(request, name) {
   return null;
 }
 
-function loginPage(errorMsg, nextUrl) {
+// ─── 로그인 시도 횟수 제한 (KV 기반) ───
+async function getAttempts(env, ip) {
+  if (!env.STATE_KV || !ip) return { count: 0, until: 0 };
+  try {
+    const raw = await env.STATE_KV.get(`login_fail:${ip}`);
+    if (!raw) return { count: 0, until: 0 };
+    const obj = JSON.parse(raw);
+    return { count: Number(obj.count) || 0, until: Number(obj.until) || 0 };
+  } catch {
+    return { count: 0, until: 0 };
+  }
+}
+
+async function saveAttempts(env, ip, data) {
+  if (!env.STATE_KV || !ip) return;
+  try {
+    await env.STATE_KV.put(
+      `login_fail:${ip}`,
+      JSON.stringify(data),
+      { expirationTtl: KV_ATTEMPT_TTL_SEC }
+    );
+  } catch {}
+}
+
+async function clearAttempts(env, ip) {
+  if (!env.STATE_KV || !ip) return;
+  try { await env.STATE_KV.delete(`login_fail:${ip}`); } catch {}
+}
+
+function formatLockMsg(untilMs) {
+  const remainSec = Math.max(0, Math.ceil((untilMs - Date.now()) / 1000));
+  const min = Math.floor(remainSec / 60);
+  const sec = remainSec % 60;
+  if (min > 0) return `너무 많은 시도가 감지되었습니다. ${min}분 ${sec}초 후 다시 시도해주세요.`;
+  return `너무 많은 시도가 감지되었습니다. ${sec}초 후 다시 시도해주세요.`;
+}
+
+function loginPage(errorMsg, nextUrl, opts) {
+  const locked = !!(opts && opts.locked);
+  const disabledAttr = locked ? 'disabled' : '';
   const nextField = nextUrl ? `<input type="hidden" name="next" value="${escapeHtml(nextUrl)}">` : '';
   const html = `<!doctype html>
 <html lang="ko"><head>
@@ -144,9 +188,9 @@ function loginPage(errorMsg, nextUrl) {
     <h1>접근 인증</h1>
     <p class="sub">허용된 네트워크가 아닙니다. 접근하려면 비밀번호를 입력하세요.</p>
     <label for="pw">비밀번호</label>
-    <input id="pw" type="password" name="password" autofocus required>
+    <input id="pw" type="password" name="password" ${locked ? '' : 'autofocus'} ${disabledAttr} required>
     ${nextField}
-    <button type="submit">확인</button>
+    <button type="submit" ${disabledAttr}>확인</button>
     <div class="err">${escapeHtml(errorMsg || '')}</div>
   </form>
 </body></html>`;
@@ -190,11 +234,21 @@ export async function onRequest(context) {
 
   // /login 엔드포인트
   if (path === '/login') {
+    const clientIP = getClientIP(request);
+
     if (request.method === 'POST') {
       const form = await request.formData();
       const submitted = String(form.get('password') || '');
       const nextUrl = safeNext(form.get('next'));
+
+      // 잠금 상태면 검증조차 하지 않음
+      const attempts = await getAttempts(env, clientIP);
+      if (attempts.until && attempts.until > Date.now()) {
+        return loginPage(formatLockMsg(attempts.until), nextUrl, { locked: true });
+      }
+
       if (submitted && submitted === password) {
+        await clearAttempts(env, clientIP);
         const token = await makeToken(secret);
         return new Response(null, {
           status: 303,
@@ -204,9 +258,25 @@ export async function onRequest(context) {
           }
         });
       }
-      return loginPage('비밀번호가 올바르지 않습니다.', nextUrl);
+
+      // 실패 — 카운트 증가
+      const nextCount = (attempts.count || 0) + 1;
+      if (nextCount >= MAX_ATTEMPTS) {
+        const until = Date.now() + LOCK_MS;
+        await saveAttempts(env, clientIP, { count: nextCount, until });
+        return loginPage(formatLockMsg(until), nextUrl, { locked: true });
+      } else {
+        await saveAttempts(env, clientIP, { count: nextCount, until: 0 });
+        const remain = MAX_ATTEMPTS - nextCount;
+        return loginPage(`비밀번호가 올바르지 않습니다. (남은 시도 ${remain}회)`, nextUrl);
+      }
     }
-    // GET /login
+
+    // GET /login — 잠금 상태면 잠금 화면 표시
+    const attempts = await getAttempts(env, clientIP);
+    if (attempts.until && attempts.until > Date.now()) {
+      return loginPage(formatLockMsg(attempts.until), safeNext(url.searchParams.get('next')), { locked: true });
+    }
     return loginPage(null, safeNext(url.searchParams.get('next')));
   }
 
