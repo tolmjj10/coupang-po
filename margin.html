@@ -918,6 +918,44 @@ setInterval(()=>{
   if(isEditingActive()) return; // 입력 중이면 다음 tick으로 미룸
   save();
 }, 60000);
+
+/* 키보드 단축키: Ctrl+↓ / Ctrl+End / End → 테이블 맨 아래로 이동 */
+document.addEventListener('keydown', (e)=>{
+  const key = e.key;
+  const ctrl = e.ctrlKey || e.metaKey;
+  const t = e.target;
+  const inField = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+  const goBottom = () => {
+    const wrap = document.querySelector('.table-wrap');
+    if (!wrap) return;
+    wrap.scrollTop = wrap.scrollHeight;
+  };
+  const goTop = () => {
+    const wrap = document.querySelector('.table-wrap');
+    if (!wrap) return;
+    wrap.scrollTop = 0;
+  };
+  if (ctrl && (key === 'ArrowDown' || key === 'End')) {
+    e.preventDefault();
+    goBottom();
+    return;
+  }
+  if (ctrl && (key === 'ArrowUp' || key === 'Home')) {
+    e.preventDefault();
+    goTop();
+    return;
+  }
+  // End 단독: 입력 필드 안이면 기본 동작(줄 끝 이동) 우선 유지
+  if (!ctrl && key === 'End' && !inField) {
+    e.preventDefault();
+    goBottom();
+  }
+  if (!ctrl && key === 'Home' && !inField) {
+    e.preventDefault();
+    goTop();
+  }
+});
+
 // 업로드 대기 데이터 (새로고침 눌러야 반영)
 let pendingUploadRows=null;
 
