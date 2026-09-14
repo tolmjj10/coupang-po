@@ -354,6 +354,8 @@ let saving=false;
 let autosaveTimer=null;
 let lastSavedAt=null;
 let activeCat=''; // '' = 전체
+/* 툼스톤: 사용자가 마진에서 삭제한 상품명 목록. 신제품 임포트 시 이 목록도 제외 대상 */
+let tombstones=[];
 
 /* Undo/redo history: snapshots of rows (minus _id) */
 const HISTORY_LIMIT=100;
@@ -727,6 +729,11 @@ function deleteRow(id){
   const r=rows.find(x=>x._id===id);
   if(!r) return;
   if(!confirm(`삭제하시겠습니까?\n${r.sku||''} ${r.name||''}`.trim())) return;
+  /* 삭제된 상품명을 툼스톤에 기록 — 신제품 임포트에서 재유입 차단 */
+  const nm=(r.name||'').trim();
+  if(nm && !tombstones.some(t=>t.toLowerCase()===nm.toLowerCase())){
+    tombstones.push(nm);
+  }
   rows=rows.filter(x=>x._id!==id);
   markDirty();
   fillFilters();
@@ -827,7 +834,7 @@ async function save(){
       const {_id,_new,...rest}=r;
       return rest;
     });
-    const payload={rows:rowsPayload, colWidths:getColWidths()};
+    const payload={rows:rowsPayload, colWidths:getColWidths(), tombstones};
     const res=await fetch('/api/margin-state',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -861,7 +868,11 @@ async function load(){
     // 하위호환: 예전엔 [row,...] 배열, 지금은 {rows,colWidths}
     let rowArr=[], colWidths=null;
     if(Array.isArray(data)) rowArr=data;
-    else if(data && typeof data==='object'){ rowArr=Array.isArray(data.rows)?data.rows:[]; colWidths=data.colWidths||null; }
+    else if(data && typeof data==='object'){
+      rowArr=Array.isArray(data.rows)?data.rows:[];
+      colWidths=data.colWidths||null;
+      tombstones=Array.isArray(data.tombstones)?data.tombstones.filter(Boolean):[];
+    }
     rows=rowArr.map(r=>{
       const row={_id:uid(),...r};
       if(typeof row.status==='string') row.status=row.status.replace(/\s+/g,''); // 공백 제거해 '단종 예정' → '단종예정' 통합
