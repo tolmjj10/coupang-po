@@ -1423,7 +1423,7 @@ function render() {
           const _sku = getSkuForName(row.realName);
           const _hasInfo = (_mdl || _sku) ? ' has-model' : '';
           const _title = row.memo ? '📝 ' + esc(row.memo) : esc(row.realName);
-          return `<input type="text" class="real-name ${row.memo?'has-memo':''}${_hasInfo}" value="${esc(row.realName)}" title="${_title}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)" oncontextmenu="editMemo(event,'${row.id}')" onfocus="showRealNameInfo(this,'${row.id}')">`;
+          return `<input type="text" class="real-name ${row.memo?'has-memo':''}${_hasInfo}" value="${esc(row.realName)}" title="${_title}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)" onmousedown="window.__rnRightClick=(event.button===2)" oncontextmenu="editMemo(event,'${row.id}')" onfocus="if(!window.__rnRightClick) showRealNameInfo(this,'${row.id}'); window.__rnRightClick=false;">`;
         })()}</td>
         <td>
           <div class="date-cell">
@@ -1595,6 +1595,7 @@ let memoTargetId = null;
 let memoTargetKey = 'memo'; // 어떤 필드의 메모를 편집 중인지 — 'memo'(전산명), 'memoArrival'(입고예정일), 'memoDetail'(상세전달일자)
 function editMemo(ev, id, key) {
   ev.preventDefault();
+  hideRealNameInfo(); // 우클릭 메모 팝오버가 뜰 땐 SKU/모델 팝오버는 감춤
   const row = data.find(r => r.id === id);
   if (!row) return;
   memoTargetId = id;
