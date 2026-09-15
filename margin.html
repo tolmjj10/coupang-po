@@ -186,34 +186,28 @@
   #tbl.vp-expanded td.col-vp { display: table-cell; }
   #tbl.vp-expanded th[data-k="name"],
   #tbl.vp-expanded td.col-name { width: 128px !important; min-width: 128px !important; }
-  #tbl.vp-expanded th[data-k="name"] { width: 128px !important; }
-  /* 토글 핸들 (SKU# 과 상품명 사이의 얇은 세로줄 + 화살표) */
+  /* 토글 컬럼: 헤더에만 얇은 세로 바가 살짝 보이고, 바디에선 거의 안 보이도록 처리 */
   #tbl th.col-vp-toggle,
   #tbl td.col-vp-toggle {
     padding: 0 !important;
-    background: linear-gradient(to right, transparent, var(--accent-soft) 40%, var(--accent-soft) 60%, transparent);
+    background: transparent;
     cursor: pointer;
     user-select: none;
   }
-  #tbl th.col-vp-toggle { border-bottom: 1px solid var(--hairline); }
-  #tbl td.col-vp-toggle { border-right: 1px solid var(--hairline); border-left: 1px solid var(--hairline); }
   .vp-toggle-handle {
-    display:flex; align-items:center; justify-content:center;
     height:100%; width:100%;
-    font-size:11px; font-weight:700; color: var(--accent-dark);
-    background: rgba(212, 192, 173, 0.35);
-    transition: background .12s, color .12s;
+    display:flex; align-items:center; justify-content:center;
   }
-  #tbl th.col-vp-toggle:hover .vp-toggle-handle,
-  #tbl td.col-vp-toggle:hover .vp-toggle-handle {
-    background: var(--accent);
-    color: #fff;
+  /* 헤더에만 얇은 바 표시 — SKU# 와 동일한 hairline 색을 유지, 확장 시에도 색 변화 없음 */
+  #tbl th.col-vp-toggle .vp-toggle-handle::before {
+    content:'';
+    display:block;
+    width:1px; height:60%;
+    background: var(--hairline-strong, #c9c0b5);
+    border-radius: 1px;
   }
-  #tbl.vp-expanded th.col-vp-toggle .vp-toggle-handle,
-  #tbl.vp-expanded td.col-vp-toggle .vp-toggle-handle {
-    background: var(--accent);
-    color: #fff;
-  }
+  /* 바디에선 아무것도 안 보이게 (클릭 영역만 유지) */
+  #tbl td.col-vp-toggle .vp-toggle-handle::before { content: none; }
 
   .editable{cursor:text;border-radius:6px;margin:2px;padding:7px 8px !important;min-height:28px !important;transition:background .12s;}
   .editable:hover{background:var(--accent-soft);}
@@ -363,7 +357,7 @@ const COLS=[
   {k:'cat',     label:'카테고리',    w:66,  align:'center', editable:true, type:'select', cls:'col-cat',
     options:['이미용','욕실가전','모바일','겨울가전','여름가전','건강가전','주방가전','생활가전','인테리어/조명','제습기','공기청정기','육아','차량','애견']},
   {k:'sku',     label:'SKU #',       w:70,  align:'center', editable:true, type:'text'},
-  {k:'_vpToggle', label:'',           w:14,  align:'center', render:renderVpToggle, cls:'col-vp-toggle'},
+  {k:'_vpToggle', label:'',           w:6,   align:'center', render:renderVpToggle, cls:'col-vp-toggle'},
   {k:'viid',    label:'VIID',        w:96,  align:'center', render:(_,r)=>{ const v=(window.viidMap||{})[String(r.sku||'').trim()]; const s=v?v.viid:''; return `<div class="cell calc center id-cell">${s?esc(s):(r.sku?'<span class="hint">―</span>':'')}</div>`; }, cls:'col-vp'},
   {k:'pid',     label:'PID',         w:96,  align:'center', render:(_,r)=>{ const v=(window.viidMap||{})[String(r.sku||'').trim()]; const s=v?v.pid:''; return `<div class="cell calc center id-cell">${s?esc(s):(r.sku?'<span class="hint">―</span>':'')}</div>`; }, cls:'col-vp'},
   {k:'name',    label:'상품명',      w:320, align:'left',   editable:true, type:'text', cls:'col-name'},
@@ -497,8 +491,8 @@ function renderActions(_,r){
 /* VIID/PID 컬럼 펼침·접힘 상태 */
 let vpExpanded = (() => { try { return localStorage.getItem('margin_vp_expanded') === '1'; } catch(_) { return false; } })();
 function renderVpToggle(_, r){
-  // 각 셀은 세로 구분선 역할 + 클릭 시 VIID/PID 컬럼 펼침/접힘
-  return `<div class="vp-toggle-handle" title="${vpExpanded?'VIID/PID 숨기기':'VIID/PID 보기'}">${vpExpanded?'‹':'›'}</div>`;
+  // 얇은 세로 바만 노출. 헤더에서만 눈에 띄고 바디에선 거의 안 보이도록 CSS 로 제어.
+  return `<div class="vp-toggle-handle" title="${vpExpanded?'VIID/PID 숨기기':'VIID/PID 보기'}"></div>`;
 }
 function toggleVp(){
   vpExpanded = !vpExpanded;
