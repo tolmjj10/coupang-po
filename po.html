@@ -2127,14 +2127,51 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
 
   function setStatus(msg, color){ console.log('[VOAR]', msg); }
 
+  /* GitHub API rate limit(미인증 시간당 60회) 회피용 캐시. 폴더 목록을 10분간 localStorage에 보관. */
+  var GH_CACHE_TTL_MS=10*60*1000;
+  function _ghCacheKey(dir){ return 'voar_gh_ls_'+CFG.owner+'/'+CFG.repo+'@'+CFG.branch+':'+dir; }
+  function _readGhCache(dir){
+    try{
+      var raw=localStorage.getItem(_ghCacheKey(dir));
+      if(!raw) return null;
+      var obj=JSON.parse(raw);
+      if(!obj || !obj.t || (Date.now()-obj.t)>GH_CACHE_TTL_MS) return null;
+      return Array.isArray(obj.data)?obj.data:null;
+    }catch(_){ return null; }
+  }
+  function _writeGhCache(dir, data){
+    try{ localStorage.setItem(_ghCacheKey(dir), JSON.stringify({t:Date.now(), data:data})); }catch(_){ }
+  }
+
   function listOneDir(dir){
+    var cached=_readGhCache(dir);
+    if(cached){
+      console.log('[VOAR] listDir cache hit '+dir+' ('+cached.length+' items)');
+      return Promise.resolve(cached);
+    }
     var url='https://api.github.com/repos/'+CFG.owner+'/'+CFG.repo+'/contents/'+encodeURI(dir)+'?ref='+CFG.branch;
     return fetch(url, {headers:{'Accept':'application/vnd.github+json'}}).then(function(r){
       if(!r.ok){
         console.warn('[VOAR] listDir skip '+dir+': '+r.status);
+        // 403(rate limit)이면 만료된 캐시라도 재사용해서 리스트가 아예 비지 않도록 폴백
+        if(r.status===403){
+          try{
+            var raw=localStorage.getItem(_ghCacheKey(dir));
+            if(raw){
+              var obj=JSON.parse(raw);
+              if(obj && Array.isArray(obj.data)){
+                console.warn('[VOAR] rate limit — 만료 캐시 재사용 '+dir);
+                return obj.data;
+              }
+            }
+          }catch(_){ }
+        }
         return [];
       }
-      return r.json();
+      return r.json().then(function(data){
+        if(Array.isArray(data)) _writeGhCache(dir, data);
+        return data;
+      });
     }).catch(function(e){ console.warn('[VOAR] listDir err '+dir+':', e.message); return []; });
   }
 
