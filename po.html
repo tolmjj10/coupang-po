@@ -614,8 +614,16 @@ async function loadMarginPrices() {
 window.addEventListener('DOMContentLoaded', loadMarginPrices);
 
 /* ═══════════════════════ EXCLUDED BRANDS ═══════════════════════ */
-const EXCLUDED_BRANDS=['온살','삼대오백','뉴트리커먼','매시브','바이퍼','MXSSIVE','엠엑시브'];
-function isExcluded(name){ return EXCLUDED_BRANDS.some(b=>String(name||'').trim().startsWith(b)); }
+const ALLOWED_BRAND_PREFIXES=['오아','보아르'];
+/* 허용 프리픽스가 아니라도 재고 매칭 등으로 이름이 뒤바뀔 수 있어, 명시적으로 차단할 브랜드를 별도 유지 */
+const BLOCKED_BRAND_PREFIXES=['온살','삼대오백','뉴트리커먼','매시브','바이퍼','MXSSIVE','엠엑시브'];
+function _startsWithAny(s, list){ const t=String(s||'').trim(); return !!t && list.some(p=>t.startsWith(p)); }
+function isExcluded(name){
+  const t=String(name||'').trim();
+  if(!t) return false;
+  if(_startsWithAny(t, BLOCKED_BRAND_PREFIXES)) return true;
+  return !ALLOWED_BRAND_PREFIXES.some(p=>t.startsWith(p));
+}
 
 /* ═══════════════════════ GUESSES ═══════════════════════ */
 const guesses={
@@ -1071,7 +1079,7 @@ function runMatch(){
       orderPrice: orderPrice,
       marginPrice: marginPriceMap[String(orderSku||'').trim().toLowerCase()] || null
     };
-  }).filter(r=>!isExcluded(r.stockName||r.orderName) && !isExcluded(r.orderName));
+  }).filter(r=>!isExcluded(r.stockName||r.orderName));
 
   /* 중복 SKU 마킹: 발주번호 무관, 동일 SKU가 2회 이상 나오면 isDup=true */
   const _dupCnt={};
@@ -2127,51 +2135,22 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
 
   function setStatus(msg, color){ console.log('[VOAR]', msg); }
 
-  /* GitHub API rate limit(미인증 시간당 60회) 회피용 캐시. 폴더 목록을 10분간 localStorage에 보관. */
-  var GH_CACHE_TTL_MS=10*60*1000;
-  function _ghCacheKey(dir){ return 'voar_gh_ls_'+CFG.owner+'/'+CFG.repo+'@'+CFG.branch+':'+dir; }
-  function _readGhCache(dir){
-    try{
-      var raw=localStorage.getItem(_ghCacheKey(dir));
-      if(!raw) return null;
-      var obj=JSON.parse(raw);
-      if(!obj || !obj.t || (Date.now()-obj.t)>GH_CACHE_TTL_MS) return null;
-      return Array.isArray(obj.data)?obj.data:null;
-    }catch(_){ return null; }
-  }
-  function _writeGhCache(dir, data){
-    try{ localStorage.setItem(_ghCacheKey(dir), JSON.stringify({t:Date.now(), data:data})); }catch(_){ }
-  }
-
   function listOneDir(dir){
-    var cached=_readGhCache(dir);
-    if(cached){
-      console.log('[VOAR] listDir cache hit '+dir+' ('+cached.length+' items)');
-      return Promise.resolve(cached);
-    }
-    var url='https://api.github.com/repos/'+CFG.owner+'/'+CFG.repo+'/contents/'+encodeURI(dir)+'?ref='+CFG.branch;
-    return fetch(url, {headers:{'Accept':'application/vnd.github+json'}}).then(function(r){
+    // Cloudflare Pages Function 프록시 사용 — 서버측 인증(5000/hr) + 60초 KV 캐시로 같은 IP 팀원이 몰려도 rate limit 안 걸림
+    var url='/api/repo-files?path='+encodeURIComponent(dir)+'&ref='+encodeURIComponent(CFG.branch);
+    return fetch(url, {headers:{'Accept':'application/json'}}).then(function(r){
       if(!r.ok){
         console.warn('[VOAR] listDir skip '+dir+': '+r.status);
-        // 403(rate limit)이면 만료된 캐시라도 재사용해서 리스트가 아예 비지 않도록 폴백
-        if(r.status===403){
-          try{
-            var raw=localStorage.getItem(_ghCacheKey(dir));
-            if(raw){
-              var obj=JSON.parse(raw);
-              if(obj && Array.isArray(obj.data)){
-                console.warn('[VOAR] rate limit — 만료 캐시 재사용 '+dir);
-                return obj.data;
-              }
-            }
-          }catch(_){ }
+        // 프록시가 배포 안돼 있을 경우 GitHub 직접 호출로 폴백
+        if(r.status===404){
+          var direct='https://api.github.com/repos/'+CFG.owner+'/'+CFG.repo+'/contents/'+encodeURI(dir)+'?ref='+CFG.branch;
+          return fetch(direct, {headers:{'Accept':'application/vnd.github+json'}}).then(function(rr){
+            return rr.ok?rr.json():[];
+          }).catch(function(){ return []; });
         }
         return [];
       }
-      return r.json().then(function(data){
-        if(Array.isArray(data)) _writeGhCache(dir, data);
-        return data;
-      });
+      return r.json();
     }).catch(function(e){ console.warn('[VOAR] listDir err '+dir+':', e.message); return []; });
   }
 
