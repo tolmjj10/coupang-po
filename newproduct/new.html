@@ -640,6 +640,15 @@
   }
   input.real-name.has-memo:hover { background: #ffe9e7; }
   input.real-name.has-memo:focus { background: #ffffff; }
+  /* 입고예정일 / 상세전달일자 셀에 메모가 있으면 셀 우측 상단에 작은 노란 점 표시 */
+  td.cell-has-memo { position: relative; }
+  td.cell-has-memo::after {
+    content: '';
+    position: absolute; top: 6px; right: 6px;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #b78900; box-shadow: 0 0 0 1.5px rgba(255,253,245,0.9);
+    pointer-events: none;
+  }
   /* 모델명 매핑이 있는 셀은 오른쪽에 작은 표식 (더블클릭으로 복사 가능함을 시사) */
   input.real-name.has-model {
     background-image: linear-gradient(transparent, transparent),
@@ -1334,7 +1343,7 @@ function render() {
           </div>
           ${productionBadge(row)}
         </td>
-        <td>
+        <td oncontextmenu="editMemo(event,'${row.id}','memoArrival')" title="${row.memoArrival?'📝 '+esc(row.memoArrival)+' (우클릭: 메모 편집)':'우클릭: 메모 추가'}" class="${row.memoArrival?'cell-has-memo':''}">
           <div class="date-cell arrival-cell ${row.arrivalDone?'done':''}">
             <div class="cal-row">
               <label class="cal-trigger ${row.arrivalDate?'has-date':''}" title="입고예정일 선택">${CAL_SVG}<span class="date-txt">${row.arrivalDate||''}</span><input type="date" min="2026-01-01" value="${row.arrivalDate||''}" onchange="upd('${row.id}','arrivalDate',this.value); syncCalTrigger(this);"></label>
@@ -1343,7 +1352,7 @@ function render() {
           </div>
           ${arrivalBadge(row)}
         </td>
-        <td>
+        <td oncontextmenu="editMemo(event,'${row.id}','memoDetail')" title="${row.memoDetail?'📝 '+esc(row.memoDetail)+' (우클릭: 메모 편집)':'우클릭: 메모 추가'}" class="${row.memoDetail?'cell-has-memo':''}">
           <div class="date-cell">
             <div class="cal-row">
               <label class="cal-trigger ${row.detailDueDate?'has-date':''}" title="상세전달일자 선택">${CAL_SVG}<span class="date-txt">${row.detailDueDate||''}</span><input type="date" min="2026-01-01" value="${row.detailDueDate||''}" onchange="upd('${row.id}','detailDueDate',this.value); syncCalTrigger(this);"></label>
@@ -1493,15 +1502,17 @@ function openDetail(id) {
   window.open(url, '_blank');
 }
 let memoTargetId = null;
-function editMemo(ev, id) {
+let memoTargetKey = 'memo'; // 어떤 필드의 메모를 편집 중인지 — 'memo'(전산명), 'memoArrival'(입고예정일), 'memoDetail'(상세전달일자)
+function editMemo(ev, id, key) {
   ev.preventDefault();
   const row = data.find(r => r.id === id);
   if (!row) return;
   memoTargetId = id;
+  memoTargetKey = key || 'memo';
   const pop = document.getElementById('memoPopover');
   const ta = document.getElementById('memoText');
-  ta.value = row.memo || '';
-  document.getElementById('memoDelete').style.display = row.memo ? '' : 'none';
+  ta.value = row[memoTargetKey] || '';
+  document.getElementById('memoDelete').style.display = row[memoTargetKey] ? '' : 'none';
   // 위치: 클릭한 셀 오른쪽에 배치
   pop.classList.add('open');
   const target = ev.currentTarget.getBoundingClientRect();
@@ -1527,7 +1538,7 @@ function saveMemo() {
   if (!memoTargetId) return closeMemo();
   const row = data.find(r => r.id === memoTargetId);
   if (row) {
-    row.memo = document.getElementById('memoText').value.trim();
+    row[memoTargetKey] = document.getElementById('memoText').value.trim();
     save(); render();
   }
   closeMemo();
@@ -1535,7 +1546,7 @@ function saveMemo() {
 function deleteMemo() {
   if (!memoTargetId) return closeMemo();
   const row = data.find(r => r.id === memoTargetId);
-  if (row) { row.memo = ''; save(); render(); }
+  if (row) { row[memoTargetKey] = ''; save(); render(); }
   closeMemo();
 }
 function expandRegName(el) {
