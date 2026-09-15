@@ -680,9 +680,9 @@ function startEdit(el, id){
     const newVal=NUM_KEYS.has(k)?toNum(txt):txt;
     if((r[k]??'')!==(newVal??'')){
       setValue(r,k,newVal);
-      /* 소비자가 입력 시 매입가가 비어 있으면 31% 마진 기준으로 자동 채움 (매입가=소비자가×0.69).
-         이후 사용자가 매입가를 직접 수정하면 그 값이 그대로 저장됨. */
-      if(k==='price' && (r.cost==null||r.cost==='') && typeof newVal==='number' && isFinite(newVal)){
+      /* 소비자가가 바뀌면 매입가를 항상 마진율 31% 기준(=소비자가×0.69) 으로 자동 갱신.
+         매입가만 단독으로 수정한 경우엔 그 값이 그대로 저장됨. */
+      if(k==='price' && typeof newVal==='number' && isFinite(newVal)){
         r.cost=Math.round(newVal*0.69);
       }
       markDirty();
