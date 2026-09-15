@@ -27,14 +27,14 @@
   --sales-light: #f0fdf4;
   --radius: 10px;
 }
-body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; padding-bottom: 60px; }
+body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
 /* ── HEADER ── */
 .header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 16px; }
 .header .title-block h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.024em; margin: 0; color: var(--text); line-height: 1.15; }
 .header .title-block .sub { font-size: 12.5px; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; gap: 10px; }
 
-.main { padding: 20px 24px 60px; }
+.main { padding: 20px 24px 24px; }
 #results { max-width: 1440px; margin: 0 auto; }
 
 /* ── FLOW ── */
@@ -116,7 +116,103 @@ body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif
 .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .toggle-all-btn { padding: 7px 12px; border-radius: 7px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-muted); font-size: 12px; cursor: pointer; white-space: nowrap; }
 
+/* ── PO TOOLBAR (프로모션 스타일) ── */
+.po-toolbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.po-toolbar .po-tabs { display: flex; gap: 6px; }
+.po-toolbar .po-tab {
+  height: 34px; padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-muted);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: background .12s ease, color .12s ease, border-color .12s ease;
+}
+.po-toolbar .po-tab:hover { background: var(--accent-light); color: var(--text); }
+.po-toolbar .po-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.po-toolbar .po-tab .count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 18px; padding: 0 6px;
+  background: var(--accent-light);
+  color: var(--accent);
+  border-radius: 9px;
+  font-size: 11px; font-weight: 700;
+}
+.po-toolbar .po-tab.active .count { background: rgba(255,255,255,0.28); color: inherit; }
+.po-toolbar .icon-btn {
+  width: 34px; height: 34px; padding: 0;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-muted);
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+.po-toolbar .icon-btn:hover { background: var(--accent-light); border-color: var(--accent-mid); color: var(--accent); }
+.po-toolbar .spacer { flex: 1; }
+.po-toolbar .tb-btn {
+  height: 34px; padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px; font-weight: 600;
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+.po-toolbar .tb-btn:hover { background: var(--accent-light); border-color: var(--accent-mid); color: var(--accent); }
+.po-toolbar .tb-btn.primary { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+.po-toolbar .tb-btn.primary:hover { background: var(--accent-light); border-color: var(--accent-mid); color: var(--accent); }
+.po-toolbar .tb-search {
+  height: 34px; padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  min-width: 240px;
+}
+.po-toolbar .tb-search:focus { outline: none; border-color: var(--accent); }
+
+/* PO 그룹 헤더 좌측 날짜 라벨 */
+.po-date-label {
+  display: inline-block;
+  min-width: 44px;
+  padding: 2px 8px;
+  margin-right: 10px;
+  background: #efece5;
+  color: #6b5f47;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.po-date-label.placeholder { visibility: hidden; }
+
 /* ── PO ACCORDION ── */
+#po-list {
+  max-height: calc(100vh - 200px);
+  min-height: 400px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+#po-list::-webkit-scrollbar { width: 8px; }
+#po-list::-webkit-scrollbar-thumb { background: #d9d1c8; border-radius: 8px; }
+#po-list::-webkit-scrollbar-thumb:hover { background: #b8ada2; }
 .po-group { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
 .po-header { display: flex; align-items: center; padding: 13px 18px; cursor: pointer; background: #f8f7f4; gap: 10px; user-select: none; border-bottom: 1px solid transparent; transition: background .15s; }
 .po-header:hover { background: var(--accent-light); }
@@ -347,6 +443,7 @@ td { padding: 9px 11px; vertical-align: middle; }
       <div class="mapping-group">
         <div class="mapping-group-title">📋 쿠팡 발주 파일</div>
         <div class="mapping-field"><label>발주번호 컬럼 (선택)</label><select id="m-order-po"><option value="">— 없음 (그룹 없음) —</option></select></div>
+        <div class="mapping-field"><label>발주일자 컬럼 (선택)</label><select id="m-order-date"><option value="">— 없음 —</option></select></div>
         <div class="mapping-field"><label>SKU명 / 상품명 컬럼</label><select id="m-order-name"></select></div>
         <div class="mapping-field"><label>SKU ID / 옵션코드 컬럼</label><select id="m-order-sku"></select></div>
         <div class="mapping-field"><label>발주수량 컬럼</label><select id="m-order-qty"></select></div>
@@ -383,17 +480,21 @@ td { padding: 9px 11px; vertical-align: middle; }
 
   <!-- RESULTS -->
   <div id="results" style="display:none">
-    <div class="stats-bar" id="stats-bar"></div>
+    <div class="stats-bar" id="stats-bar" style="display:none"></div>
 
-    <div class="filter-bar">
-      <input type="text" id="search-input" placeholder="제품명 / SKU / 프로코드 검색..." oninput="renderAll()">
-      <button class="filter-btn active" onclick="setFilter('all',this)">전체</button>
-      <button class="filter-btn" onclick="setFilter('sufficient',this)">✅ 충분</button>
-      <button class="filter-btn" onclick="setFilter('partial',this)">⚠️ 부족</button>
-      <button class="filter-btn" onclick="setFilter('shortage',this)">🔴 없음</button>
-      <button class="filter-btn" onclick="setFilter('unknown',this)">❓ 미매칭</button>
-      <button class="toggle-all-btn" id="toggle-all-btn" onclick="toggleAllPO()">▼ 모두 펼치기</button>
+    <div class="po-toolbar" id="po-toolbar">
+      <div class="po-tabs" id="po-tabs"></div>
+      <div class="spacer"></div>
+      <button class="tb-btn primary" onclick="saveResult('save')">저장</button>
+      <button class="icon-btn" onclick="saveResult('export')" title="엑셀 다운로드" aria-label="엑셀 다운로드">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+      <input type="search" id="search-input" class="tb-search" placeholder="SKU# / 상품명 검색" oninput="renderAll()">
+      <button class="toggle-all-btn" id="toggle-all-btn" onclick="toggleAllPO()" style="margin-left:0">▼ 모두 펼치기</button>
     </div>
+    <!-- 레거시 상태 표시 (숨김 유지) -->
+    <span class="save-count" id="save-count" style="display:none"></span>
+    <span class="autosave-status" id="autosave-status" style="display:none"></span>
 
     <div id="po-list"></div>
     <div id="empty-state" class="empty-state" style="display:none">
@@ -403,14 +504,8 @@ td { padding: 9px 11px; vertical-align: middle; }
 
 </div>
 
-<!-- SAVE BAR -->
-<div class="save-bar" id="save-bar" style="display:none">
-  <button class="save-btn" onclick="saveResult('save')">💾 저장</button>
-  <button class="save-btn" onclick="saveResult('export')">📊 엑셀 내보내기</button>
-  <span class="save-hint">저장: 입력값을 모든 사람과 공유 · 엑셀 내보내기: 저장 + 파일 다운로드</span>
-  <span class="save-count" id="save-count"></span>
-  <span class="autosave-status" id="autosave-status"></span>
-</div>
+<!-- SAVE BAR — 레거시(po-toolbar로 이관). display 토글 코드 호환용으로 hidden 유지 -->
+<div id="save-bar" style="display:none"></div>
 
 <script>
 /* ═══════════════════════ 내장 마스터 데이터 ═══════════════════════ */
@@ -516,6 +611,7 @@ function isExcluded(name){ return EXCLUDED_BRANDS.some(b=>String(name||'').start
 /* ═══════════════════════ GUESSES ═══════════════════════ */
 const guesses={
   'order-po':      ['발주번호','po번호','pono','ponum','purchase','주문번호','발주no','발주 번호'],
+  'order-date':    ['입고예정일','입고 예정일','발주일자','발주일','발주 일자','발주 일','생성일','생성일시','등록일','등록일자','작성일','작성일자','po일자','po일'],
   'order-name':    ['sku이름','sku명','상품명','제품명','품명','name','product','item','상품'],
   'order-sku':     ['sku','옵션코드','vendoritemid','상품코드','코드','itemno','option코드'],
   'order-qty':     ['확정수량','발주수량','수량','qty','quantity','ordered','발주','confirmqty'],
@@ -532,6 +628,33 @@ const guesses={
 };
 
 function norm(v){ return String(v||'').trim().toLowerCase().replace(/[\s\-_]/g,''); }
+
+/* 발주일자 값을 'YYYY-MM-DD' 문자열로 정규화. 실패 시 원본 문자열, 값 없으면 ''. */
+function parseOrderDate(v){
+  if(v===null||v===undefined||v==='') return '';
+  // 엑셀 serial number
+  if(typeof v==='number' && isFinite(v)){
+    const epoch=new Date(Date.UTC(1899,11,30));
+    const d=new Date(epoch.getTime()+Math.round(v)*86400000);
+    if(!isNaN(d.getTime())){
+      return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+    }
+  }
+  const s=String(v).trim();
+  // 2025-09-15, 2025/9/15, 2025.09.15, 2025-09-15 12:34:56
+  const m=s.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+  if(m){ return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0'); }
+  // 20250915
+  const m2=s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if(m2){ return m2[1]+'-'+m2[2]+'-'+m2[3]; }
+  return s;
+}
+/* YYYY-MM-DD → M/D (표시용) */
+function formatDateShort(s){
+  const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!m) return s||'';
+  return parseInt(m[2],10)+'/'+parseInt(m[3],10);
+}
 
 /* 정확일치 우선 → 포함 순으로 guess */
 function guess(cols, key){
@@ -682,6 +805,10 @@ function loadFile(type,input){
       poSel.innerHTML='<option value="">— 없음 (그룹 없음) —</option>';
       cols.forEach(c=>{ const o=document.createElement('option');o.value=c;o.textContent=c;poSel.appendChild(o); });
       const gPO=guess(cols,'order-po'); if(gPO)poSel.value=gPO;
+      const dateSel=document.getElementById('m-order-date');
+      dateSel.innerHTML='<option value="">— 없음 —</option>';
+      cols.forEach(c=>{ const o=document.createElement('option');o.value=c;o.textContent=c;dateSel.appendChild(o); });
+      const gDate=guess(cols,'order-date'); if(gDate) dateSel.value=gDate;
       fillSelect('m-order-name',cols,'order-name');
       fillSelect('m-order-sku',cols,'order-sku');
       /* 확정수량 기본 */
@@ -781,6 +908,7 @@ function resetResults(){
 /* ═══════════════════════ MATCH ═══════════════════════ */
 function runMatch(){
   const oPO  =document.getElementById('m-order-po').value;
+  const oDate=document.getElementById('m-order-date').value;
   const oName=document.getElementById('m-order-name').value;
   const oSku =document.getElementById('m-order-sku').value;
   const oQty =document.getElementById('m-order-qty').value;
@@ -881,6 +1009,7 @@ function runMatch(){
     const orderName=String(row[oName]||'').trim();
     const orderQty =parseNum(row[oQty])??0;
     const poNum    =oPO?String(row[oPO]||'').trim():'';
+    const orderDate=oDate?parseOrderDate(row[oDate]):'';
     const orderPrice=oPriceCol?parseNum(row[oPriceCol]):null;
 
     const masterEntry=masterMap[norm(orderSku)];
@@ -917,7 +1046,7 @@ function runMatch(){
     const transitQty=procode?( transitMap[norm(procode)]||0 ):0;
 
     return {
-      idx:i+1, poNum,
+      idx:i+1, poNum, orderDate,
       orderName, orderSku,
       procode:procode||null,
       masterName:masterEntry?.name||'',
@@ -965,16 +1094,40 @@ function renderStats(){
     <div class="stat-card clickable ${A('unknown')}" onclick="toggleStatFilter('unknown')" title="미매칭만"><div class="stat-label">❓ 미매칭</div><div class="stat-value hint">${unk}</div></div>
     <div class="stat-card stat-dup clickable ${A('duplicate')}" onclick="toggleStatFilter('duplicate')" title="중복 SKU만"><div class="stat-label">🔁 중복</div><div class="stat-value">${dup}</div></div>
   `;
+  renderPoTabs();
+}
+
+const PO_TABS=[
+  {key:'all',        label:'전체'},
+  {key:'sufficient', label:'재고충분'},
+  {key:'partial',    label:'재고부족'},
+  {key:'shortage',   label:'재고없음'},
+  {key:'unknown',    label:'미매칭'},
+  {key:'duplicate',  label:'중복'}
+];
+function _tabCount(key){
+  if(key==='all') return matchedRows.length;
+  if(key==='duplicate') return matchedRows.filter(r=>r.isDup).length;
+  return matchedRows.filter(r=>r.status===key).length;
+}
+function renderPoTabs(){
+  const wrap=document.getElementById('po-tabs');
+  if(!wrap) return;
+  wrap.innerHTML=PO_TABS.map(t=>{
+    const active=t.key===activeFilter?' active':'';
+    return `<button class="po-tab${active}" data-tab="${t.key}" onclick="setFilter('${t.key}',this)">${t.label}<span class="count">${_tabCount(t.key)}</span></button>`;
+  }).join('');
+}
+function _syncPoTabs(){
+  document.querySelectorAll('.po-tab').forEach(b=>{
+    b.classList.toggle('active', b.dataset.tab===activeFilter);
+  });
 }
 
 function toggleStatFilter(key){
   if(key==='all'){ activeFilter='all'; }
   else { activeFilter=(activeFilter===key)?'all':key; }
-  document.querySelectorAll('.filter-btn').forEach(b=>{
-    const oc=b.getAttribute('onclick')||'';
-    const match=oc.indexOf("'"+activeFilter+"'")!==-1;
-    b.classList.toggle('active', match);
-  });
+  _syncPoTabs();
   renderStats();
   renderAll();
 }
@@ -983,8 +1136,7 @@ function toggleDupFilter(){ toggleStatFilter('duplicate'); }
 
 function setFilter(f,el){
   activeFilter=f;
-  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
-  el.classList.add('active');
+  _syncPoTabs();
   renderStats();
   renderAll();
 }
@@ -1047,13 +1199,26 @@ function renderAll(){
     :`<span class="sales-cell${v===0?' zero':''}">${v.toLocaleString()}</span>`;
 
   let tbody='';
+  let _prevDate=null; // 그룹 헤더에 날짜 라벨을 첫 그룹에만 표시하기 위한 추적자
   groupKeys.forEach((poNum,gi)=>{
     const rows=groups[poNum];
     const open=allOpen;
     const dlBtn=_dupMode?'':`<button class="po-dl-btn" data-po="${escHtml(poNum)}" onclick="event.stopPropagation();downloadPO(this.dataset.po,this)" title="발주양식 다운로드"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`;
     const amtSpan=_dupMode?'':`<span class="po-sep-amt" data-po-amt="${escHtml(poNum)}"></span>`;
     const cntAttr=_dupMode?'':` data-po-cnt="${escHtml(poNum)}"`;
-    tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt"${cntAttr}>${rows.length}개</span>${amtSpan}<span class="po-sep-arrow ${open?'open':''}">▼</span>${dlBtn}</td></tr>`;
+    let dateLabel='';
+    if(!_dupMode){
+      const gd=(rows[0]&&rows[0].orderDate)||'';
+      if(gd){
+        if(gd!==_prevDate){
+          dateLabel=`<span class="po-date-label" title="${escHtml(gd)}">${formatDateShort(gd)}</span>`;
+          _prevDate=gd;
+        } else {
+          dateLabel=`<span class="po-date-label placeholder">·</span>`;
+        }
+      }
+    }
+    tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${dateLabel}${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt"${cntAttr}>${rows.length}개</span>${amtSpan}<span class="po-sep-arrow ${open?'open':''}">▼</span>${dlBtn}</td></tr>`;
     rows.forEach((r,ri)=>{
       const isUnreg=r.noMaster||r.noStock;
       let stockCell;
@@ -1758,6 +1923,12 @@ async function saveResult(mode){
       poSel.innerHTML = '<option value="">— 없음 (그룹 없음) —</option>';
       cols.forEach(function(c){ var o = document.createElement('option'); o.value = c; o.textContent = c; poSel.appendChild(o); });
       var gPO = guess(cols,'order-po'); if (gPO) poSel.value = gPO;
+      var dateSel2 = document.getElementById('m-order-date');
+      if (dateSel2) {
+        dateSel2.innerHTML = '<option value="">— 없음 —</option>';
+        cols.forEach(function(c){ var o = document.createElement('option'); o.value = c; o.textContent = c; dateSel2.appendChild(o); });
+        var gDate2 = guess(cols,'order-date'); if (gDate2) dateSel2.value = gDate2;
+      }
       fillSelect('m-order-name', cols, 'order-name');
       fillSelect('m-order-sku',  cols, 'order-sku');
       fillSelect('m-order-qty',  cols, 'order-qty', false, '확정수량');
