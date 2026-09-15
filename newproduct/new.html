@@ -640,6 +640,15 @@
   }
   input.real-name.has-memo:hover { background: #ffe9e7; }
   input.real-name.has-memo:focus { background: #ffffff; }
+  /* 모델명 매핑이 있는 셀은 오른쪽에 작은 표식 (더블클릭으로 복사 가능함을 시사) */
+  input.real-name.has-model {
+    background-image: linear-gradient(transparent, transparent),
+                      radial-gradient(circle at right 8px center, #b78900 2px, transparent 2.5px);
+    background-repeat: no-repeat;
+    background-size: 100% 100%, 100% 100%;
+    padding-right: 20px;
+  }
+  input.real-name.has-model:hover { background-color: #fffbea; }
 
   .detail-url-wrap { display: flex; gap: 4px; align-items: center; white-space: nowrap; }
   .detail-url-wrap input.detail-url-input {
@@ -774,6 +783,50 @@ function isUrgentRow(r) {
 let importedNames = {}; // (구버전 호환용, 더 이상 dedup에 사용하지 않음)
 let lastExcelProducts = null; // 마지막으로 처리한 엑셀의 제품명 배열. 이 목록과 diff로 신규 판별
 let data = loadLocal();
+/* 제품명 → 모델명 매핑 (제품 현황 조회 xlsx 에서 추출). 툴팁·복사에 사용 */
+try { window.__productModelMap = JSON.parse(localStorage.getItem('coupang_new_product_models') || '{}'); }
+catch(_) { window.__productModelMap = {}; }
+function getModelForName(name){
+  const t = String(name||'').trim();
+  if (!t) return '';
+  const map = window.__productModelMap || {};
+  return map[t] || '';
+}
+
+/* 전산명 셀 더블클릭 → 모델명 클립보드 복사 + 토스트 */
+async function copyModel(ev, id){
+  const row = data.find(r => r.id === id);
+  if (!row) return;
+  const model = getModelForName(row.realName);
+  if (!model) return;
+  ev.preventDefault();
+  try {
+    await navigator.clipboard.writeText(model);
+    _showToast('모델명 복사됨: ' + model);
+  } catch(e) {
+    // 클립보드 API 실패 시 fallback
+    const ta = document.createElement('textarea');
+    ta.value = model; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); _showToast('모델명 복사됨: ' + model); }
+    catch(_) { _showToast('복사 실패 — ' + model, true); }
+    ta.remove();
+  }
+}
+function _showToast(msg, isError){
+  let t = document.getElementById('__modelToast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = '__modelToast';
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#2b2b2b;color:#fff;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 14px rgba(0,0,0,0.25);transition:opacity .2s;pointer-events:none;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.background = isError ? '#a4423b' : '#2b2b2b';
+  t.style.opacity = '1';
+  clearTimeout(t._tm);
+  t._tm = setTimeout(() => { t.style.opacity = '0'; }, 1800);
+}
 
 /* 저장 페이로드 파싱 — 구버전(array), {rows,imported}, {rows,imported,lastExcelProducts} 모두 지원 */
 function _parsePayload(parsed) {
@@ -1262,7 +1315,17 @@ function render() {
           </select>
         </td>
         <td><input type="text" class="reg-name ${row.regName ? 'filled' : ''}" value="${esc(row.regName)}" title="${esc(row.regName)}" placeholder="✎ 등록시 기입" oninput="upd('${row.id}','regName',this.value); this.classList.toggle('filled', !!this.value); this.title=this.value;"></td>
-        <td><input type="text" class="real-name ${row.memo?'has-memo':''}" value="${esc(row.realName)}" title="${row.memo?'📝 '+esc(row.memo)+' (우클릭: 메모 편집)':esc(row.realName)+' (우클릭: 메모 추가)'}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)" oncontextmenu="editMemo(event,'${row.id}')"></td>
+        <td>${(() => {
+          const _mdl = getModelForName(row.realName);
+          const _tipParts = [];
+          if (_mdl) _tipParts.push('모델: ' + _mdl + ' (더블클릭: 복사)');
+          if (row.memo) _tipParts.push('📝 ' + row.memo + ' (우클릭: 메모 편집)');
+          else _tipParts.push('우클릭: 메모 추가');
+          if (!_mdl && !row.memo) _tipParts.unshift(row.realName);
+          const _title = esc(_tipParts.join('\n'));
+          const _hasModel = _mdl ? ' has-model' : '';
+          return `<input type="text" class="real-name ${row.memo?'has-memo':''}${_hasModel}" value="${esc(row.realName)}" title="${_title}" data-model="${esc(_mdl)}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)" oncontextmenu="editMemo(event,'${row.id}')" ondblclick="copyModel(event,'${row.id}')">`;
+        })()}</td>
         <td>
           <div class="date-cell">
             <div class="cal-row">
@@ -1838,6 +1901,7 @@ async function fetchProductStatus() {
     const findIdx = (fn) => header.findIndex(fn);
     const brandCol = findIdx(h => h === '브랜드');
     const nameCol = findIdx(h => h === '제품명');
+    const modelCol = findIdx(h => /^모델(명|번호|no)?$/i.test(h));
     const prodCol = findIdx(h => /^생산\s*중$/.test(h));
     const shipCol = findIdx(h => /^출하\s*중$/.test(h));
     const transCol = findIdx(h => /^운송\s*중$/.test(h));
@@ -1849,10 +1913,16 @@ async function fetchProductStatus() {
     const BRANDS_ALLOWED = ['오아', '보아르'];
     const picked = [];
     const seen = new Set();
+    /* 제품명 → 모델명 매핑도 함께 수집. 재고 없는 행이라도 모델명은 참고용이니 전부 담음. */
+    const modelMap = {};
     for (let r = hIdx + 1; r < aoa.length; r++) {
       const row = aoa[r] || [];
       const name = String(row[nameCol] || '').trim();
       if (!name) continue;
+      if (modelCol >= 0) {
+        const m = String(row[modelCol] || '').trim();
+        if (m && !modelMap[name]) modelMap[name] = m;
+      }
       if (/리테일/.test(name)) continue;
       if (brandCol >= 0) {
         const brand = String(row[brandCol] || '').trim();
@@ -1866,6 +1936,10 @@ async function fetchProductStatus() {
       seen.add(name);
       picked.push(name);
     }
+    /* 모델맵을 전역·localStorage 에 저장하여 렌더에서 툴팁으로 활용 */
+    window.__productModelMap = Object.assign(window.__productModelMap || {}, modelMap);
+    try { localStorage.setItem('coupang_new_product_models', JSON.stringify(window.__productModelMap)); } catch(_){}
+    render();
 
     /* 신규 판별 — 이전 엑셀 스냅샷(lastExcelProducts)에 없던 제품만 추가
        ※ HTML 현재 상태(삭제 이력 등)와 무관하게 엑셀 diff만으로 결정
