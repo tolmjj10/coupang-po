@@ -27,14 +27,21 @@
   --sales-light: #f0fdf4;
   --radius: 10px;
 }
-body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+html, body { height: 100%; }
+body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow: hidden; }
 
 /* ── HEADER ── */
 .header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 16px; }
 .header .title-block h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.024em; margin: 0; color: var(--text); line-height: 1.15; }
 .header .title-block .sub { font-size: 12.5px; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; gap: 10px; }
 
-.main { padding: 20px 24px 24px; }
+.main { padding: 14px 24px 12px; height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
+.main > *:not(#results) { flex-shrink: 0; }
+#results { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#results > .po-toolbar,
+#results > .stats-bar,
+#results > .save-count,
+#results > .autosave-status { flex-shrink: 0; }
 #results { max-width: 1440px; margin: 0 auto; }
 
 /* ── FLOW ── */
@@ -46,11 +53,13 @@ body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif
 .flow-key { font-size: 10px; color: var(--text-hint); background: var(--bg); padding: 2px 8px; border-radius: 20px; margin-top: 2px; }
 
 /* ── UPLOAD GRID ── */
-.upload-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 16px; }
+.upload-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 10px; }
 @media(max-width:900px){ .upload-grid { grid-template-columns: repeat(2,1fr); } }
 @media(max-width:500px){ .upload-grid { grid-template-columns: 1fr; } }
 
-.upload-card { background: var(--surface); border: 1.5px dashed var(--border-strong); border-radius: var(--radius); padding: 18px; cursor: pointer; transition: border-color .2s, background .2s; position: relative; min-height: 140px; display: flex; flex-direction: column; }
+.upload-card { background: var(--surface); border: 1.5px dashed var(--border-strong); border-radius: var(--radius); padding: 6px 10px; cursor: pointer; transition: border-color .2s, background .2s; position: relative; min-height: 44px; display: flex; flex-direction: row; align-items: center; gap: 8px; }
+.upload-card h3 { margin: 0; }
+.upload-card > p { display: none; }
 .upload-card:hover { border-color: var(--accent-mid); background: var(--accent-light); }
 .upload-card.loaded { border-style: solid; border-color: var(--accent-mid); background: var(--accent-light); }
 .upload-card.master-card { border-color: #a78bfa; }
@@ -58,7 +67,7 @@ body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif
 .upload-card.sales-card { border-color: #6ee7b7; }
 .upload-card.sales-card:hover, .upload-card.sales-card.loaded { border-color: #059669; background: var(--sales-light); }
 .upload-card input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-.upload-icon { font-size: 22px; margin-bottom: 7px; }
+.upload-icon { font-size: 16px; margin: 0; flex-shrink: 0; }
 .upload-card h3 { font-size: 12.5px; font-weight: 600; margin-bottom: 3px; }
 .upload-card p { font-size: 11px; color: var(--text-muted); line-height: 1.5; flex: 1; }
 .upload-badge { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; padding: 3px 9px; background: var(--ok-light); color: var(--ok); border-radius: 20px; font-size: 10.5px; font-weight: 500; }
@@ -87,7 +96,7 @@ body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif
 .mapping-hint { margin-top: 10px; font-size: 10.5px; color: var(--text-hint); }
 
 /* ── RUN BTN ── */
-.run-btn { display: block; width: 100%; padding: 13px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-size: 15px; font-weight: 600; cursor: pointer; transition: background .2s; margin-bottom: 22px; }
+.run-btn { display: block; width: 100%; padding: 9px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 600; cursor: pointer; transition: background .2s; margin-bottom: 12px; }
 .run-btn:hover { background: var(--accent-mid); }
 .run-btn:disabled { background: var(--border-strong); cursor: not-allowed; }
 
@@ -205,8 +214,8 @@ body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif
 
 /* ── PO ACCORDION ── */
 #po-list {
-  max-height: calc(100vh - 200px);
-  min-height: 400px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -605,8 +614,22 @@ async function loadMarginPrices() {
 window.addEventListener('DOMContentLoaded', loadMarginPrices);
 
 /* ═══════════════════════ EXCLUDED BRANDS ═══════════════════════ */
-const EXCLUDED_BRANDS=['삼대오백','뉴트리커먼','매시브','바이퍼','MXSSIVE','엠엑시브'];
-function isExcluded(name){ return EXCLUDED_BRANDS.some(b=>String(name||'').startsWith(b)); }
+const ALLOWED_BRAND_PREFIXES=['오아','보아르'];
+/* 명시 차단 목록 — allow 리스트만으로 걸러지지만, 이름 필드가 헷갈릴 때(예: 발주엔 온살이 찍혀 있는데 마스터 매칭으로 stockName이 오아로 오는 경우) 대비해 하드 차단 */
+const BLOCKED_BRAND_PREFIXES=['온살','삼대오백','뉴트리커먼','매시브','바이퍼','MXSSIVE','엠엑시브'];
+function _startsWithAny(name, list){
+  const t=String(name||'').trim();
+  return list.some(p=>t.startsWith(p));
+}
+function isExcluded(orderName, stockName){
+  // 두 이름 중 하나라도 차단 브랜드로 시작하면 즉시 제외
+  if(_startsWithAny(orderName, BLOCKED_BRAND_PREFIXES)) return true;
+  if(_startsWithAny(stockName, BLOCKED_BRAND_PREFIXES)) return true;
+  // 발주 이름 기준으로 허용 브랜드만 통과 (발주 이름이 비어 있으면 stockName로 판단)
+  const primary=String(orderName||'').trim()||String(stockName||'').trim();
+  if(!primary) return false; // 둘 다 비었으면 매칭 로직에서 별도 처리하도록 통과
+  return !_startsWithAny(primary, ALLOWED_BRAND_PREFIXES);
+}
 
 /* ═══════════════════════ GUESSES ═══════════════════════ */
 const guesses={
@@ -1062,7 +1085,7 @@ function runMatch(){
       orderPrice: orderPrice,
       marginPrice: marginPriceMap[String(orderSku||'').trim().toLowerCase()] || null
     };
-  }).filter(r=>!isExcluded(r.stockName||r.orderName));
+  }).filter(r=>!isExcluded(r.orderName, r.stockName));
 
   /* 중복 SKU 마킹: 발주번호 무관, 동일 SKU가 2회 이상 나오면 isDup=true */
   const _dupCnt={};
@@ -1071,7 +1094,7 @@ function runMatch(){
 
   renderStats();
   renderAll();
-  document.getElementById('results').style.display='block';
+  document.getElementById('results').style.display='';
   document.getElementById('save-bar').style.display='flex';
   document.getElementById('results').scrollIntoView({behavior:'smooth'});
   updateSaveCount();
@@ -1142,7 +1165,11 @@ function setFilter(f,el){
 }
 
 /* ═══════════════════════ RENDER ═══════════════════════ */
+// po-list 높이는 flexbox가 처리 (.main flex column → #results flex:1 → #po-list flex:1)
+function fitPoListHeight(){}
+
 function renderAll(){
+  fitPoListHeight();
   const q=document.getElementById('search-input').value.toLowerCase();
   const dl=window.dateLabels||{hasSales:false,dates:[],displayDates:[]};
 
@@ -1182,6 +1209,20 @@ function renderAll(){
         if(!isNaN(na)&&!isNaN(nb)) return na-nb;
         return String(a.orderSku||'').localeCompare(String(b.orderSku||''));
       });
+    });
+    /* 그룹 순서: 입고예정일 오름차순, 같은 날짜 안에서는 발주번호 내림차순 */
+    groupKeys.sort((a,b)=>{
+      const da=(groups[a][0]&&groups[a][0].orderDate)||'';
+      const db=(groups[b][0]&&groups[b][0].orderDate)||'';
+      if(da!==db){
+        if(!da) return 1;      // 날짜 없는 그룹은 뒤로
+        if(!db) return -1;
+        return da<db?-1:1;     // 오름차순
+      }
+      // 같은 날짜: 발주번호 내림차순 (숫자 우선)
+      const pa=Number(a), pb=Number(b);
+      if(!isNaN(pa)&&!isNaN(pb)) return pb-pa;
+      return String(b).localeCompare(String(a));
     });
   }
 
