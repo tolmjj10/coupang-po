@@ -88,6 +88,10 @@
   button.btn.ghost:hover { background: #f2ede9; border-color: transparent; color: #6b5f47; }
   button.btn.ghost:disabled { opacity: 0.35; cursor: default; background: transparent; }
   button.btn.ghost:disabled:hover { background: transparent; }
+  button.btn.ghost.active {
+    background: #f7efee; color: #8a3a37; border-color: #e6c9c5;
+  }
+  button.btn.ghost.active:hover { background: #f2e3e1; color: #7a3230; border-color: #dcb7b2; }
   .stats {
     display: flex;
     flex-wrap: wrap;
@@ -692,7 +696,8 @@
       </button>
     </div>
     <div class="stats" id="stats" style="display:none"></div>
-    <input class="search" id="search" style="margin-left:auto" placeholder="🔍 담당자 · 상품명 검색" oninput="render()">
+    <button class="btn ghost" id="btnPinUrgent" style="margin-left:auto" onclick="togglePinUrgent()" title="긴급(빨간 배경) 제품을 상단에 모아 보기">🔺 긴급 상단 고정</button>
+    <input class="search" id="search" placeholder="🔍 담당자 · 상품명 검색" oninput="render()">
   </div>
   <div class="alerts" id="alerts"></div>
 
@@ -742,6 +747,7 @@ const BRANDS = [
 let activeBrand = 'all';
 let sortKey = 'prod'; // 초기 정렬: 생산완료일 오름차순(빠른 순)
 let sortAsc = true;
+let pinUrgent = false; // 긴급(빨간 배경) 행을 상단에 고정
 const URGENT_DISMISS_KEY = 'coupang_new_urgent_dismiss_v1';
 let urgentDismissedIds = new Set();
 try {
@@ -1165,6 +1171,13 @@ function renderTabs() {
 
 function setBrand(key) { activeBrand = key; render(); }
 
+function togglePinUrgent() {
+  pinUrgent = !pinUrgent;
+  const btn = document.getElementById('btnPinUrgent');
+  if (btn) btn.classList.toggle('active', pinUrgent);
+  render();
+}
+
 function toggleSort(key) {
   if (sortKey === key) {
     if (sortAsc) { sortAsc = false; }
@@ -1204,6 +1217,21 @@ function render() {
       return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
     });
   }
+
+  if (pinUrgent) {
+    filtered = filtered.slice();
+    // 안정 정렬: 원본 index를 보조 키로 사용해 같은 그룹 내 순서는 그대로 유지.
+    filtered.forEach((r, i) => r.__idx = i);
+    filtered.sort((a, b) => {
+      const au = rowClass(a) === 'urgent-row' ? 0 : 1;
+      const bu = rowClass(b) === 'urgent-row' ? 0 : 1;
+      if (au !== bu) return au - bu;
+      return a.__idx - b.__idx;
+    });
+    filtered.forEach(r => delete r.__idx);
+  }
+  const _pinBtn = document.getElementById('btnPinUrgent');
+  if (_pinBtn) _pinBtn.classList.toggle('active', pinUrgent);
 
   const _pi = document.getElementById('sortProdIcon');    if (_pi) _pi.textContent = _sortIcon('prod');
   const _ai = document.getElementById('sortArrivalIcon'); if (_ai) _ai.textContent = _sortIcon('arrival');
@@ -1597,53 +1625,83 @@ function initColumnResize() {
 
 /* ═══════════════════════ 드래그 순서 변경 ═══════════════════════ */
 let _dragId = null;
+let _dragTargetId = null;
+let _dragBefore = false;
+function _clearDragMarkers() {
+  document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
+    el.classList.remove('drag-over-top', 'drag-over-bottom');
+  });
+}
+function _commitDrop() {
+  if (!_dragId || !_dragTargetId || _dragTargetId === _dragId) return false;
+  const srcIdx = data.findIndex(r => r.id === _dragId);
+  if (srcIdx < 0) return false;
+  const [moved] = data.splice(srcIdx, 1);
+  let insertAt = data.findIndex(r => r.id === _dragTargetId);
+  if (insertAt < 0) insertAt = data.length;
+  if (!_dragBefore) insertAt += 1;
+  data.splice(insertAt, 0, moved);
+  // 사용자 수동 순서를 유지하려면 자동 정렬을 해제해야 함(정렬이 켜져 있으면 재정렬로 되돌아감).
+  sortKey = null;
+  sortAsc = true;
+  save();
+  clearTimeout(_saveTimer);
+  saveRemote();
+  render();
+  return true;
+}
 function attachDragHandlers() {
-  const rows = document.querySelectorAll('#tbody tr[data-id]');
+  const tbody = document.getElementById('tbody');
+  const rows = tbody.querySelectorAll('tr[data-id]');
   rows.forEach(tr => {
     const handle = tr.querySelector('.drag-handle');
     if (handle) {
       handle.addEventListener('dragstart', e => {
         _dragId = tr.dataset.id;
+        _dragTargetId = null;
         tr.classList.add('dragging');
         try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', _dragId); } catch(_){}
       });
       handle.addEventListener('dragend', () => {
         tr.classList.remove('dragging');
-        document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
-          el.classList.remove('drag-over-top', 'drag-over-bottom');
-        });
+        _clearDragMarkers();
         _dragId = null;
+        _dragTargetId = null;
       });
     }
-    tr.addEventListener('dragover', e => {
-      if (!_dragId || tr.dataset.id === _dragId) return;
-      e.preventDefault();
-      const rect = tr.getBoundingClientRect();
-      const before = (e.clientY - rect.top) < rect.height / 2;
-      tr.classList.toggle('drag-over-top', before);
-      tr.classList.toggle('drag-over-bottom', !before);
-    });
-    tr.addEventListener('dragleave', () => {
-      tr.classList.remove('drag-over-top', 'drag-over-bottom');
-    });
-    tr.addEventListener('drop', e => {
-      e.preventDefault();
-      const targetId = tr.dataset.id;
-      const before = tr.classList.contains('drag-over-top');
-      tr.classList.remove('drag-over-top', 'drag-over-bottom');
-      if (!_dragId || targetId === _dragId) return;
-      const srcIdx = data.findIndex(r => r.id === _dragId);
-      if (srcIdx < 0) return;
-      const [moved] = data.splice(srcIdx, 1);
-      let insertAt = data.findIndex(r => r.id === targetId);
-      if (insertAt < 0) insertAt = data.length;
-      if (!before) insertAt += 1;
-      data.splice(insertAt, 0, moved);
-      save();
-      clearTimeout(_saveTimer);
-      saveRemote();
-      render();
-    });
+  });
+
+  if (tbody._dragBound) return;
+  tbody._dragBound = true;
+  tbody.addEventListener('dragover', e => {
+    if (!_dragId) return;
+    const tr = e.target.closest('tr[data-id]');
+    if (!tr || tr.dataset.id === _dragId) return;
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'move'; } catch(_){}
+    const rect = tr.getBoundingClientRect();
+    const before = (e.clientY - rect.top) < rect.height / 2;
+    _dragTargetId = tr.dataset.id;
+    _dragBefore = before;
+    _clearDragMarkers();
+    tr.classList.add(before ? 'drag-over-top' : 'drag-over-bottom');
+  });
+  tbody.addEventListener('drop', e => {
+    if (!_dragId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    _clearDragMarkers();
+    _commitDrop();
+  });
+  // 표 밖에서 놓인 경우에도 마지막으로 계산된 타겟에 반영
+  document.addEventListener('drop', e => {
+    if (!_dragId) return;
+    e.preventDefault();
+    _clearDragMarkers();
+    _commitDrop();
+  });
+  document.addEventListener('dragover', e => {
+    if (_dragId) e.preventDefault();
   });
 }
 
