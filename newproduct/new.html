@@ -802,6 +802,100 @@ function getModelForName(name){
   return map[t] || '';
 }
 
+/* ═══════════════════════ 마진테이블 SKU 매핑 (전산명 → SKU#) ═══════════════════════ */
+try { window.__marginSkuMap = JSON.parse(localStorage.getItem('coupang_new_margin_sku') || '{}'); }
+catch(_) { window.__marginSkuMap = {}; }
+function _mgNormName(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,''); }
+function getSkuForName(name){
+  const t = _mgNormName(name);
+  if (!t) return '';
+  return (window.__marginSkuMap || {})[t] || '';
+}
+async function loadMarginSkuMap(){
+  try {
+    const res = await fetch('/api/margin-state', { cache: 'no-store' });
+    if (!res.ok) return;
+    const parsed = await res.json();
+    const rows = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.rows) ? parsed.rows : []);
+    const map = {};
+    rows.forEach(r => {
+      const nm = _mgNormName(r.name);
+      const sku = String(r.sku || '').trim();
+      if (nm && sku) map[nm] = sku;
+    });
+    window.__marginSkuMap = map;
+    try { localStorage.setItem('coupang_new_margin_sku', JSON.stringify(map)); } catch(_){}
+    console.log('[new] 마진 SKU 맵 로드', Object.keys(map).length, '건');
+  } catch(e) {
+    console.warn('[new] 마진 SKU 맵 로드 실패:', e.message);
+  }
+}
+loadMarginSkuMap();
+setInterval(loadMarginSkuMap, 60000);
+window.addEventListener('focus', loadMarginSkuMap);
+
+/* ═══════════════════════ 전산명 팝오버 (SKU/모델명 표시 + 클릭 복사) ═══════════════════════ */
+let _infoPopover = null;
+function _ensureInfoPopover(){
+  if (_infoPopover) return _infoPopover;
+  const el = document.createElement('div');
+  el.id = '__realNameInfoPop';
+  el.style.cssText = 'position:absolute;z-index:1000;background:#fffdf5;border:1px solid #e5c76b;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,0.12);padding:8px 10px;min-width:160px;font-size:12px;color:#4a3c1e;line-height:1.5;display:none;user-select:text;font-family:inherit;';
+  document.body.appendChild(el);
+  _infoPopover = el;
+  // 팝오버 안 클릭은 blur 안 나게 (input 이 닫히지 않게)
+  el.addEventListener('mousedown', ev => ev.preventDefault());
+  return el;
+}
+function showRealNameInfo(inputEl, id){
+  const row = data.find(r => r.id === id);
+  if (!row) return;
+  const sku = getSkuForName(row.realName);
+  const model = getModelForName(row.realName);
+  if (!sku && !model) { hideRealNameInfo(); return; }
+  const pop = _ensureInfoPopover();
+  const rows = [];
+  if (sku)   rows.push(`<div style="display:flex;gap:6px;align-items:center;margin:2px 0;"><span style="color:#8a7a3a;font-weight:600;min-width:44px;">SKU</span><span class="__copy" data-copy="${esc(sku)}" style="cursor:pointer;padding:2px 6px;border-radius:4px;background:#fff;border:1px solid #e5c76b;font-weight:600;font-family:monospace;">${esc(sku)}</span></div>`);
+  if (model) rows.push(`<div style="display:flex;gap:6px;align-items:center;margin:2px 0;"><span style="color:#8a7a3a;font-weight:600;min-width:44px;">모델명</span><span class="__copy" data-copy="${esc(model)}" style="cursor:pointer;padding:2px 6px;border-radius:4px;background:#fff;border:1px solid #e5c76b;font-weight:600;font-family:monospace;">${esc(model)}</span></div>`);
+  pop.innerHTML = rows.join('') + `<div style="color:#a68a4a;font-size:10.5px;margin-top:4px;">클릭해서 복사</div>`;
+  // 위치: 셀 아래로 붙임
+  const rect = inputEl.getBoundingClientRect();
+  const popW = 220;
+  let left = window.scrollX + rect.left;
+  const top = window.scrollY + rect.bottom + 4;
+  if (left + popW > window.scrollX + window.innerWidth - 8) left = window.scrollX + window.innerWidth - popW - 8;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  pop.style.display = 'block';
+  // 클릭-복사
+  pop.querySelectorAll('.__copy').forEach(sp => {
+    sp.onclick = async () => {
+      const v = sp.dataset.copy;
+      try { await navigator.clipboard.writeText(v); }
+      catch(_) {
+        const ta = document.createElement('textarea'); ta.value = v; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch(_){}
+        ta.remove();
+      }
+      sp.style.background = '#e4d68a';
+      setTimeout(() => { sp.style.background = '#fff'; }, 400);
+    };
+  });
+}
+function hideRealNameInfo(){
+  if (_infoPopover) _infoPopover.style.display = 'none';
+}
+/* 다른 곳 클릭 시 닫기 — 팝오버 내부/전산명 input 클릭은 예외 */
+document.addEventListener('mousedown', ev => {
+  if (!_infoPopover || _infoPopover.style.display === 'none') return;
+  if (_infoPopover.contains(ev.target)) return;
+  const inputCell = ev.target.closest && ev.target.closest('input.real-name');
+  if (inputCell) return; // 다른 전산명 input 을 클릭하면 focus 이벤트에서 새로 갱신
+  hideRealNameInfo();
+});
+window.addEventListener('scroll', hideRealNameInfo, true);
+
 /* 전산명 셀 더블클릭 → 모델명 클립보드 복사 + 토스트 */
 async function copyModel(ev, id){
   const row = data.find(r => r.id === id);
@@ -1326,14 +1420,10 @@ function render() {
         <td><input type="text" class="reg-name ${row.regName ? 'filled' : ''}" value="${esc(row.regName)}" title="${esc(row.regName)}" placeholder="✎ 등록시 기입" oninput="upd('${row.id}','regName',this.value); this.classList.toggle('filled', !!this.value); this.title=this.value;"></td>
         <td>${(() => {
           const _mdl = getModelForName(row.realName);
-          const _tipParts = [];
-          if (_mdl) _tipParts.push('모델: ' + _mdl + ' (더블클릭: 복사)');
-          if (row.memo) _tipParts.push('📝 ' + row.memo + ' (우클릭: 메모 편집)');
-          else _tipParts.push('우클릭: 메모 추가');
-          if (!_mdl && !row.memo) _tipParts.unshift(row.realName);
-          const _title = esc(_tipParts.join('\n'));
-          const _hasModel = _mdl ? ' has-model' : '';
-          return `<input type="text" class="real-name ${row.memo?'has-memo':''}${_hasModel}" value="${esc(row.realName)}" title="${_title}" data-model="${esc(_mdl)}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)" oncontextmenu="editMemo(event,'${row.id}')" ondblclick="copyModel(event,'${row.id}')">`;
+          const _sku = getSkuForName(row.realName);
+          const _hasInfo = (_mdl || _sku) ? ' has-model' : '';
+          const _title = row.memo ? '📝 ' + esc(row.memo) : esc(row.realName);
+          return `<input type="text" class="real-name ${row.memo?'has-memo':''}${_hasInfo}" value="${esc(row.realName)}" title="${_title}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)" oncontextmenu="editMemo(event,'${row.id}')" onfocus="showRealNameInfo(this,'${row.id}')">`;
         })()}</td>
         <td>
           <div class="date-cell">
@@ -1426,11 +1516,11 @@ function updProductionDate(id, val) {
   const row = data.find(r => r.id === id);
   if (!row) return;
   row.productionDate = val;
-  // 생산완료일이 입력/변경되면 입고예정일은 자동으로 +14일. 입고예정일 필드
+  // 생산완료일이 입력/변경되면 입고예정일은 자동으로 +20일. 입고예정일 필드
   // 자체를 직접 편집한 경우엔 생산완료일에 영향을 주지 않음(별도 onchange).
   if (val) {
     const d = new Date(val);
-    d.setDate(d.getDate() + 14);
+    d.setDate(d.getDate() + 20);
     row.arrivalDate = d.toISOString().slice(0, 10);
     // DOM에서 해당 행의 입고예정일 input 값을 직접 갱신(전체 render는 포커스 튕김 유발).
     const tr = document.querySelector(`tr[data-id="${id}"]`);
