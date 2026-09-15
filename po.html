@@ -584,13 +584,19 @@ function initMaster(){
 window.addEventListener('DOMContentLoaded', initMaster);
 
 /* ═══════════════════════ 마진테이블 매입가 로드 ═══════════════════════ */
-let marginPriceMap = {}; // { normalizedSku: cost(매입가) }
+let marginPriceMap = {};   // { normalizedSku: cost(매입가) } — 하위 호환용
+let marginProductMap = {}; // { normalizedSku: {name, cost} } — 미매칭 SKU 를 마진테이블로 인식하기 위한 확장 맵
 async function loadMarginPrices() {
   try {
     const cached = localStorage.getItem('po_margin_price_cache');
     if (cached) {
       const m = JSON.parse(cached);
       if (m && typeof m === 'object') marginPriceMap = m;
+    }
+    const cachedFull = localStorage.getItem('po_margin_product_cache');
+    if (cachedFull) {
+      const mf = JSON.parse(cachedFull);
+      if (mf && typeof mf === 'object') marginProductMap = mf;
     }
   } catch (_) {}
   try {
@@ -599,20 +605,39 @@ async function loadMarginPrices() {
     const j = await res.json();
     const rows = Array.isArray(j) ? j : (j.rows || []);
     const map = {};
+    const prodMap = {};
     rows.forEach(r => {
       const sku = String(r.sku || '').trim().toLowerCase();
       if (!sku) return;
       const cost = Number(String(r.cost || '').replace(/,/g,'')) || 0;
       if (cost > 0) map[sku] = cost;
+      // 이름만 있어도 등록된 것으로 간주 — 미매칭 판정 완화용
+      const name = String(r.name || '').trim();
+      if (name || cost > 0) prodMap[sku] = { name, cost };
     });
+    const prevCount = Object.keys(marginProductMap).length;
     marginPriceMap = map;
-    try { localStorage.setItem('po_margin_price_cache', JSON.stringify(map)); } catch(_) {}
-    console.log('[po] 마진테이블 매입가 로드', Object.keys(map).length, '건');
+    marginProductMap = prodMap;
+    try {
+      localStorage.setItem('po_margin_price_cache', JSON.stringify(map));
+      localStorage.setItem('po_margin_product_cache', JSON.stringify(prodMap));
+    } catch(_) {}
+    console.log('[po] 마진테이블 로드', Object.keys(map).length, '건 (전체', Object.keys(prodMap).length, '건)');
+    // 이미 매칭 결과가 화면에 있고, 새 SKU 가 추가됐다면 자동 재매칭
+    if (typeof matchedRows !== 'undefined' && matchedRows && matchedRows.length &&
+        Object.keys(prodMap).length !== prevCount && typeof runMatch === 'function') {
+      console.log('[po] 마진테이블 변경 감지 → 자동 재매칭');
+      try { runMatch(); } catch(_){}
+    }
   } catch (e) {
     console.warn('[po] loadMarginPrices 실패:', e.message);
   }
 }
 window.addEventListener('DOMContentLoaded', loadMarginPrices);
+// 60초마다 마진테이블 폴링 → 다른 탭/사용자가 SKU 추가 시 자동 반영
+setInterval(loadMarginPrices, 60000);
+// 창이 포커스될 때도 즉시 재확인 (탭 전환 후 복귀 시)
+window.addEventListener('focus', loadMarginPrices);
 
 /* ═══════════════════════ EXCLUDED BRANDS ═══════════════════════ */
 const ALLOWED_BRAND_PREFIXES=['오아','보아르'];
@@ -1063,22 +1088,32 @@ function runMatch(){
     /* 운송 중: procode로 조회 */
     const transitQty=procode?( transitMap[norm(procode)]||0 ):0;
 
+    /* 마진테이블에 등록된 SKU 는 미매칭이 아님 — 이름/상태를 마진테이블 기준으로 보정. */
+    const _mgKey=String(orderSku||'').trim().toLowerCase();
+    const mgEntry=marginProductMap[_mgKey]||null;
+    const marginMatched=!masterEntry && !!mgEntry;
+    if(marginMatched && status==='unknown'){
+      // 실물 재고 정보는 없지만 마진테이블에 있으니 '재고 충분' 으로 낙관 처리
+      status='sufficient';
+    }
+
     return {
       idx:i+1, poNum, orderDate,
       orderName, orderSku,
       procode:procode||null,
-      masterName:masterEntry?.name||'',
-      stockName:stockEntry?.displayName||'',
+      masterName:masterEntry?.name||(marginMatched?mgEntry.name:''),
+      stockName:stockEntry?.displayName||(marginMatched?mgEntry.name:''),
       orderQty, stockQty, status,
       diff:stockQty!==null?stockQty-orderQty:null,
-      noMaster:!masterEntry,
-      noStock:!!masterEntry&&!stockEntry,
+      noMaster:!masterEntry && !marginMatched,
+      noStock:(!!masterEntry||marginMatched) && !stockEntry,
       curStock, dailySales, avgSales, doc,
       hasSalesMatch:!!pivotEntry,
       transit: transitQty,
       price: masterEntry?.price||0,
       orderPrice: orderPrice,
-      marginPrice: marginPriceMap[String(orderSku||'').trim().toLowerCase()] || null
+      marginPrice: marginPriceMap[_mgKey] || (mgEntry?mgEntry.cost:null) || null,
+      marginMatched
     };
   }).filter(r=>!isExcluded(r.stockName||r.orderName));
 
