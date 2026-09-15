@@ -179,6 +179,42 @@
   tbody tr.new-row:hover td{background:#ebe0d8;}
 
   /* Editable cell */
+  /* VIID/PID 펼침·접힘 */
+  #tbl th.col-vp,
+  #tbl td.col-vp { display: none; }
+  #tbl.vp-expanded th.col-vp,
+  #tbl.vp-expanded td.col-vp { display: table-cell; }
+  #tbl.vp-expanded th[data-k="name"],
+  #tbl.vp-expanded td.col-name { width: 128px !important; min-width: 128px !important; }
+  #tbl.vp-expanded th[data-k="name"] { width: 128px !important; }
+  /* 토글 핸들 (SKU# 과 상품명 사이의 얇은 세로줄 + 화살표) */
+  #tbl th.col-vp-toggle,
+  #tbl td.col-vp-toggle {
+    padding: 0 !important;
+    background: linear-gradient(to right, transparent, var(--accent-soft) 40%, var(--accent-soft) 60%, transparent);
+    cursor: pointer;
+    user-select: none;
+  }
+  #tbl th.col-vp-toggle { border-bottom: 1px solid var(--hairline); }
+  #tbl td.col-vp-toggle { border-right: 1px solid var(--hairline); border-left: 1px solid var(--hairline); }
+  .vp-toggle-handle {
+    display:flex; align-items:center; justify-content:center;
+    height:100%; width:100%;
+    font-size:11px; font-weight:700; color: var(--accent-dark);
+    background: rgba(212, 192, 173, 0.35);
+    transition: background .12s, color .12s;
+  }
+  #tbl th.col-vp-toggle:hover .vp-toggle-handle,
+  #tbl td.col-vp-toggle:hover .vp-toggle-handle {
+    background: var(--accent);
+    color: #fff;
+  }
+  #tbl.vp-expanded th.col-vp-toggle .vp-toggle-handle,
+  #tbl.vp-expanded td.col-vp-toggle .vp-toggle-handle {
+    background: var(--accent);
+    color: #fff;
+  }
+
   .editable{cursor:text;border-radius:6px;margin:2px;padding:7px 8px !important;min-height:28px !important;transition:background .12s;}
   .editable:hover{background:var(--accent-soft);}
   .editable[contenteditable="true"]{
@@ -327,6 +363,9 @@ const COLS=[
   {k:'cat',     label:'카테고리',    w:66,  align:'center', editable:true, type:'select', cls:'col-cat',
     options:['이미용','욕실가전','모바일','겨울가전','여름가전','건강가전','주방가전','생활가전','인테리어/조명','제습기','공기청정기','육아','차량','애견']},
   {k:'sku',     label:'SKU #',       w:70,  align:'center', editable:true, type:'text'},
+  {k:'_vpToggle', label:'',           w:14,  align:'center', render:renderVpToggle, cls:'col-vp-toggle'},
+  {k:'viid',    label:'VIID',        w:96,  align:'center', render:(_,r)=>{ const v=(window.viidMap||{})[String(r.sku||'').trim()]; const s=v?v.viid:''; return `<div class="cell calc center id-cell">${s?esc(s):(r.sku?'<span class="hint">―</span>':'')}</div>`; }, cls:'col-vp'},
+  {k:'pid',     label:'PID',         w:96,  align:'center', render:(_,r)=>{ const v=(window.viidMap||{})[String(r.sku||'').trim()]; const s=v?v.pid:''; return `<div class="cell calc center id-cell">${s?esc(s):(r.sku?'<span class="hint">―</span>':'')}</div>`; }, cls:'col-vp'},
   {k:'name',    label:'상품명',      w:320, align:'left',   editable:true, type:'text', cls:'col-name'},
   {k:'status',  label:'상태',        w:60,  align:'center', editable:true, type:'select', options:['판매','단종','품절','단종예정']},
   {k:'cost',    label:'매입가',      w:72,  align:'right',  editable:true, type:'num', hi:true},
@@ -455,14 +494,27 @@ function renderActions(_,r){
   </div>`;
 }
 
+/* VIID/PID 컬럼 펼침·접힘 상태 */
+let vpExpanded = (() => { try { return localStorage.getItem('margin_vp_expanded') === '1'; } catch(_) { return false; } })();
+function renderVpToggle(_, r){
+  // 각 셀은 세로 구분선 역할 + 클릭 시 VIID/PID 컬럼 펼침/접힘
+  return `<div class="vp-toggle-handle" title="${vpExpanded?'VIID/PID 숨기기':'VIID/PID 보기'}">${vpExpanded?'‹':'›'}</div>`;
+}
+function toggleVp(){
+  vpExpanded = !vpExpanded;
+  try { localStorage.setItem('margin_vp_expanded', vpExpanded ? '1' : '0'); } catch(_){}
+  document.getElementById('tbl').classList.toggle('vp-expanded', vpExpanded);
+  render();
+}
+
 /* ─────────────────────────── render ─────────────────────────── */
 function buildHead(){
   const tr=document.getElementById('thead-row');
   tr.innerHTML=COLS.map(c=>{
-    const sortable=c.k!=='_act';
-    const resizable=c.k!=='_act';
-    const cls=sortable?'sortable':'';
-    return `<th class="${cls}" data-k="${c.k}" style="min-width:${c.w}px;width:${c.w}px;">${esc(c.label).replace(/\n/g,'<br>')}${sortable?'<span class="arrow"></span>':''}${resizable?'<span class="resize" data-k="'+c.k+'"></span>':''}</th>`;
+    const sortable=c.k!=='_act' && c.k!=='_vpToggle';
+    const resizable=c.k!=='_act' && c.k!=='_vpToggle';
+    const cls=(sortable?'sortable ':'')+(c.cls||'');
+    return `<th class="${cls.trim()}" data-k="${c.k}" style="min-width:${c.w}px;width:${c.w}px;">${esc(c.label).replace(/\n/g,'<br>')}${sortable?'<span class="arrow"></span>':''}${resizable?'<span class="resize" data-k="'+c.k+'"></span>':''}</th>`;
   }).join('');
   tr.querySelectorAll('th.sortable').forEach(th=>{
     th.addEventListener('click',(e)=>{
@@ -605,6 +657,13 @@ function render(){
 // 이벤트 위임: tbody 하나에만 클릭 리스너를 붙여 매 render마다 리스너 재부착하지 않도록 함.
 // 이전엔 300행 × 15셀 = 4500개 리스너를 매번 붙여서 카테고리 클릭/검색 입력마다 렉이 심했음.
 function initTableDelegation(){
+  const tbl=document.getElementById('tbl');
+  // 헤더/바디 어디를 클릭해도 VIID/PID 토글
+  tbl.addEventListener('click', e=>{
+    if(e.target.closest('.col-vp-toggle')){ toggleVp(); e.stopPropagation(); return; }
+  }, true);
+  // 초기 상태 반영
+  tbl.classList.toggle('vp-expanded', vpExpanded);
   const tbody=document.getElementById('tbody');
   tbody.addEventListener('click', e=>{
     const btn = e.target.closest('button[data-act]');
@@ -911,6 +970,76 @@ async function load(){
     document.getElementById('status').textContent='로드 실패';
   }
 }
+
+/* ─────────────────────────── VIID/PID 로드 (프로모션과 동일 소스) ─────────────────────────── */
+const VP_CACHE_KEY='margin_viid_cache';
+window.viidMap={};
+try {
+  const cached=localStorage.getItem(VP_CACHE_KEY);
+  if(cached){ const m=JSON.parse(cached); if(m && typeof m==='object') window.viidMap=m; }
+} catch(_){}
+let _mgXlsxLoading=null;
+function _mgEnsureXlsx(){
+  if(typeof XLSX!=='undefined') return Promise.resolve();
+  if(_mgXlsxLoading) return _mgXlsxLoading;
+  _mgXlsxLoading=new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+    s.onload=resolve; s.onerror=()=>reject(new Error('XLSX load failed'));
+    document.head.appendChild(s);
+  });
+  return _mgXlsxLoading;
+}
+async function loadViidPidForMargin(){
+  try {
+    const listUrl='/api/repo-files?path='+encodeURIComponent('promotion/viid_pid')+'&ref=main';
+    const listRes=await fetch(listUrl);
+    if(!listRes.ok) throw new Error('list HTTP '+listRes.status);
+    const files=await listRes.json();
+    const NAME_RE=/viid.*pid.*확인/i;
+    const target=(files||[]).find(f=>f.type==='file' && NAME_RE.test(f.name) && /\.xlsx?$/i.test(f.name));
+    if(!target){ console.log('[margin] viid_pid확인 파일 없음'); return; }
+    await _mgEnsureXlsx();
+    const abRes=await fetch(target.download_url);
+    if(!abRes.ok) throw new Error('file HTTP '+abRes.status);
+    const ab=await abRes.arrayBuffer();
+    const wb=XLSX.read(ab,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const aoa=XLSX.utils.sheet_to_json(ws,{header:1, defval:''});
+    if(aoa.length<2) return;
+    let hIdx=-1;
+    for(let i=0;i<Math.min(aoa.length,10);i++){
+      const row=(aoa[i]||[]).map(v=>String(v||'').toUpperCase().replace(/\s+/g,''));
+      const hasSku=row.some(c=>/SKU/.test(c));
+      const hasViid=row.some(c=>/VIID|옵션ID|옵션아이디/.test(c));
+      const hasPid=row.some(c=>/(^|[^A-Z])PID|노출ID|상품ID/.test(c));
+      if(hasSku && (hasViid||hasPid)){ hIdx=i; break; }
+    }
+    if(hIdx<0){ console.warn('[margin] viid_pid 헤더 감지 실패'); return; }
+    const header=(aoa[hIdx]||[]).map(v=>String(v||'').toUpperCase().replace(/\s+/g,''));
+    const skuCol=header.findIndex(h=>/SKU/.test(h) && !/명|NAME/.test(h));
+    const viidCol=header.findIndex(h=>/VIID|옵션ID|옵션아이디/.test(h));
+    const pidCol=header.findIndex(h=>/(^|[^A-Z])PID|노출ID|상품ID/.test(h));
+    const map={};
+    for(let r=hIdx+1;r<aoa.length;r++){
+      const row=aoa[r]||[];
+      const sku=String(row[skuCol]||'').trim();
+      if(!sku) continue;
+      map[sku]={
+        viid: viidCol>=0?String(row[viidCol]||'').trim():'',
+        pid:  pidCol>=0?String(row[pidCol]||'').trim():''
+      };
+    }
+    window.viidMap=map;
+    try { localStorage.setItem(VP_CACHE_KEY, JSON.stringify(map)); } catch(_){}
+    console.log('[margin] VIID/PID 매핑 로드', Object.keys(map).length, '건');
+    if(typeof render==='function') render();
+  } catch(e){
+    console.warn('[margin] loadViidPid 실패:', e.message);
+  }
+}
+loadViidPidForMargin();
+setInterval(loadViidPidForMargin, 5*60*1000); // 5분 폴링
 
 /* ─────────────────────────── init ─────────────────────────── */
 buildHead();
