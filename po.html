@@ -614,22 +614,8 @@ async function loadMarginPrices() {
 window.addEventListener('DOMContentLoaded', loadMarginPrices);
 
 /* ═══════════════════════ EXCLUDED BRANDS ═══════════════════════ */
-const ALLOWED_BRAND_PREFIXES=['오아','보아르'];
-/* 명시 차단 목록 — allow 리스트만으로 걸러지지만, 이름 필드가 헷갈릴 때(예: 발주엔 온살이 찍혀 있는데 마스터 매칭으로 stockName이 오아로 오는 경우) 대비해 하드 차단 */
-const BLOCKED_BRAND_PREFIXES=['온살','삼대오백','뉴트리커먼','매시브','바이퍼','MXSSIVE','엠엑시브'];
-function _startsWithAny(name, list){
-  const t=String(name||'').trim();
-  return list.some(p=>t.startsWith(p));
-}
-function isExcluded(orderName, stockName){
-  // 두 이름 중 하나라도 차단 브랜드로 시작하면 즉시 제외
-  if(_startsWithAny(orderName, BLOCKED_BRAND_PREFIXES)) return true;
-  if(_startsWithAny(stockName, BLOCKED_BRAND_PREFIXES)) return true;
-  // 발주 이름 기준으로 허용 브랜드만 통과 (발주 이름이 비어 있으면 stockName로 판단)
-  const primary=String(orderName||'').trim()||String(stockName||'').trim();
-  if(!primary) return false; // 둘 다 비었으면 매칭 로직에서 별도 처리하도록 통과
-  return !_startsWithAny(primary, ALLOWED_BRAND_PREFIXES);
-}
+const EXCLUDED_BRANDS=['온살','삼대오백','뉴트리커먼','매시브','바이퍼','MXSSIVE','엠엑시브'];
+function isExcluded(name){ return EXCLUDED_BRANDS.some(b=>String(name||'').trim().startsWith(b)); }
 
 /* ═══════════════════════ GUESSES ═══════════════════════ */
 const guesses={
@@ -1085,7 +1071,7 @@ function runMatch(){
       orderPrice: orderPrice,
       marginPrice: marginPriceMap[String(orderSku||'').trim().toLowerCase()] || null
     };
-  }).filter(r=>!isExcluded(r.orderName, r.stockName));
+  }).filter(r=>!isExcluded(r.stockName||r.orderName) && !isExcluded(r.orderName));
 
   /* 중복 SKU 마킹: 발주번호 무관, 동일 SKU가 2회 이상 나오면 isDup=true */
   const _dupCnt={};
