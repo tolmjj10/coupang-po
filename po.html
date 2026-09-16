@@ -941,8 +941,9 @@ function checkReady(){
 }
 
 function resetResults(){
+  /* invValues / __VOAR_DOWNLOADED_POS__ 는 절대 여기서 삭제하지 않는다.
+     저장값은 applySharedState의 orderSha 변경 감지 로직에서만 리셋된다. */
   matchedRows=[];
-  Object.keys(invValues).forEach(k=>delete invValues[k]);
   document.getElementById('results').style.display='none';
   document.getElementById('save-bar').style.display='none';
   document.getElementById('po-list').innerHTML='';
@@ -1128,7 +1129,27 @@ function runMatch(){
   document.getElementById('save-bar').style.display='flex';
   document.getElementById('results').scrollIntoView({behavior:'smooth'});
   updateSaveCount();
+  reapplyPersistedState();
 }
+
+/* renderAll()이 DOM을 다시 그린 뒤 invValues + 다운로드 마커를 DOM에 재적용한다.
+   runMatch나 FSAPI 재로드로 UI가 갱신돼도 저장값이 사라지지 않도록. */
+function reapplyPersistedState(){
+  try{
+    document.querySelectorAll('input[data-rid]').forEach(function(el){
+      const rid=el.getAttribute('data-rid');
+      if(invValues[rid]!==undefined){
+        el.value=invValues[rid];
+        el.classList.add('modified');
+        el.classList.remove('filled');
+      }
+    });
+    if(typeof applyDownloadedMarkers==='function') applyDownloadedMarkers();
+    if(typeof updateAllPoAmounts==='function') updateAllPoAmounts();
+    if(typeof updateSaveCount==='function') updateSaveCount();
+  }catch(e){ console.warn('[VOAR] reapplyPersistedState err:', e.message); }
+}
+window.reapplyPersistedState=reapplyPersistedState;
 
 /* ═══════════════════════ STATS ═══════════════════════ */
 function renderStats(){
