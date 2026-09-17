@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>쿠팡 판매가 확인</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #fbfbfe;
+    --card: #ffffff;
+    --border: #e2e0d8;
+    --text: #1a1916;
+    --muted: #6b6960;
+    --primary: #1a3a4a;
+    --primary-hover: #255269;
+    --accent: #1a3a4a;
+    --accent-light: #e8f1f5;
+    --success: #4a7c59;
+    --warning: #b08840;
+    --danger: #a85450;
+    --info: #4a6b8a;
+    --soft-red: #f7efee;
+    --soft-yellow: #f8f4e9;
+    --soft-green: #eef2ec;
+    --soft-blue: #eef1f4;
+    --soft-purple: #f2f0ee;
+  }
+  html, body {
+    font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',-apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    margin: 0;
+    padding: 0;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.01em;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .container {
+    max-width: 1720px;
+    margin: 0 auto;
+    padding: 20px 24px 22px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .page-header .title-block h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.024em;
+    margin: 0;
+    color: var(--text);
+    line-height: 1.15;
+  }
+  .page-header .title-block .sub {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .page-header .status {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .stats-row {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 14px;
+    background: var(--card);
+    border: 1px solid #eae1d8;
+    border-radius: 14px;
+    padding: 10px 14px;
+    box-shadow: 0 1px 2px rgba(139, 117, 108, 0.05);
+  }
+  .stats-row .divider { width: 1px; height: 22px; background: #eae1d8; margin: 0 4px; }
+  .stat-card {
+    background: var(--card);
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    transition: background .12s ease;
+  }
+  .stat-card:hover { background: #f8fafc; }
+  .stat-label { font-size: 11.5px; color: var(--muted); font-weight: 500; }
+  .stat-value { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+  .stat-value.red { color: var(--danger); }
+  .stat-value.green { color: var(--success); }
+  .stat-value.blue { color: var(--info); }
+  .hint {
+    color: var(--muted);
+    font-size: 12px;
+    margin-left: auto;
+  }
+  .hint code {
+    padding: 1px 5px;
+    background: var(--soft-blue);
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--info);
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .search {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 13px;
+    width: 280px;
+    font-family: inherit;
+    background: white;
+    transition: border-color .15s ease;
+  }
+  .search:focus { outline: none; border-color: var(--text); box-shadow: 0 0 0 3px rgba(0,0,0,0.05); }
+  button.btn {
+    font: 500 13px 'Pretendard', sans-serif; letter-spacing: -0.01em;
+    padding: 8px 14px; border-radius: 9px; border: 1px solid #e0d6cd;
+    background: #ffffff; color: var(--text); cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-weight: 500;
+  }
+  button.btn:hover { background: #f6f1ec; border-color: #d3c4b7; }
+  button.btn:active { transform: scale(0.98); }
+
+  .table-wrap {
+    background: white;
+    border-radius: 14px;
+    overflow: auto;
+    flex: 1;
+    min-height: 0;
+    border: 1px solid #eae1d8;
+    box-shadow: 0 1px 2px rgba(139, 117, 108, 0.05);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    background: #fafbfd;
+    padding: 12px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    white-space: nowrap;
+  }
+  th.date-header {
+    text-align: center;
+    border-left: 1px solid var(--border);
+    font-size: 12px;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text);
+    background: #f4f5f2;
+    cursor: default;
+    user-select: none;
+    padding: 10px 12px;
+  }
+  th.date-header.has-extra { cursor: pointer; }
+  th.date-header.has-extra:hover { background: var(--accent-light); }
+  th.date-header .date-label {
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  th.date-header .expand-icon {
+    font-size: 10px;
+    opacity: 0.5;
+    transition: transform .2s;
+    display: inline-block;
+    margin-left: 3px;
+  }
+  th.date-header.expanded .expand-icon { transform: rotate(90deg); opacity: 0.9; }
+  th.sub-base, th.sub-price {
+    background: #fafbfd;
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    padding: 8px 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  th.sub-base { border-left: 1px solid var(--border); }
+  .time-tag {
+    display: inline-block;
+    font-size: 10.5px;
+    font-weight: 500;
+    margin-left: 5px;
+    padding: 1px 7px;
+    background: #ffffff;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .time-tag.extra-tag { display: none; }
+  .time-tag.extra-tag.shown { display: inline-block; }
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f5f6f9;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  tbody tr { transition: background .12s ease; }
+  tbody tr:hover td { background: #fafbfd; }
+  .idx {
+    width: 44px;
+    text-align: center;
+    color: #b8b3ac;
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .id {
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    font-size: 11.5px;
+    width: 108px;
+  }
+  .name {
+    min-width: 280px;
+    white-space: normal;
+    padding-right: 12px;
+  }
+  .name a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .name a:hover { text-decoration: underline; color: var(--primary-hover); }
+  .c-base {
+    text-align: center;
+    color: #b8b3ac;
+    width: 88px;
+    border-left: 1px solid #f5f6f9;
+    font-variant-numeric: tabular-nums;
+    text-decoration: line-through;
+    text-decoration-color: #d5d0c8;
+  }
+  .c-price {
+    text-align: center;
+    color: var(--danger);
+    font-weight: 700;
+    width: 98px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .c-base.dash, .c-price.dash { color: #d5d0c8; font-weight: 400; text-decoration: none; }
+  .extra-col { display: none; }
+  .extra-col.shown { display: table-cell; }
+  .empty {
+    padding: 80px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .empty .icon {
+    display: block;
+    margin: 0 auto 16px;
+    width: 44px;
+    height: 44px;
+    color: #cfc9c0;
+  }
+  .empty code {
+    padding: 2px 6px;
+    background: var(--soft-blue);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--info);
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="page-header">
+    <div class="title-block">
+      <h1>판매가 확인</h1>
+      <div class="sub">
+        <span>마이샵 상품 · 날짜별 판매가 이력</span>
+      </div>
+    </div>
+    <div class="status" id="status">로딩 중...</div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <span class="stat-label">전체 상품</span>
+      <span class="stat-value" id="stat-total">-</span>
+    </div>
+    <div class="divider"></div>
+    <div class="stat-card">
+      <span class="stat-label">수집일</span>
+      <span class="stat-value blue" id="stat-dates">-</span>
+    </div>
+    <div class="divider"></div>
+    <div class="stat-card">
+      <span class="stat-label">총 수집</span>
+      <span class="stat-value green" id="stat-runs">-</span>
+    </div>
+    <div class="hint">날짜 헤더의 <code>▶</code> 클릭 → 그 날 여러 번 수집한 시간대별 가격 펼침</div>
+  </div>
+
+  <div class="toolbar">
+    <input class="search" type="text" id="q" placeholder="상품명 · Product ID · VendorItem ID 검색">
+    <button class="btn" id="reload">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+        <polyline points="23 4 23 10 17 10"/>
+        <polyline points="1 20 1 14 7 14"/>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </svg>
+      새로고침
+    </button>
+  </div>
+
+  <div class="table-wrap" id="tblwrap">
+    <div class="empty" id="empty">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      데이터 로딩 중...
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api/price-state';
+
+function labelToTimeKey(label) {
+  if (label === '오전') return '0900';
+  if (label === '오후') return '1400';
+  if (label === '저녁') return '1900';
+  if (label && label.includes(':')) return label.replace(':', '');
+  return '9999';
+}
+
+function fmt(n) {
+  return (n && Number.isFinite(n)) ? n.toLocaleString() + '원' : '-';
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+
+function render(state) {
+  const history = (state && state.history) || {};
+  const order = (state && state.order) || [];
+
+  const productKeys = Object.keys(history);
+  const total = productKeys.length;
+
+  document.getElementById('stat-total').textContent = total || '-';
+
+  if (!total) {
+    document.getElementById('stat-dates').textContent = '-';
+    document.getElementById('stat-runs').textContent = '-';
+    document.getElementById('tblwrap').innerHTML =
+      '<div class="empty">' +
+      '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">' +
+      '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' +
+      '아직 수집된 데이터가 없습니다.<br>' +
+      '로컬에서 수집 후 <code>업로드.py</code>로 서버에 반영해주세요.' +
+      '</div>';
+    return;
+  }
+
+  const dateLabels = {};
+  for (const key of productKeys) {
+    const runs = (history[key] || {}).runs || {};
+    for (const rk in runs) {
+      const r = runs[rk];
+      const d = r.date || '-';
+      const l = r.label || '-';
+      (dateLabels[d] = dateLabels[d] || new Set()).add(l);
+    }
+  }
+  const datesAsc = Object.keys(dateLabels).sort();
+  const dateLabelLists = {};
+  for (const d of datesAsc) {
+    dateLabelLists[d] = Array.from(dateLabels[d]).sort((a, b) => labelToTimeKey(a).localeCompare(labelToTimeKey(b)));
+  }
+
+  const nDates = datesAsc.length;
+  const nRuns = Object.values(dateLabelLists).reduce((s, v) => s + v.length, 0);
+  document.getElementById('stat-dates').textContent = nDates;
+  document.getElementById('stat-runs').textContent = nRuns;
+
+  const topHeader = [];
+  const subHeader = [];
+  const colMetas = [];
+  const COLS_PER_RUN = 2;
+  for (const d of datesAsc) {
+    const labels = dateLabelLists[d];
+    const latest = labels[labels.length - 1];
+    const extras = labels.slice(0, -1);
+    const span = COLS_PER_RUN + COLS_PER_RUN * extras.length;
+    const dateShort = d.length >= 10 ? d.slice(5) : d;
+    const hasExtra = extras.length > 0;
+    const cls = hasExtra ? ' has-extra' : '';
+    const toggleAttr = hasExtra ? ` data-date="${d}"` : '';
+    const icon = hasExtra ? ' <span class="expand-icon">▶</span>' : '';
+    const extrasTags = extras.map(l => `<span class="time-tag extra-tag extra-${d}">${l}</span>`).join('');
+    const latestTag = ` <span class="time-tag">${latest}</span>`;
+
+    topHeader.push(
+      `<th colspan="${span}" class="date-header${cls}"${toggleAttr}>` +
+      `<span class="date-label">${dateShort}</span>${extrasTags}${latestTag}${icon}` +
+      `</th>`
+    );
+    for (const l of extras) {
+      subHeader.push(`<th class="sub-base extra-col extra-${d}" data-date="${d}">판매가</th>`);
+      subHeader.push(`<th class="sub-price extra-col extra-${d}" data-date="${d}">할인가</th>`);
+      colMetas.push({date: d, label: l, isExtra: true});
+    }
+    subHeader.push(`<th class="sub-base">판매가</th>`);
+    subHeader.push(`<th class="sub-price">할인가</th>`);
+    colMetas.push({date: d, label: latest, isExtra: false});
+  }
+
+  const orderIdx = new Map(order.map((k, i) => [k, i]));
+  const entriesSorted = productKeys.map(k => ({key: k, entry: history[k]})).sort((a, b) => {
+    const oa = orderIdx.has(a.key) ? orderIdx.get(a.key) : 999999;
+    const ob = orderIdx.has(b.key) ? orderIdx.get(b.key) : 999999;
+    if (oa !== ob) return oa - ob;
+    return (a.entry.name || '').localeCompare(b.entry.name || '');
+  });
+
+  const rows = [];
+  entriesSorted.forEach((e, idx) => {
+    const entry = e.entry;
+    const pid = entry.productId || '';
+    const viid = entry.vendorItemId || '';
+    const name = escapeHtml(entry.name);
+    const url = entry.url || '#';
+    const runs = entry.runs || {};
+    const runByDL = {};
+    for (const rk in runs) {
+      const r = runs[rk];
+      runByDL[`${r.date}||${r.label}`] = r;
+    }
+    const cells = [];
+    for (const cm of colMetas) {
+      const r = runByDL[`${cm.date}||${cm.label}`] || {};
+      const exCls = cm.isExtra ? ` extra-col extra-${cm.date}` : '';
+      const baseVal = fmt(r.basePrice);
+      const priceVal = fmt(r.price);
+      cells.push(`<td class="c-base${exCls}${baseVal==='-'?' dash':''}" data-date="${cm.date}">${baseVal}</td>`);
+      cells.push(`<td class="c-price${exCls}${priceVal==='-'?' dash':''}" data-date="${cm.date}">${priceVal}</td>`);
+    }
+    rows.push(
+      `<tr>` +
+      `<td class="idx">${idx+1}</td>` +
+      `<td class="id">${escapeHtml(pid)}</td>` +
+      `<td class="id">${escapeHtml(viid)}</td>` +
+      `<td class="name"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${name}</a></td>` +
+      cells.join('') +
+      `</tr>`
+    );
+  });
+
+  document.getElementById('tblwrap').innerHTML =
+    `<table id="t">` +
+    `<thead><tr>` +
+    `<th rowspan="2">#</th><th rowspan="2">Product ID</th><th rowspan="2">VendorItem ID</th><th rowspan="2">상품명</th>` +
+    topHeader.join('') +
+    `</tr><tr>` + subHeader.join('') + `</tr></thead>` +
+    `<tbody>` + rows.join('') + `</tbody></table>`;
+
+  document.querySelectorAll('th.date-header.has-extra').forEach(th => {
+    th.addEventListener('click', () => {
+      const d = th.dataset.date;
+      const expanded = th.classList.toggle('expanded');
+      document.querySelectorAll('.extra-' + CSS.escape(d)).forEach(el => {
+        el.classList.toggle('shown', expanded);
+      });
+    });
+  });
+
+  const q = document.getElementById('q');
+  q.oninput = () => {
+    const v = q.value.toLowerCase();
+    document.querySelectorAll('#t tbody tr').forEach(tr => {
+      tr.style.display = tr.innerText.toLowerCase().includes(v) ? '' : 'none';
+    });
+  };
+}
+
+async function load() {
+  const st = document.getElementById('status');
+  st.textContent = '로딩 중...';
+  try {
+    const r = await fetch(API + '?t=' + Date.now(), { cache: 'no-store' });
+    const state = await r.json();
+    render(state);
+    st.textContent = '갱신: ' + new Date().toLocaleTimeString('ko-KR');
+  } catch (e) {
+    st.textContent = '로딩 실패: ' + e.message;
+  }
+}
+
+document.getElementById('reload').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>

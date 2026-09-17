@@ -327,6 +327,14 @@
       <span>신제품</span>
     </div>
 
+    <div class="nav-item" data-target="price">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="1" x2="12" y2="23"/>
+        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+      </svg>
+      <span>판매가 확인</span>
+    </div>
+
     <div class="sidebar-footer">v1.0</div>
   </aside>
 
@@ -375,6 +383,15 @@
             </div>
             <div class="pick-title">신제품</div>
           </div>
+          <div class="pick-card" data-target="price">
+            <div class="pick-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"/>
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+            </div>
+            <div class="pick-title">판매가 확인</div>
+          </div>
         </div>
       </div>
     </div>
@@ -382,6 +399,7 @@
     <iframe id="frame-new" data-src="newproduct/new.html"></iframe>
     <iframe id="frame-margin" data-src="margin.html"></iframe>
     <iframe id="frame-promotion" data-src="promotion/promotion.html"></iframe>
+    <iframe id="frame-price" data-src="price.html"></iframe>
   </main>
 </div>
 
@@ -392,7 +410,8 @@
     order:     document.getElementById('frame-order'),
     new:       document.getElementById('frame-new'),
     margin:    document.getElementById('frame-margin'),
-    promotion: document.getElementById('frame-promotion')
+    promotion: document.getElementById('frame-promotion'),
+    price:     document.getElementById('frame-price')
   };
 
   function ensureLoaded(target) {
@@ -429,6 +448,7 @@
       setTimeout(() => ensureLoaded('margin'), 300);
       setTimeout(() => ensureLoaded('new'), 600);
       setTimeout(() => ensureLoaded('promotion'), 900);
+      setTimeout(() => ensureLoaded('price'), 1200);
     };
     if ('requestIdleCallback' in window) requestIdleCallback(preload, { timeout: 1500 });
     else setTimeout(preload, 400);
