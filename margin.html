@@ -358,8 +358,8 @@ const COLS=[
     options:['이미용','욕실가전','모바일','겨울가전','여름가전','건강가전','주방가전','생활가전','인테리어/조명','제습기','공기청정기','육아','차량','애견']},
   {k:'sku',     label:'SKU #',       w:70,  align:'center', editable:true, type:'text'},
   {k:'_vpToggle', label:'',           w:6,   align:'center', render:renderVpToggle, cls:'col-vp-toggle'},
-  {k:'viid',    label:'VIID',        w:96,  align:'center', render:(_,r)=>{ const v=(window.viidMap||{})[String(r.sku||'').trim()]; const s=v?v.viid:''; return `<div class="cell calc center id-cell">${s?esc(s):(r.sku?'<span class="hint">―</span>':'')}</div>`; }, cls:'col-vp'},
-  {k:'pid',     label:'PID',         w:96,  align:'center', render:(_,r)=>{ const v=(window.viidMap||{})[String(r.sku||'').trim()]; const s=v?v.pid:''; return `<div class="cell calc center id-cell">${s?esc(s):(r.sku?'<span class="hint">―</span>':'')}</div>`; }, cls:'col-vp'},
+  {k:'viid',    label:'VIID',        w:96,  align:'center', editable:true, type:'text', cls:'col-vp'},
+  {k:'pid',     label:'PID',         w:96,  align:'center', editable:true, type:'text', cls:'col-vp'},
   {k:'name',    label:'상품명',      w:320, align:'left',   editable:true, type:'text', cls:'col-name'},
   {k:'status',  label:'상태',        w:60,  align:'center', editable:true, type:'select', options:['판매','단종','품절','단종예정']},
   {k:'cost',    label:'매입가',      w:72,  align:'right',  editable:true, type:'num', hi:true},
@@ -944,6 +944,13 @@ async function load(){
       if(typeof row.status==='string') row.status=row.status.replace(/\s+/g,''); // 공백 제거해 '단종 예정' → '단종예정' 통합
       if(row.status==='예정') row.status='단종예정'; // 옛 값 마이그레이션
       if(row.status==='중지') row.status=''; // '중지' 상태 제거
+      // viid/pid 이전: state에 없고 window.viidMap 에만 있으면 자동 채움
+      const sku=String(row.sku||'').trim();
+      const mapped=(window.viidMap||{})[sku];
+      if(mapped){
+        if(!row.viid && mapped.viid) row.viid=String(mapped.viid);
+        if(!row.pid  && mapped.pid ) row.pid =String(mapped.pid);
+      }
       return row;
     });
     if(colWidths){
@@ -1027,6 +1034,22 @@ async function loadViidPidForMargin(){
     window.viidMap=map;
     try { localStorage.setItem(VP_CACHE_KEY, JSON.stringify(map)); } catch(_){}
     console.log('[margin] VIID/PID 매핑 로드', Object.keys(map).length, '건');
+    // rows에 viid/pid 비어있으면 매핑에서 backfill
+    let filled=0;
+    if(Array.isArray(rows)){
+      rows.forEach(row=>{
+        const sku=String(row.sku||'').trim();
+        const mapped=map[sku];
+        if(!mapped) return;
+        if(!row.viid && mapped.viid){ row.viid=String(mapped.viid); filled++; }
+        if(!row.pid  && mapped.pid ){ row.pid =String(mapped.pid);  filled++; }
+      });
+    }
+    if(filled>0){
+      console.log('[margin] 기존 rows에 viid/pid backfill', filled, '건');
+      dirty=true;  // 자동 저장 트리거
+      if(typeof updateSaveInfo==='function') updateSaveInfo();
+    }
     if(typeof render==='function') render();
   } catch(e){
     console.warn('[margin] loadViidPid 실패:', e.message);
@@ -1186,7 +1209,7 @@ document.getElementById('fileUpload').addEventListener('change',async(ev)=>{
     const parsed=[];
     for(let r=1;r<aoa.length;r++){
       const row=aoa[r]; if(!row) continue;
-      const obj={owner:'',cat:'',sku:'',name:'',status:'',cost:null,price:null,origin:null,originN:null};
+      const obj={owner:'',cat:'',sku:'',name:'',status:'',cost:null,price:null,origin:null,originN:null,viid:'',pid:''};
       Object.keys(idxMap).forEach(k=>{
         const v=row[idxMap[k]];
         if(NUM_KEYS.has(k)) obj[k]=(v===''||v==null)?null:toNum(v);

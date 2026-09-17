@@ -533,13 +533,38 @@ function render(state) {
   };
 }
 
+async function fetchSkuMapFromMargin() {
+  // 마진테이블 state에서 {viid: sku} 매핑 생성 (마진테이블이 진실의 원천)
+  try {
+    const r = await fetch('/api/margin-state?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return {};
+    const data = await r.json();
+    const rows = Array.isArray(data) ? data : (data.rows || []);
+    const map = {};
+    for (const row of rows) {
+      const viid = String(row.viid || '').trim();
+      const sku = String(row.sku || '').trim();
+      if (viid && sku) map[viid] = sku;
+    }
+    return map;
+  } catch (e) {
+    console.warn('margin-state fetch 실패:', e);
+    return {};
+  }
+}
+
 async function load() {
   const st = document.getElementById('status');
   st.textContent = '로딩 중...';
   try {
-    const r = await fetch(API + '?t=' + Date.now(), { cache: 'no-store' });
-    const state = await r.json();
-    render(state);
+    // price-state와 margin-state를 병렬로 fetch
+    const [priceRes, marginSkuMap] = await Promise.all([
+      fetch(API + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json()),
+      fetchSkuMapFromMargin(),
+    ]);
+    // upload.py가 보낸 skuMap 위에 marginSkuMap 덮어쓰기 (마진테이블 우선)
+    priceRes.skuMap = Object.assign({}, priceRes.skuMap || {}, marginSkuMap);
+    render(priceRes);
     st.textContent = '갱신: ' + new Date().toLocaleTimeString('ko-KR');
   } catch (e) {
     st.textContent = '로딩 실패: ' + e.message;
