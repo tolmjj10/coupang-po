@@ -548,7 +548,7 @@ function render(state) {
 }
 
 async function fetchSkuMapFromMargin() {
-  // 마진테이블 state에서 {viid: sku} 매핑 생성 (마진테이블이 진실의 원천)
+  // 마진테이블 state에서 {viid: sku} 매핑 생성 (VIID 기준 매칭)
   try {
     const r = await fetch('/api/margin-state?t=' + Date.now(), { cache: 'no-store' });
     if (!r.ok) return {};
@@ -571,12 +571,11 @@ async function load() {
   const st = document.getElementById('status');
   st.textContent = '로딩 중...';
   try {
-    // price-state와 margin-state를 병렬로 fetch
     const [priceRes, marginSkuMap] = await Promise.all([
       fetch(API + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json()),
       fetchSkuMapFromMargin(),
     ]);
-    // upload.py가 보낸 skuMap 위에 marginSkuMap 덮어쓰기 (마진테이블 우선)
+    // 마진테이블(VIID 기준) 우선, upload.py skuMap 은 폴백
     priceRes.skuMap = Object.assign({}, priceRes.skuMap || {}, marginSkuMap);
     render(priceRes);
     st.textContent = '갱신: ' + new Date().toLocaleTimeString('ko-KR');
