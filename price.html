@@ -524,8 +524,8 @@ function render(state) {
       `<tr>` +
       `<td class="idx">${idx+1}</td>` +
       `<td class="id sku">${escapeHtml(sku)}</td>` +
-      `<td class="id">${escapeHtml(pid)}</td>` +
       `<td class="id">${escapeHtml(viid)}</td>` +
+      `<td class="id">${escapeHtml(pid)}</td>` +
       `<td class="name"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${name}</a></td>` +
       cells.join('') +
       `</tr>`
@@ -535,7 +535,7 @@ function render(state) {
   document.getElementById('tblwrap').innerHTML =
     `<table id="t">` +
     `<thead><tr>` +
-    `<th rowspan="2">#</th><th rowspan="2">SKU ID</th><th rowspan="2">Product ID</th><th rowspan="2">VendorItem ID</th><th rowspan="2">상품명</th>` +
+    `<th rowspan="2">#</th><th rowspan="2">SKU ID</th><th rowspan="2">VendorItem ID</th><th rowspan="2">Product ID</th><th rowspan="2">상품명</th>` +
     topHeader.join('') +
     `</tr><tr>` + subHeader.join('') + `</tr></thead>` +
     `<tbody>` + rows.join('') + `</tbody></table>`;
