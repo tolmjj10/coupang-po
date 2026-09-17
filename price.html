@@ -362,9 +362,9 @@
 const API = '/api/price-state';
 
 function labelToTimeKey(label) {
-  if (label === '오전') return '0900';
-  if (label === '오후') return '1400';
-  if (label === '저녁') return '1900';
+  if (label === '오전' || label === 'AM') return '0830';
+  if (label === '오후' || label === 'PM') return '1400';
+  if (label === '저녁' || label === 'EVE') return '1900';
   if (label && label.includes(':')) return label.replace(':', '');
   return '9999';
 }
