@@ -648,7 +648,9 @@ function isExcluded(name){
   const t=String(name||'').trim();
   if(!t) return false;
   if(_startsWithAny(t, BLOCKED_BRAND_PREFIXES)) return true;
-  return !ALLOWED_BRAND_PREFIXES.some(p=>t.startsWith(p));
+  if(ALLOWED_BRAND_PREFIXES.some(p=>t.startsWith(p))) return false;
+  if(/^BOX/i.test(t) && ALLOWED_BRAND_PREFIXES.some(p=>t.includes(p))) return false;
+  return true;
 }
 
 /* ═══════════════════════ GUESSES ═══════════════════════ */
@@ -929,13 +931,13 @@ function toggleMapping(){
 }
 
 function checkReady(){
-  const ready=fileState.order&&fileState.master&&fileState.stock;
+  const ready=fileState.order&&fileState.stock;
   const btn=document.getElementById('run-btn');
   btn.disabled=!ready;
   if(ready){btn.textContent=`${todayLabel()} 발주 리스트`;}
   else{
-    const names={order:'쿠팡 발주',master:'마스터',stock:'오아 재고'};
-    const miss=Object.keys(fileState).filter(k=>!fileState[k]).map(k=>names[k]);
+    const names={order:'쿠팡 발주',stock:'오아 재고'};
+    const miss=['order','stock'].filter(k=>!fileState[k]).map(k=>names[k]);
     btn.textContent=miss.join(', ')+' 파일을 업로드해 주세요';
   }
 }
@@ -972,11 +974,12 @@ function runMatch(){
     salesProcessed=processSalesFile(salesData,dc,sc,oc,stc);
   }
 
-  /* ── Master map ── */
+  /* ── Master map ── (마스터 파일 없으면 빈 맵으로 시작; 폴백은 아래에서 처리) */
   const masterMap={};
-  const mCols=Object.keys(masterData[0]||{});
+  const _md=Array.isArray(masterData)?masterData:[];
+  const mCols=Object.keys(_md[0]||{});
   const mPriceCol=mCols.find(c=>norm(c)==='매입가') || mCols.find(c=>norm(c)==='매입가(수식)');
-  masterData.forEach(row=>{
+  _md.forEach(row=>{
     const sku=norm(row[mSku]);
     if(!sku)return;
     masterMap[sku]={
@@ -1033,6 +1036,13 @@ function runMatch(){
     }
   });
 
+  /* ── Stock name → procode 역방향 맵 (마스터에 없는 SKU 폴백용) ── */
+  const stockNameToProcode={};
+  Object.keys(stockMap).forEach(pro=>{
+    const nm=norm(stockMap[pro].displayName);
+    if(nm && !stockNameToProcode[nm]) stockNameToProcode[nm]=stockMap[pro].rawProcode;
+  });
+
   /* ── 날짜 라벨 (전역) — salesProcessed 기반 ── */
   const sp=salesProcessed;
   /* displayDates: 최근 5일을 오래된순→최신순으로 */
@@ -1046,18 +1056,42 @@ function runMatch(){
   /* ── Order 매입가 컬럼 자동 탐지 ── */
   const oCols=Object.keys(orderData[0]||{});
   const oPriceCol=oCols.find(c=>norm(c)==='매입가');
+  /* ── 발주현황/물류센터 컬럼 자동 탐지 (신규 양식) ── */
+  const oStatusCol=oCols.find(c=>norm(c)==='발주현황');
+  const oWhCol    =oCols.find(c=>norm(c)==='물류센터');
+
+  /* ── 필터: 발주현황='거래처확인요청' AND 물류센터='오아 주식회사' (컬럼 있을 때만) ── */
+  const _orderRows=orderData.filter(row=>{
+    if(oStatusCol){
+      const s=String(row[oStatusCol]||'').trim();
+      if(s && s!=='거래처확인요청') return false;
+    }
+    if(oWhCol){
+      const w=String(row[oWhCol]||'').trim();
+      if(w && w!=='오아 주식회사') return false;
+    }
+    return true;
+  });
 
   /* ── Match ── */
-  matchedRows=orderData.map((row,i)=>{
+  matchedRows=_orderRows.map((row,i)=>{
     const orderSku =String(row[oSku]||'').trim();
     const orderName=String(row[oName]||'').trim();
     const orderQty =parseNum(row[oQty])??0;
     const poNum    =oPO?String(row[oPO]||'').trim():'';
     const orderDate=oDate?parseOrderDate(row[oDate]):'';
     const orderPrice=oPriceCol?parseNum(row[oPriceCol]):null;
+    const orderStatus   =oStatusCol?String(row[oStatusCol]||'').trim():'';
+    const orderWarehouse=oWhCol?String(row[oWhCol]||'').trim():'';
 
     const masterEntry=masterMap[norm(orderSku)];
-    const procode    =masterEntry?masterEntry.procode:null;
+    let procode      =masterEntry?masterEntry.procode:null;
+    /* 마스터에 없으면 상품명(전산명 완전 일치)으로 폴백 */
+    let procodeFromName=false;
+    if(!procode){
+      const hit=stockNameToProcode[norm(orderName)];
+      if(hit){ procode=hit; procodeFromName=true; }
+    }
     const stockEntry =procode?stockMap[norm(procode)]:null;
     const stockQty   =stockEntry?stockEntry.qty:null;
 
@@ -1106,15 +1140,16 @@ function runMatch(){
       stockName:stockEntry?.displayName||(marginMatched?mgEntry.name:''),
       orderQty, stockQty, status,
       diff:stockQty!==null?stockQty-orderQty:null,
-      noMaster:!masterEntry && !marginMatched,
-      noStock:(!!masterEntry||marginMatched) && !stockEntry,
+      noMaster:!masterEntry && !marginMatched && !procodeFromName,
+      noStock:(!!masterEntry||marginMatched||procodeFromName) && !stockEntry,
       curStock, dailySales, avgSales, doc,
       hasSalesMatch:!!pivotEntry,
       transit: transitQty,
       price: masterEntry?.price||0,
       orderPrice: orderPrice,
       marginPrice: marginPriceMap[_mgKey] || (mgEntry?mgEntry.cost:null) || null,
-      marginMatched
+      marginMatched,
+      orderStatus, orderWarehouse
     };
   }).filter(r=>!isExcluded(r.stockName||r.orderName));
 
@@ -2145,7 +2180,7 @@ async function saveResult(mode){
         processBin(type, bufToBinStr(buf));
       }
 
-      if (typeof runMatch === 'function' && fileState.order && fileState.master && fileState.stock) {
+      if (typeof runMatch === 'function' && fileState.order && fileState.stock) {
         runMatch();
         document.body.classList.add('__fsapi-loaded__');
       } else {
