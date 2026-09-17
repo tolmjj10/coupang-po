@@ -173,8 +173,13 @@
     text-transform: uppercase;
     position: sticky;
     top: 0;
-    z-index: 2;
+    z-index: 3;
     white-space: nowrap;
+  }
+  /* 두 번째 헤더 행(sub-*)은 첫 행 밑에 붙어야 함 */
+  th.sub-base, th.sub-price {
+    top: 40px;
+    z-index: 2;
   }
   th.date-header {
     text-align: center;
@@ -187,6 +192,8 @@
     cursor: default;
     user-select: none;
     padding: 10px 12px;
+    top: 0;
+    z-index: 3;
   }
   th.date-header.has-extra { cursor: pointer; }
   th.date-header.has-extra:hover { background: var(--accent-light); }
