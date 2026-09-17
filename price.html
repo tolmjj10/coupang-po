@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   :root {
@@ -356,6 +357,14 @@
 
   <div class="toolbar">
     <span class="spacer"></span>
+    <button class="btn" id="btnDownload" title="현재 데이터 엑셀 다운로드">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      엑셀 다운로드
+    </button>
     <button class="btn" id="reload">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
         <polyline points="23 4 23 10 17 10"/>
@@ -398,7 +407,10 @@ function escapeHtml(s) {
 
 const MAX_VISIBLE_DATES = 3;  // 첫 화면에 보일 최대 날짜 수
 
+let CURRENT_STATE = null;
+
 function render(state) {
+  CURRENT_STATE = state;
   const history = (state && state.history) || {};
   const order = (state && state.order) || [];
   const skuMap = (state && state.skuMap) || {};  // vendorItemId → SKU_ID
@@ -585,6 +597,51 @@ async function load() {
 }
 
 document.getElementById('reload').addEventListener('click', load);
+
+document.getElementById('btnDownload').addEventListener('click', () => {
+  if (!CURRENT_STATE) { alert('먼저 데이터를 로드하세요.'); return; }
+  const history = CURRENT_STATE.history || {};
+  const order = CURRENT_STATE.order || [];
+  const skuMap = CURRENT_STATE.skuMap || {};
+
+  const orderIdx = new Map(order.map((k, i) => [k, i]));
+  const entries = Object.values(history).slice().sort((a, b) => {
+    const oa = orderIdx.has(a.vendorItemId) ? orderIdx.get(a.vendorItemId) : 999999;
+    const ob = orderIdx.has(b.vendorItemId) ? orderIdx.get(b.vendorItemId) : 999999;
+    if (oa !== ob) return oa - ob;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  const aoa = [['SKU ID', 'PID', 'VIID', '상품명', '할인가']];
+  entries.forEach(e => {
+    const viid = e.vendorItemId || '';
+    const pid = e.productId || '';
+    const sku = skuMap[viid] || '';
+    const name = e.name || '';
+    const runs = e.runs || {};
+    let latestPrice = null;
+    let latestKey = '';
+    for (const rk in runs) {
+      const r = runs[rk];
+      const cmp = (r.date || '') + '_' + (r.ts || '');
+      if (cmp > latestKey) { latestKey = cmp; latestPrice = r.price; }
+    }
+    aoa.push([
+      sku, pid, viid, name,
+      (latestPrice != null && isFinite(latestPrice)) ? { t: 'n', v: latestPrice, z: '#,##0' } : ''
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:12}, {wch:14}, {wch:14}, {wch:44}, {wch:12}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '판매가');
+  const d = new Date();
+  const stamp = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0')
+              + '_' + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0');
+  XLSX.writeFile(wb, `판매가_${stamp}.xlsx`);
+});
+
 load();
 </script>
 </body>
