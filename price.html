@@ -120,22 +120,28 @@
 
   .toolbar {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     margin-bottom: 14px;
     flex-wrap: wrap;
     align-items: center;
   }
+  .toolbar .spacer { margin-left: auto; }
   .search {
-    padding: 10px 14px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    font-size: 13px;
-    width: 280px;
-    font-family: inherit;
-    background: white;
-    transition: border-color .15s ease;
+    font: 13px 'Pretendard', sans-serif;
+    padding: 8px 12px;
+    border: 1px solid #d3c4b7;
+    border-radius: 9px;
+    background: var(--card);
+    color: var(--text);
+    outline: none;
+    min-width: 220px;
+    transition: border-color .15s, box-shadow .15s;
   }
-  .search:focus { outline: none; border-color: var(--text); box-shadow: 0 0 0 3px rgba(0,0,0,0.05); }
+  .search:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
+  }
+  .search::placeholder { color: #a09990; }
   button.btn {
     font: 500 13px 'Pretendard', sans-serif; letter-spacing: -0.01em;
     padding: 8px 14px; border-radius: 9px; border: 1px solid #e0d6cd;
@@ -349,7 +355,7 @@
   </div>
 
   <div class="toolbar">
-    <input class="search" type="text" id="q" placeholder="SKU ID · 상품명 · Product ID · VendorItem ID 검색">
+    <span class="spacer"></span>
     <button class="btn" id="reload">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
         <polyline points="23 4 23 10 17 10"/>
@@ -358,6 +364,7 @@
       </svg>
       새로고침
     </button>
+    <input class="search" type="search" id="q" placeholder="SKU# / 상품명 검색">
   </div>
 
   <div class="table-wrap" id="tblwrap">
