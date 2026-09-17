@@ -953,6 +953,9 @@ function resetResults(){
 
 /* ═══════════════════════ MATCH ═══════════════════════ */
 function runMatch(){
+  /* 필수 데이터 가드 — 자동 로드 순서/실패로 null 상태에서 호출되면 조용히 종료 */
+  if(!Array.isArray(orderData) || !orderData.length) return;
+  if(!Array.isArray(stockData) || !stockData.length) return;
   const oPO  =document.getElementById('m-order-po').value;
   const oDate=document.getElementById('m-order-date').value;
   const oName=document.getElementById('m-order-name').value;
