@@ -250,6 +250,11 @@
     font-size: 11.5px;
     width: 108px;
   }
+  .id.sku {
+    color: var(--text);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
   .name {
     min-width: 280px;
     white-space: normal;
@@ -337,7 +342,7 @@
   </div>
 
   <div class="toolbar">
-    <input class="search" type="text" id="q" placeholder="상품명 · Product ID · VendorItem ID 검색">
+    <input class="search" type="text" id="q" placeholder="SKU ID · 상품명 · Product ID · VendorItem ID 검색">
     <button class="btn" id="reload">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
         <polyline points="23 4 23 10 17 10"/>
@@ -377,9 +382,12 @@ function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 }
 
+const MAX_VISIBLE_DATES = 3;  // 첫 화면에 보일 최대 날짜 수
+
 function render(state) {
   const history = (state && state.history) || {};
   const order = (state && state.order) || [];
+  const skuMap = (state && state.skuMap) || {};  // vendorItemId → SKU_ID
 
   const productKeys = Object.keys(history);
   const total = productKeys.length;
@@ -409,16 +417,19 @@ function render(state) {
       (dateLabels[d] = dateLabels[d] || new Set()).add(l);
     }
   }
-  const datesAsc = Object.keys(dateLabels).sort();
+  const allDatesAsc = Object.keys(dateLabels).sort();
   const dateLabelLists = {};
-  for (const d of datesAsc) {
+  for (const d of allDatesAsc) {
     dateLabelLists[d] = Array.from(dateLabels[d]).sort((a, b) => labelToTimeKey(a).localeCompare(labelToTimeKey(b)));
   }
 
-  const nDates = datesAsc.length;
+  const nDates = allDatesAsc.length;
   const nRuns = Object.values(dateLabelLists).reduce((s, v) => s + v.length, 0);
   document.getElementById('stat-dates').textContent = nDates;
   document.getElementById('stat-runs').textContent = nRuns;
+
+  // 최근 MAX_VISIBLE_DATES 개만 화면에 표시 (오래된 건 숨김)
+  const datesAsc = allDatesAsc.slice(-MAX_VISIBLE_DATES);
 
   const topHeader = [];
   const subHeader = [];
@@ -482,9 +493,11 @@ function render(state) {
       cells.push(`<td class="c-base${exCls}${baseVal==='-'?' dash':''}" data-date="${cm.date}">${baseVal}</td>`);
       cells.push(`<td class="c-price${exCls}${priceVal==='-'?' dash':''}" data-date="${cm.date}">${priceVal}</td>`);
     }
+    const sku = skuMap[viid] || '';
     rows.push(
       `<tr>` +
       `<td class="idx">${idx+1}</td>` +
+      `<td class="id sku">${escapeHtml(sku)}</td>` +
       `<td class="id">${escapeHtml(pid)}</td>` +
       `<td class="id">${escapeHtml(viid)}</td>` +
       `<td class="name"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${name}</a></td>` +
@@ -496,7 +509,7 @@ function render(state) {
   document.getElementById('tblwrap').innerHTML =
     `<table id="t">` +
     `<thead><tr>` +
-    `<th rowspan="2">#</th><th rowspan="2">Product ID</th><th rowspan="2">VendorItem ID</th><th rowspan="2">상품명</th>` +
+    `<th rowspan="2">#</th><th rowspan="2">SKU ID</th><th rowspan="2">Product ID</th><th rowspan="2">VendorItem ID</th><th rowspan="2">상품명</th>` +
     topHeader.join('') +
     `</tr><tr>` + subHeader.join('') + `</tr></thead>` +
     `<tbody>` + rows.join('') + `</tbody></table>`;
