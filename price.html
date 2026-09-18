@@ -418,7 +418,7 @@
     color: var(--text);
     font-weight: 500;
   }
-  .c-site .site-chip {
+  .site-chip {
     display: inline-block;
     padding: 3px 9px;
     border-radius: 999px;
@@ -430,9 +430,9 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     line-height: 1.4;
-    cursor: pointer;
-    transition: filter .1s, transform .1s;
+    transition: filter .1s;
   }
+  .c-site .site-chip { cursor: pointer; }
   .c-site .site-chip:hover { filter: brightness(0.96); }
   .c-site .site-empty {
     display: inline-block;
@@ -676,12 +676,20 @@ const SITE_PALETTE = (() => {
   return p;
 })();
 
+// 특정 사이트에 대한 고정 색상 오버라이드 (팔레트 배정 규칙보다 우선).
+// 물량이 많은 대표 사이트는 시선 안 뺏기게 연한 베이지로 통일.
+const SITE_COLOR_OVERRIDE = {
+  '오아스토어팜':   { bg: '#efe6d3', fg: '#6a5a3a' },
+  '보아르스토어팜': { bg: '#eadfc8', fg: '#6f5c37' },
+};
+
 // 사이트 이름 → 팔레트 인덱스. buildSiteFilter 에서 사이트 목록이 정해질 때
 // 결정론적으로 배정 (해시 충돌로 같은 색이 되는 문제 회피).
 let SITE_COLOR_INDEX = {};
 
 function siteColor(name) {
   if (!name) return null;
+  if (SITE_COLOR_OVERRIDE[name]) return SITE_COLOR_OVERRIDE[name];
   let idx = SITE_COLOR_INDEX[name];
   if (idx === undefined) {
     // 아직 목록에 등록 안 된 사이트 (편집기에서 방금 추가 등) 폴백:
