@@ -583,7 +583,61 @@
   }
   .site-edit-popup .edit-status.err { color: #a85450; }
   .site-edit-popup .edit-status.ok { color: var(--success); }
-  :root { --name-w: 320px; }
+  :root {
+    --name-w: 320px;
+    --col-idx-w: 44px;
+    --col-site-w: 110px;
+    --col-sku-w: 108px;
+    --col-viid-w: 108px;
+    --col-pid-w: 108px;
+    --stick-1: var(--col-idx-w);
+    --stick-2: calc(var(--col-idx-w) + var(--col-site-w));
+    --stick-3: calc(var(--col-idx-w) + var(--col-site-w) + var(--col-sku-w));
+    --stick-4: calc(var(--col-idx-w) + var(--col-site-w) + var(--col-sku-w) + var(--col-viid-w));
+    --stick-5: calc(var(--col-idx-w) + var(--col-site-w) + var(--col-sku-w) + var(--col-viid-w) + var(--col-pid-w));
+  }
+  /* 좌측 6개 컬럼 sticky-left */
+  th.idx-th, td.idx {
+    position: sticky; left: 0; z-index: 4;
+    width: var(--col-idx-w); min-width: var(--col-idx-w); max-width: var(--col-idx-w);
+  }
+  th.c-site-th, td.c-site {
+    position: sticky; left: var(--stick-1); z-index: 4;
+    width: var(--col-site-w); min-width: var(--col-site-w); max-width: var(--col-site-w);
+    overflow: hidden;
+  }
+  th.sku-th, td.id.sku {
+    position: sticky; left: var(--stick-2); z-index: 4;
+    width: var(--col-sku-w); min-width: var(--col-sku-w); max-width: var(--col-sku-w);
+  }
+  th.viid-th, td.viid {
+    position: sticky; left: var(--stick-3); z-index: 4;
+    width: var(--col-viid-w); min-width: var(--col-viid-w); max-width: var(--col-viid-w);
+  }
+  th.pid-th, td.pid {
+    position: sticky; left: var(--stick-4); z-index: 4;
+    width: var(--col-pid-w); min-width: var(--col-pid-w); max-width: var(--col-pid-w);
+  }
+  /* header는 top:0도 함께 (기존 th 규칙 유지) — z-index 상향 */
+  th.idx-th, th.c-site-th, th.sku-th, th.viid-th, th.pid-th, th.name-th {
+    z-index: 6;
+  }
+  /* body sticky 셀 배경 (스크롤 시 뒤 내용 비침 방지) */
+  tbody td.idx, tbody td.c-site, tbody td.id.sku, tbody td.viid, tbody td.pid, tbody td.name {
+    background: #fff;
+  }
+  tbody tr:hover td.idx,
+  tbody tr:hover td.c-site,
+  tbody tr:hover td.id.sku,
+  tbody tr:hover td.viid,
+  tbody tr:hover td.pid,
+  tbody tr:hover td.name {
+    background: #fafbfd;
+  }
+  /* 상품명 우측 경계 그림자 (sticky 끝을 시각적으로 표시) */
+  th.name-th, td.name {
+    box-shadow: 4px 0 6px -4px rgba(0,0,0,0.08);
+  }
   .name {
     padding-right: 12px;
     width: var(--name-w);
@@ -602,11 +656,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  th.name-th {
+  th.name-th, td.name {
+    position: sticky; left: var(--stick-5);
     width: var(--name-w);
     max-width: var(--name-w);
     min-width: var(--name-w);
-    position: sticky;
   }
   .name-resizer {
     position: absolute;
@@ -991,8 +1045,8 @@ function render(state) {
       `<td class="idx">${visibleIdx}</td>` +
       `<td class="c-site${site?' has':''}">${siteCellInner}</td>` +
       `<td class="id sku${(sku && MEMOS[sku]) ? ' has-memo' : ''}" data-sku="${escapeHtml(sku)}" title="${(sku && MEMOS[sku]) ? '📝 ' + escapeHtml(MEMOS[sku]) : '우클릭: 메모 추가'}">${escapeHtml(sku)}</td>` +
-      `<td class="id">${escapeHtml(viid)}</td>` +
-      `<td class="id">${escapeHtml(pid)}</td>` +
+      `<td class="id viid">${escapeHtml(viid)}</td>` +
+      `<td class="id pid">${escapeHtml(pid)}</td>` +
       `<td class="name"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${name}</a></td>` +
       cells.join('') +
       `</tr>`
@@ -1002,7 +1056,7 @@ function render(state) {
   document.getElementById('tblwrap').innerHTML =
     `<table id="t">` +
     `<thead><tr>` +
-    `<th rowspan="2">#</th><th rowspan="2">사이트</th><th rowspan="2">SKU ID</th><th rowspan="2">VendorItem ID</th><th rowspan="2">Product ID</th><th rowspan="2" class="name-th">상품명<span class="name-resizer" id="nameResizer" title="드래그하여 상품명 컬럼 너비 조정"></span></th>` +
+    `<th rowspan="2" class="idx-th">#</th><th rowspan="2" class="c-site-th">사이트</th><th rowspan="2" class="sku-th">SKU ID</th><th rowspan="2" class="viid-th">VendorItem ID</th><th rowspan="2" class="pid-th">Product ID</th><th rowspan="2" class="name-th">상품명<span class="name-resizer" id="nameResizer" title="드래그하여 상품명 컬럼 너비 조정"></span></th>` +
     topHeader.join('') +
     `</tr><tr>` + subHeader.join('') + `</tr></thead>` +
     `<tbody>` + rows.join('') + `</tbody></table>`;
