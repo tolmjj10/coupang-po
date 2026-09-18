@@ -300,6 +300,8 @@
     letter-spacing: -0.01em;
   }
   .c-base.dash, .c-price.dash { color: #d5d0c8; font-weight: 400; text-decoration: none; }
+  .c-price.changed { color: #2563eb; }
+  .c-base.changed { color: #6b8ff0; }
   .extra-col { display: none; }
   .extra-col.shown { display: table-cell; }
   .empty {
@@ -512,13 +514,20 @@ function render(state) {
       runByDL[`${r.date}||${r.label}`] = r;
     }
     const cells = [];
+    let prevBase = null, prevPrice = null;
     for (const cm of colMetas) {
       const r = runByDL[`${cm.date}||${cm.label}`] || {};
       const exCls = cm.isExtra ? ` extra-col extra-${cm.date}` : '';
       const baseVal = fmt(r.basePrice);
       const priceVal = fmt(r.price);
-      cells.push(`<td class="c-base${exCls}${baseVal==='-'?' dash':''}" data-date="${cm.date}">${baseVal}</td>`);
-      cells.push(`<td class="c-price${exCls}${priceVal==='-'?' dash':''}" data-date="${cm.date}">${priceVal}</td>`);
+      const baseChanged = (prevBase != null && r.basePrice != null && r.basePrice !== prevBase);
+      const priceChanged = (prevPrice != null && r.price != null && r.price !== prevPrice);
+      const baseCls = `c-base${exCls}${baseVal==='-'?' dash':''}${baseChanged?' changed':''}`;
+      const priceCls = `c-price${exCls}${priceVal==='-'?' dash':''}${priceChanged?' changed':''}`;
+      cells.push(`<td class="${baseCls}" data-date="${cm.date}">${baseVal}</td>`);
+      cells.push(`<td class="${priceCls}" data-date="${cm.date}">${priceVal}</td>`);
+      if (r.basePrice != null) prevBase = r.basePrice;
+      if (r.price != null) prevPrice = r.price;
     }
     const sku = skuMap[viid] || '';
     rows.push(
