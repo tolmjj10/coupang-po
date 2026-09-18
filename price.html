@@ -1590,6 +1590,36 @@ document.getElementById('btnDownload').addEventListener('click', () => {
 });
 
 load();
+
+// ===== 자동 동기화 (다른 사용자 편집 반영) =====
+// 15초마다 memos + site-map 변경 감지 → 바뀌었을 때만 load() 재실행
+let SYNC_SIG = '';
+async function syncSignature() {
+  try {
+    const [m, s] = await Promise.all([
+      fetch('/api/price-memos?t=' + Date.now(), { cache: 'no-store' }).then(r => r.text()),
+      fetch('/api/site-map?t=' + Date.now(), { cache: 'no-store' }).then(r => r.text()),
+    ]);
+    return m.length + ':' + s.length + ':' + m.slice(-64) + s.slice(-64);
+  } catch { return SYNC_SIG; }
+}
+function isEditing() {
+  const memoOpen = document.getElementById('memoPopover')?.classList.contains('open');
+  const siteOpen = document.getElementById('siteEditPopup')?.classList.contains('open');
+  const calOpen = document.getElementById('calPopup')?.classList.contains('open');
+  return memoOpen || siteOpen || calOpen;
+}
+async function autoSync() {
+  if (document.hidden || isEditing()) return;
+  const sig = await syncSignature();
+  if (!SYNC_SIG) { SYNC_SIG = sig; return; }
+  if (sig !== SYNC_SIG) {
+    SYNC_SIG = sig;
+    await load();
+  }
+}
+setInterval(autoSync, 15000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) autoSync(); });
 </script>
 </body>
 </html>
