@@ -52,81 +52,46 @@
   }
   .page-header {
     display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 20px;
-    flex-wrap: wrap;
-    margin-bottom: 16px;
-  }
-  .page-header .title-block h1 {
-    font-size: 22px;
-    font-weight: 700;
-    letter-spacing: -0.024em;
-    margin: 0;
-    color: var(--text);
-    line-height: 1.15;
-  }
-  .page-header .title-block .sub {
-    font-size: 12.5px;
-    color: var(--muted);
-    margin-top: 4px;
-    display: flex;
     align-items: center;
-    gap: 10px;
-  }
-  .page-header .status {
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 500;
-  }
-
-  .stats-row {
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    margin-bottom: 14px;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
     background: var(--card);
     border: 1px solid #eae1d8;
     border-radius: 14px;
     padding: 10px 14px;
     box-shadow: 0 1px 2px rgba(139, 117, 108, 0.05);
   }
-  .stats-row .divider { width: 1px; height: 22px; background: #eae1d8; margin: 0 4px; }
-  .stat-card {
-    background: var(--card);
-    padding: 6px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    transition: background .12s ease;
+  .page-header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.024em;
+    margin: 0 8px 0 4px;
+    color: var(--text);
+    line-height: 1.15;
+    white-space: nowrap;
   }
-  .stat-card:hover { background: #f8fafc; }
-  .stat-label { font-size: 11.5px; color: var(--muted); font-weight: 500; }
-  .stat-value { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
-  .stat-value.red { color: var(--danger); }
-  .stat-value.green { color: var(--success); }
-  .stat-value.blue { color: var(--info); }
-  .hint {
+  .page-header .divider { width: 1px; height: 22px; background: #eae1d8; margin: 0 4px; }
+  .page-header .status {
     color: var(--muted);
     font-size: 12px;
+    font-weight: 500;
     margin-left: auto;
+    white-space: nowrap;
   }
-  .hint code {
-    padding: 1px 5px;
-    background: var(--soft-blue);
-    border-radius: 4px;
-    font-size: 11px;
-    color: var(--info);
+  .month-sel {
+    font: 500 13px 'Pretendard', sans-serif;
+    padding: 8px 12px;
+    border: 1px solid #d3c4b7;
+    border-radius: 9px;
+    background: var(--card);
+    color: var(--text);
+    outline: none;
+    min-width: 130px;
+    cursor: pointer;
+    transition: border-color .15s, box-shadow .15s;
   }
-
-  .toolbar {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 14px;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-  .toolbar .spacer { margin-left: auto; }
+  .month-sel:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
   .search {
     font: 13px 'Pretendard', sans-serif;
     padding: 8px 12px;
@@ -135,7 +100,7 @@
     background: var(--card);
     color: var(--text);
     outline: none;
-    min-width: 220px;
+    min-width: 200px;
     transition: border-color .15s, box-shadow .15s;
   }
   .search:focus {
@@ -154,6 +119,13 @@
   button.btn:hover { background: #f6f1ec; border-color: #d3c4b7; }
   button.btn:active { transform: scale(0.98); }
   button.btn.icon-only { padding: 8px 10px; }
+  button.btn.ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--muted);
+    padding: 8px 10px;
+  }
+  button.btn.ghost:hover { background: #f6f1ec; color: var(--text); border-color: transparent; }
 
   .table-wrap {
     background: white;
@@ -170,13 +142,13 @@
     font-size: 13px;
   }
   th {
-    background: #fafbfd;
+    background: #f5f3ef;
     padding: 12px 12px;
     text-align: left;
-    font-weight: 600;
-    color: var(--muted);
+    font-weight: 700;
+    color: var(--text);
     border-bottom: 1px solid var(--border);
-    font-size: 11.5px;
+    font-size: 11px;
     letter-spacing: 0.02em;
     text-transform: uppercase;
     position: sticky;
@@ -196,7 +168,7 @@
     text-transform: none;
     letter-spacing: 0;
     color: var(--text);
-    background: #f4f5f2;
+    background: #ede8df;
     cursor: default;
     user-select: none;
     padding: 10px 12px;
@@ -219,10 +191,10 @@
   }
   th.date-header.expanded .expand-icon { transform: rotate(90deg); opacity: 0.9; }
   th.sub-base, th.sub-price {
-    background: #fafbfd;
-    font-weight: 600;
+    background: #f5f3ef;
+    font-weight: 700;
     font-size: 11px;
-    color: var(--muted);
+    color: var(--text);
     text-align: center;
     padding: 8px 6px;
     text-transform: uppercase;
@@ -331,35 +303,9 @@
 
 <div class="container">
   <div class="page-header">
-    <div class="title-block">
-      <h1>판매가 확인</h1>
-      <div class="sub">
-        <span>마이샵 상품 · 날짜별 판매가 이력</span>
-      </div>
-    </div>
-    <div class="status" id="status">로딩 중...</div>
-  </div>
-
-  <div class="stats-row">
-    <div class="stat-card">
-      <span class="stat-label">전체 상품</span>
-      <span class="stat-value" id="stat-total">-</span>
-    </div>
+    <h1>판매가 확인</h1>
     <div class="divider"></div>
-    <div class="stat-card">
-      <span class="stat-label">수집일</span>
-      <span class="stat-value blue" id="stat-dates">-</span>
-    </div>
-    <div class="divider"></div>
-    <div class="stat-card">
-      <span class="stat-label">총 수집</span>
-      <span class="stat-value green" id="stat-runs">-</span>
-    </div>
-    <div class="hint">날짜 헤더의 <code>▶</code> 클릭 → 그 날 여러 번 수집한 시간대별 가격 펼침</div>
-  </div>
-
-  <div class="toolbar">
-    <span class="spacer"></span>
+    <select class="month-sel" id="monthSel" title="월별 기간 선택 (최대 3일 표시)"></select>
     <button class="btn icon-only" id="btnDownload" title="엑셀 다운로드">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -367,15 +313,9 @@
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
     </button>
-    <button class="btn" id="reload">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
-        <polyline points="23 4 23 10 17 10"/>
-        <polyline points="1 20 1 14 7 14"/>
-        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-      </svg>
-      새로고침
-    </button>
+    <button class="btn ghost" id="reload">새로고침</button>
     <input class="search" type="search" id="q" placeholder="SKU# / 상품명 검색">
+    <div class="status" id="status">로딩 중...</div>
   </div>
 
   <div class="table-wrap" id="tblwrap">
@@ -420,11 +360,7 @@ function render(state) {
   const productKeys = Object.keys(history);
   const total = productKeys.length;
 
-  document.getElementById('stat-total').textContent = total || '-';
-
   if (!total) {
-    document.getElementById('stat-dates').textContent = '-';
-    document.getElementById('stat-runs').textContent = '-';
     document.getElementById('tblwrap').innerHTML =
       '<div class="empty">' +
       '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">' +
@@ -451,13 +387,25 @@ function render(state) {
     dateLabelLists[d] = Array.from(dateLabels[d]).sort((a, b) => labelToTimeKey(a).localeCompare(labelToTimeKey(b)));
   }
 
-  const nDates = allDatesAsc.length;
-  const nRuns = Object.values(dateLabelLists).reduce((s, v) => s + v.length, 0);
-  document.getElementById('stat-dates').textContent = nDates;
-  document.getElementById('stat-runs').textContent = nRuns;
+  // 월별 선택 옵션 구성
+  const monthSet = new Set(allDatesAsc.map(d => d.slice(0, 7)));
+  const monthsDesc = Array.from(monthSet).sort().reverse();
+  const monthSel = document.getElementById('monthSel');
+  const prevSel = monthSel.value;
+  monthSel.innerHTML =
+    '<option value="__all__">전체 (최근 3일)</option>' +
+    monthsDesc.map(m => `<option value="${m}">${m.replace('-', '년 ') + '월'}</option>`).join('');
+  // 이전 선택 복원 (첫 로드는 전체)
+  if (prevSel && (prevSel === '__all__' || monthsDesc.includes(prevSel))) {
+    monthSel.value = prevSel;
+  }
+  const selectedMonth = monthSel.value || '__all__';
 
-  // 최근 MAX_VISIBLE_DATES 개만 화면에 표시 (오래된 건 숨김)
-  const datesAsc = allDatesAsc.slice(-MAX_VISIBLE_DATES);
+  // 필터링: 선택된 월의 날짜만, 그중 최근 MAX_VISIBLE_DATES 개
+  const filteredDates = selectedMonth === '__all__'
+    ? allDatesAsc
+    : allDatesAsc.filter(d => d.startsWith(selectedMonth));
+  const datesAsc = filteredDates.slice(-MAX_VISIBLE_DATES);
 
   const topHeader = [];
   const subHeader = [];
@@ -608,6 +556,9 @@ async function load() {
 }
 
 document.getElementById('reload').addEventListener('click', load);
+document.getElementById('monthSel').addEventListener('change', () => {
+  if (CURRENT_STATE) render(CURRENT_STATE);
+});
 
 document.getElementById('btnDownload').addEventListener('click', () => {
   if (!CURRENT_STATE) { alert('먼저 데이터를 로드하세요.'); return; }
