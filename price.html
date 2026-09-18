@@ -132,17 +132,26 @@
   }
   .cal-nav:hover { background: #f6f1ec; color: var(--text); }
   .cal-nav:disabled { opacity: 0.25; cursor: not-allowed; background: transparent; }
-  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-  .cal-dow { font-size: 10.5px; color: var(--muted); text-align: center; padding: 6px 0 2px; font-weight: 600; }
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 32px);
+    grid-auto-rows: 32px;
+    gap: 2px;
+    justify-content: center;
+  }
+  .cal-dow {
+    font-size: 10.5px; color: var(--muted); font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+  }
   .cal-dow.sun { color: #c46a66; }
   .cal-dow.sat { color: #4a6b8a; }
   .cal-cell {
-    text-align: center; font-size: 12.5px; padding: 7px 0;
+    font-size: 12.5px;
     border-radius: 6px; cursor: pointer; color: var(--text);
     font-variant-numeric: tabular-nums;
     transition: background .1s;
+    display: flex; align-items: center; justify-content: center;
   }
-  .cal-cell.empty { visibility: hidden; }
   .cal-cell.disabled { color: #d5d0c8; cursor: not-allowed; }
   .cal-cell.disabled:hover { background: transparent; }
   .cal-cell:not(.disabled):hover { background: var(--accent-light); }
@@ -688,7 +697,6 @@ function renderCalendar() {
     const cls = i === 0 ? 'cal-dow sun' : i === 6 ? 'cal-dow sat' : 'cal-dow';
     cells.push(`<div class="${cls}">${DOW[i]}</div>`);
   }
-  for (let i = 0; i < leading; i++) cells.push('<div class="cal-cell empty"></div>');
   for (let d = 1; d <= lastDay; d++) {
     const iso = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const has = DATA_DATE_SET.has(iso);
@@ -697,7 +705,9 @@ function renderCalendar() {
     if (RANGE_FROM && RANGE_TO && iso > RANGE_FROM && iso < RANGE_TO) cls += ' in-range';
     if (iso === RANGE_FROM) cls += ' range-start';
     if (iso === RANGE_TO) cls += ' range-end';
-    cells.push(`<div class="${cls}" data-date="${iso}">${d}</div>`);
+    // 첫 날짜만 요일 위치에 명시적 배치. 나머지는 자동 흐름.
+    const style = d === 1 ? ` style="grid-column-start:${leading + 1}"` : '';
+    cells.push(`<div class="${cls}"${style} data-date="${iso}">${d}</div>`);
   }
   grid.innerHTML = cells.join('');
 
