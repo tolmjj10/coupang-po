@@ -536,6 +536,43 @@
     font-weight: 700;
     cursor: help;
   }
+
+  /* SKU 셀 메모: 우클릭으로 팝오버 열기, 메모 있는 셀 우측 상단 노란 점 */
+  td.sku-has-memo { position: relative; }
+  td.sku-has-memo::after {
+    content: '';
+    position: absolute; top: 4px; right: 4px;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #b78900; box-shadow: 0 0 0 1.5px rgba(255,253,245,0.9);
+    pointer-events: none;
+  }
+  #memoPopover {
+    position: fixed;
+    z-index: 1000;
+    background: #fffdf5;
+    border: 1px solid #e5c76b;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+    padding: 10px;
+    width: 280px;
+    display: none;
+  }
+  #memoPopover.open { display: block; }
+  #memoPopover textarea {
+    width: 100%; min-height: 72px; resize: vertical;
+    border: 1px solid #e5c76b; border-radius: 6px;
+    padding: 6px 8px;
+    font: 13px 'Pretendard', inherit;
+    background: white; box-sizing: border-box;
+  }
+  #memoPopover textarea:focus { outline: none; border-color: #b78900; box-shadow: 0 0 0 3px rgba(229,199,107,0.25); }
+  #memoPopover .memo-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; }
+  #memoPopover .memo-actions button {
+    padding: 4px 10px; font-size: 12px; border-radius: 6px; cursor: pointer;
+    border: 1px solid #d1d5db; background: white; color: var(--text); font-family: inherit;
+  }
+  #memoPopover .memo-actions button.primary { background: #b78900; border-color: #b78900; color: white; }
+  #memoPopover .memo-actions button.danger { color: #a4423b; border-color: #f0b6b1; }
 </style>
 </head>
 <body>
@@ -1713,6 +1750,110 @@ window.addEventListener('beforeunload', () => {
     navigator.sendBeacon(API_URL, new Blob([payload], { type: 'application/json' }));
   }
 });
+
+// ===== SKU 셀 메모 (우클릭으로 열림) =====
+(() => {
+  const memoPop = document.createElement('div');
+  memoPop.id = 'memoPopover';
+  memoPop.setAttribute('role', 'dialog');
+  memoPop.innerHTML =
+    '<textarea id="memoText" placeholder="이슈/메모를 입력하세요..."></textarea>' +
+    '<div class="memo-actions">' +
+      '<button type="button" class="danger" id="memoDelete">삭제</button>' +
+      '<button type="button" id="memoCancel">취소</button>' +
+      '<button type="button" class="primary" id="memoSave">저장</button>' +
+    '</div>';
+  document.body.appendChild(memoPop);
+
+  const memoText = document.getElementById('memoText');
+  let memoTargetId = null;
+
+  function open(rowId, x, y) {
+    memoTargetId = rowId;
+    const row = data.find(r => r.id === rowId);
+    memoText.value = (row && row.memo) || '';
+    document.getElementById('memoDelete').style.display = (row && row.memo) ? '' : 'none';
+    const W = 280, H = 160;
+    memoPop.style.left = Math.max(10, Math.min(x, window.innerWidth - W - 10)) + 'px';
+    memoPop.style.top  = Math.max(10, Math.min(y, window.innerHeight - H - 10)) + 'px';
+    memoPop.classList.add('open');
+    setTimeout(() => memoText.focus(), 0);
+  }
+  function close() { memoPop.classList.remove('open'); memoTargetId = null; }
+
+  function saveMemo(text) {
+    if (!memoTargetId) return;
+    const row = data.find(r => r.id === memoTargetId);
+    if (!row) { close(); return; }
+    const t = (text || '').trim();
+    if (t) row.memo = t; else delete row.memo;
+    save();
+    // 셀에 클래스만 갱신 (전체 렌더 없이)
+    const tr = document.querySelector(`tr[data-id="${CSS.escape(memoTargetId)}"]`);
+    if (tr) {
+      const skuTd = tr.querySelector('td:has(> input[data-k="skuId"])')
+                  || tr.querySelector('input[data-k="skuId"]')?.closest('td');
+      if (skuTd) {
+        skuTd.classList.toggle('sku-has-memo', !!t);
+        const inp = skuTd.querySelector('input[data-k="skuId"]');
+        if (inp) inp.title = t ? '📝 ' + t : '';
+      }
+    }
+    close();
+  }
+
+  document.addEventListener('contextmenu', (e) => {
+    const inp = e.target.closest('input[data-k="skuId"]');
+    if (!inp) return;
+    const tr = inp.closest('tr[data-id]');
+    if (!tr) return;
+    e.preventDefault();
+    open(tr.dataset.id, e.clientX, e.clientY);
+  });
+
+  memoPop.addEventListener('click', (e) => e.stopPropagation());
+  memoPop.addEventListener('mousedown', (e) => e.stopPropagation());
+  memoPop.addEventListener('contextmenu', (e) => e.stopPropagation());
+  document.addEventListener('click', (e) => {
+    if (memoPop.classList.contains('open') && !memoPop.contains(e.target)) close();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && memoPop.classList.contains('open')) close();
+  });
+
+  document.getElementById('memoSave').addEventListener('click', () => saveMemo(memoText.value));
+  document.getElementById('memoCancel').addEventListener('click', close);
+  document.getElementById('memoDelete').addEventListener('click', () => saveMemo(''));
+  memoText.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveMemo(memoText.value); }
+  });
+
+  // 렌더 직후 기존 메모가 있는 행에 클래스/툴팁 적용
+  const origApply = window.__applyMemoIndicators = () => {
+    document.querySelectorAll('input[data-k="skuId"]').forEach(inp => {
+      const tr = inp.closest('tr[data-id]');
+      if (!tr) return;
+      const row = data.find(r => r.id === tr.dataset.id);
+      const td = inp.closest('td');
+      if (!td) return;
+      if (row && row.memo) {
+        td.classList.add('sku-has-memo');
+        inp.title = '📝 ' + row.memo;
+      } else {
+        td.classList.remove('sku-has-memo');
+        if (inp.title.startsWith('📝')) inp.title = '';
+      }
+    });
+  };
+
+  // 렌더 훅: MutationObserver 로 tbody 변경 시 인디케이터 재적용
+  const targets = ['tbody','mainWrap','planWrap','expWrap']
+    .map(id => document.getElementById(id))
+    .filter(Boolean);
+  const mo = new MutationObserver(() => origApply());
+  targets.forEach(t => mo.observe(t, { childList: true, subtree: true }));
+  origApply();
+})();
 </script>
 </body>
 </html>
