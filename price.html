@@ -303,10 +303,14 @@
     box-shadow: 0 1px 2px rgba(139, 117, 108, 0.05);
   }
   table {
-    width: max-content;
-    min-width: 100%;
+    width: 100%;
     border-collapse: collapse;
     font-size: 13px;
+  }
+  /* 시간대 확장(extras 표시)이 하나라도 있으면 스크롤 발생하도록 max-content */
+  table.expanded {
+    width: max-content;
+    min-width: 100%;
   }
   th {
     background: #f5f3ef;
@@ -527,16 +531,23 @@
   .site-edit-popup .edit-status.err { color: #a85450; }
   .site-edit-popup .edit-status.ok { color: var(--success); }
   .name {
-    min-width: 280px;
-    white-space: normal;
     padding-right: 12px;
+    max-width: 320px;
+    white-space: nowrap;
+    overflow: hidden;
   }
   .name a {
+    display: block;
     color: var(--primary);
     text-decoration: none;
     font-weight: 600;
     letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
+  table.expanded .name { max-width: none; white-space: normal; overflow: visible; }
+  table.expanded .name a { white-space: normal; overflow: visible; text-overflow: unset; display: inline; }
   .name a:hover { text-decoration: underline; color: var(--primary-hover); }
   .c-base {
     text-align: center;
@@ -901,6 +912,8 @@ function render(state) {
       document.querySelectorAll('.extra-' + CSS.escape(d)).forEach(el => {
         el.classList.toggle('shown', expanded);
       });
+      const anyExpanded = document.querySelectorAll('th.date-header.expanded').length > 0;
+      document.getElementById('t').classList.toggle('expanded', anyExpanded);
     });
   });
 
