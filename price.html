@@ -465,17 +465,18 @@ function render(state) {
     const labels = dateLabelLists[d];
     const latest = labels[labels.length - 1];
     const extras = labels.slice(0, -1);
-    const span = COLS_PER_RUN + COLS_PER_RUN * extras.length;
+    const collapsedSpan = COLS_PER_RUN;
+    const expandedSpan = COLS_PER_RUN + COLS_PER_RUN * extras.length;
     const dateShort = d.length >= 10 ? d.slice(5) : d;
     const hasExtra = extras.length > 0;
     const cls = hasExtra ? ' has-extra' : '';
-    const toggleAttr = hasExtra ? ` data-date="${d}"` : '';
+    const toggleAttr = hasExtra ? ` data-date="${d}" data-collapsed-span="${collapsedSpan}" data-expanded-span="${expandedSpan}"` : '';
     const icon = hasExtra ? ' <span class="expand-icon">▶</span>' : '';
     const extrasTags = extras.map(l => `<span class="time-tag extra-tag extra-${d}">${l}</span>`).join('');
     const latestTag = ` <span class="time-tag">${latest}</span>`;
 
     topHeader.push(
-      `<th colspan="${span}" class="date-header${cls}"${toggleAttr}>` +
+      `<th colspan="${collapsedSpan}" class="date-header${cls}"${toggleAttr}>` +
       `<span class="date-label">${dateShort}</span>${extrasTags}${latestTag}${icon}` +
       `</th>`
     );
@@ -544,6 +545,7 @@ function render(state) {
     th.addEventListener('click', () => {
       const d = th.dataset.date;
       const expanded = th.classList.toggle('expanded');
+      th.colSpan = parseInt(expanded ? th.dataset.expandedSpan : th.dataset.collapsedSpan, 10);
       document.querySelectorAll('.extra-' + CSS.escape(d)).forEach(el => {
         el.classList.toggle('shown', expanded);
       });
