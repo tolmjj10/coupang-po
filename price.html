@@ -204,13 +204,20 @@
     border-radius: 12px;
     box-shadow: 0 8px 24px rgba(60, 40, 20, 0.14), 0 2px 6px rgba(60, 40, 20, 0.08);
     padding: 10px;
-    min-width: 220px;
-    max-height: 340px;
     display: none;
     cursor: default;
+    width: 260px;
+    height: 380px;
+    min-width: 220px;
+    min-height: 200px;
+    max-width: 90vw;
+    max-height: 85vh;
+    resize: both;
+    overflow: hidden;
+    flex-direction: column;
   }
-  .site-popup.open { display: block; }
-  .site-popup-head { display: flex; gap: 6px; margin-bottom: 8px; }
+  .site-popup.open { display: flex; }
+  .site-popup-head { display: flex; gap: 6px; margin-bottom: 8px; flex: 0 0 auto; }
   .site-mini {
     font: 500 11.5px 'Pretendard', sans-serif;
     padding: 4px 10px;
@@ -223,11 +230,13 @@
   }
   .site-mini:hover { background: #f6f1ec; color: var(--text); }
   .site-list {
-    max-height: 260px;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 1px;
+    padding-right: 4px;   /* 우측 하단 resize handle 공간 확보 */
   }
   .site-item {
     display: flex; align-items: center; gap: 8px;
@@ -1304,15 +1313,25 @@ function closeMemoPopover() {
   MEMO_TARGET_SKU = '';
 }
 
-async function saveMemo(text) {
+function commitMemoIfChanged() {
   if (!MEMO_TARGET_SKU) return;
+  const cur = (MEMOS[MEMO_TARGET_SKU] || '').trim();
+  const next = (memoTextEl.value || '').trim();
+  if (cur === next) return;
+  saveMemo(memoTextEl.value, { closeAfter: false });
+}
+
+async function saveMemo(text, opts = {}) {
+  const targetSku = MEMO_TARGET_SKU;                   // 캡처: async 중 닫혀도 안전
+  if (!targetSku) return;
+  const closeAfter = opts.closeAfter !== false;
   memoStatusEl.textContent = '저장 중...';
   memoStatusEl.className = 'memo-status';
   try {
     const r = await fetch('/api/price-memos?t=' + Date.now(), { cache: 'no-store' });
     const current = r.ok ? await r.json() : {};
-    if (text && text.trim()) current[MEMO_TARGET_SKU] = text.trim();
-    else delete current[MEMO_TARGET_SKU];
+    if (text && text.trim()) current[targetSku] = text.trim();
+    else delete current[targetSku];
     const resp = await fetch('/api/price-memos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
@@ -1323,7 +1342,7 @@ async function saveMemo(text) {
     if (CURRENT_STATE) render(CURRENT_STATE);
     memoStatusEl.textContent = '저장됨';
     memoStatusEl.className = 'memo-status ok';
-    setTimeout(closeMemoPopover, 400);
+    if (closeAfter) setTimeout(closeMemoPopover, 400);
   } catch (e) {
     memoStatusEl.textContent = '저장 실패: ' + e.message;
     memoStatusEl.className = 'memo-status err';
@@ -1344,7 +1363,10 @@ memoPop.addEventListener('mousedown', (e) => e.stopPropagation());
 memoPop.addEventListener('contextmenu', (e) => e.stopPropagation());
 
 document.addEventListener('click', (e) => {
-  if (memoPop.classList.contains('open') && !memoPop.contains(e.target)) closeMemoPopover();
+  if (memoPop.classList.contains('open') && !memoPop.contains(e.target)) {
+    commitMemoIfChanged();
+    closeMemoPopover();
+  }
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && memoPop.classList.contains('open')) closeMemoPopover();
