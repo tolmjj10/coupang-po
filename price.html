@@ -430,7 +430,94 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     line-height: 1.4;
+    cursor: pointer;
+    transition: filter .1s, transform .1s;
   }
+  .c-site .site-chip:hover { filter: brightness(0.96); }
+  .c-site .site-empty {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #b8b3ac;
+    border: 1px dashed #d3ccc4;
+    cursor: pointer;
+    background: transparent;
+  }
+  .c-site .site-empty:hover { background: #f6f1ec; color: var(--muted); }
+
+  /* 사이트 편집 팝업 */
+  .site-edit-popup {
+    position: fixed;
+    z-index: 200;
+    background: #fff;
+    border: 1px solid #e0d6cd;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(60, 40, 20, 0.16), 0 2px 8px rgba(60, 40, 20, 0.08);
+    padding: 10px;
+    min-width: 240px;
+    max-width: 280px;
+    display: none;
+  }
+  .site-edit-popup.open { display: block; }
+  .site-edit-popup .edit-input {
+    font: 500 13px 'Pretendard', sans-serif;
+    padding: 7px 10px;
+    border: 1px solid #d3c4b7;
+    border-radius: 8px;
+    background: #fff;
+    color: var(--text);
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .site-edit-popup .edit-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+  .site-edit-popup .edit-list {
+    margin-top: 8px;
+    max-height: 240px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .site-edit-popup .edit-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12.5px;
+    color: var(--text);
+    transition: background .1s;
+  }
+  .site-edit-popup .edit-item:hover,
+  .site-edit-popup .edit-item.selected { background: #f6f1ec; }
+  .site-edit-popup .edit-item.create {
+    color: var(--primary);
+    font-weight: 600;
+    border-top: 1px solid #f0eae2;
+    margin-top: 4px; padding-top: 8px;
+  }
+  .site-edit-popup .edit-item.clear {
+    color: #a85450;
+    border-top: 1px solid #f0eae2;
+    margin-top: 4px; padding-top: 8px;
+    font-size: 12px;
+  }
+  .site-edit-popup .edit-hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin: 6px 4px 2px;
+  }
+  .site-edit-popup .edit-status {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 6px;
+    text-align: right;
+    min-height: 14px;
+  }
+  .site-edit-popup .edit-status.err { color: #a85450; }
+  .site-edit-popup .edit-status.ok { color: var(--success); }
   .name {
     min-width: 280px;
     white-space: normal;
@@ -556,6 +643,13 @@
   </div>
 </div>
 
+<div class="site-edit-popup" id="siteEditPopup">
+  <input type="text" class="edit-input" id="siteEditInput" placeholder="사이트 검색 또는 새 사이트 입력" autocomplete="off">
+  <div class="edit-hint" id="siteEditHint">선택하거나 이름 입력 후 Enter</div>
+  <div class="edit-list" id="siteEditList"></div>
+  <div class="edit-status" id="siteEditStatus"></div>
+</div>
+
 <script>
 const API = '/api/price-state';
 
@@ -571,37 +665,34 @@ function fmt(n) {
   return (n && Number.isFinite(n)) ? n.toLocaleString() + '원' : '-';
 }
 
-// 사이트명 → 무채색/파스텔 계열 팔레트 (세이지·더스티톤). 20색 순환.
-const SITE_PALETTE = [
-  { bg: '#dde5d3', fg: '#4c5a44' }, // sage
-  { bg: '#e3d4d1', fg: '#6b4f4b' }, // dusty rose
-  { bg: '#d4dde3', fg: '#455663' }, // dusty blue
-  { bg: '#e6d5c3', fg: '#6b503a' }, // muted terracotta
-  { bg: '#dcd4c7', fg: '#5c4f3f' }, // taupe
-  { bg: '#dcd0da', fg: '#5c4859' }, // mauve
-  { bg: '#e0d5b2', fg: '#665836' }, // muted mustard
-  { bg: '#d2d6db', fg: '#4a5058' }, // slate gray
-  { bg: '#d7dab6', fg: '#565934' }, // muted olive
-  { bg: '#e5d3bf', fg: '#664c34' }, // dusty peach
-  { bg: '#d5cfdd', fg: '#4d465b' }, // muted lavender
-  { bg: '#c9dad4', fg: '#3f5a52' }, // muted teal
-  { bg: '#d9d5b3', fg: '#5c5734' }, // muted khaki
-  { bg: '#dcd6cd', fg: '#5a5148' }, // warm gray
-  { bg: '#d5c8cc', fg: '#573f45' }, // muted plum
-  { bg: '#cddbd0', fg: '#3f5947' }, // muted jade
-  { bg: '#d3d6cf', fg: '#4c5148' }, // muted ash
-  { bg: '#d9cec9', fg: '#5a463f' }, // muted stone
-  { bg: '#cfd8d3', fg: '#43554e' }, // muted mist
-  { bg: '#dbccc7', fg: '#5c443f' }, // rose gray
-];
+// 무채색·더스티 파스텔 24색 팔레트. HSL 15° 간격으로 색상환 골고루,
+// 채도·명도는 균일하게 낮게 잡아 톤은 통일 + 색상은 뚜렷하게 구분.
+const SITE_PALETTE = (() => {
+  const p = [];
+  for (let i = 0; i < 24; i++) {
+    const h = i * 15;
+    p.push({ bg: `hsl(${h}, 34%, 80%)`, fg: `hsl(${h}, 48%, 26%)` });
+  }
+  return p;
+})();
+
+// 사이트 이름 → 팔레트 인덱스. buildSiteFilter 에서 사이트 목록이 정해질 때
+// 결정론적으로 배정 (해시 충돌로 같은 색이 되는 문제 회피).
+let SITE_COLOR_INDEX = {};
 
 function siteColor(name) {
   if (!name) return null;
-  let h = 0;
-  for (let i = 0; i < name.length; i++) {
-    h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  let idx = SITE_COLOR_INDEX[name];
+  if (idx === undefined) {
+    // 아직 목록에 등록 안 된 사이트 (편집기에서 방금 추가 등) 폴백:
+    // 사이트 이름 해시로 임시 색상 부여.
+    let h = 0;
+    for (let i = 0; i < name.length; i++) {
+      h = (h * 131 + name.charCodeAt(i)) >>> 0;
+    }
+    idx = h % SITE_PALETTE.length;
   }
-  return SITE_PALETTE[h % SITE_PALETTE.length];
+  return SITE_PALETTE[idx % SITE_PALETTE.length];
 }
 
 function escapeHtml(s) {
@@ -751,9 +842,12 @@ function render(state) {
     }
     visibleIdx += 1;
     const sc = siteColor(site);
+    const editableAttr = sku
+      ? ` data-sku="${escapeHtml(sku)}" data-cur-site="${escapeHtml(site)}" title="클릭하여 사이트 변경"`
+      : ' title="SKU 없음 — 사이트 지정 불가"';
     const siteCellInner = site
-      ? `<span class="site-chip" style="background:${sc.bg};color:${sc.fg}">${escapeHtml(site)}</span>`
-      : '-';
+      ? `<span class="site-chip"${editableAttr} style="background:${sc.bg};color:${sc.fg}">${escapeHtml(site)}</span>`
+      : (sku ? `<span class="site-empty"${editableAttr}>+ 사이트</span>` : '<span class="site-empty" style="cursor:not-allowed">-</span>');
     rows.push(
       `<tr>` +
       `<td class="idx">${visibleIdx}</td>` +
@@ -872,6 +966,12 @@ function buildSiteFilter(siteMap, priceRes) {
   }
   SITE_ALL = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }));
 
+  // 색상 인덱스 결정론적 배정: 이름 정렬 순 → 사이트 개수가 늘어나도
+  // 기존 사이트의 색은 그대로 유지.
+  const sortedNames = Object.keys(counts).sort();
+  SITE_COLOR_INDEX = {};
+  sortedNames.forEach((name, i) => { SITE_COLOR_INDEX[name] = i; });
+
   // 사라진 사이트는 필터에서 제거
   for (const s of Array.from(SITE_FILTER)) {
     if (!counts[s]) SITE_FILTER.delete(s);
@@ -927,6 +1027,123 @@ document.getElementById('siteNone').addEventListener('click', () => {
   document.querySelectorAll('#siteList input[type="checkbox"]').forEach(cb => { cb.checked = false; });
   updateSiteText();
   if (CURRENT_STATE) render(CURRENT_STATE);
+});
+
+// ===== 사이트 개별 편집 (SKU → site 지정) =====
+const siteEditPopup = document.getElementById('siteEditPopup');
+const siteEditInput = document.getElementById('siteEditInput');
+const siteEditList = document.getElementById('siteEditList');
+const siteEditStatus = document.getElementById('siteEditStatus');
+let SITE_EDIT_SKU = '';
+let SITE_EDIT_CUR = '';
+
+function openSiteEditor(anchor, sku, curSite) {
+  SITE_EDIT_SKU = sku;
+  SITE_EDIT_CUR = curSite;
+  siteEditInput.value = '';
+  siteEditStatus.textContent = '';
+  siteEditStatus.className = 'edit-status';
+  const r = anchor.getBoundingClientRect();
+  siteEditPopup.style.left = Math.min(r.left, window.innerWidth - 300) + 'px';
+  siteEditPopup.style.top = (r.bottom + 6) + 'px';
+  siteEditPopup.classList.add('open');
+  renderSiteEditList('');
+  setTimeout(() => siteEditInput.focus(), 0);
+}
+
+function closeSiteEditor() {
+  siteEditPopup.classList.remove('open');
+  SITE_EDIT_SKU = '';
+  SITE_EDIT_CUR = '';
+}
+
+function renderSiteEditList(query) {
+  const q = query.trim();
+  const qLower = q.toLowerCase();
+  const filtered = SITE_ALL.filter(s => !qLower || s.name.toLowerCase().includes(qLower));
+  const exactExists = SITE_ALL.some(s => s.name === q);
+  const items = filtered.map(s => {
+    const c = siteColor(s.name);
+    const isCurrent = s.name === SITE_EDIT_CUR;
+    return `<div class="edit-item${isCurrent ? ' selected' : ''}" data-name="${escapeHtml(s.name)}">
+      <span class="site-chip" style="background:${c.bg};color:${c.fg}">${escapeHtml(s.name)}</span>
+      <span class="site-count" style="margin-left:auto;font-size:11px;color:#8a877e">${s.count}</span>
+    </div>`;
+  });
+  if (q && !exactExists) {
+    items.push(`<div class="edit-item create" data-create="${escapeHtml(q)}">+ 새 사이트 "${escapeHtml(q)}" 추가</div>`);
+  }
+  if (SITE_EDIT_CUR) {
+    items.push(`<div class="edit-item clear" data-clear="1">✕ 사이트 지정 해제</div>`);
+  }
+  siteEditList.innerHTML = items.join('');
+}
+
+async function saveSiteEdit(sku, newSite) {
+  siteEditStatus.textContent = '저장 중...';
+  siteEditStatus.className = 'edit-status';
+  try {
+    const r = await fetch('/api/site-map?t=' + Date.now(), { cache: 'no-store' });
+    const current = r.ok ? await r.json() : {};
+    if (newSite) current[sku] = newSite;
+    else delete current[sku];
+    const resp = await fetch('/api/site-map', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify(current),
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    // 로컬 상태 반영
+    if (CURRENT_STATE) {
+      CURRENT_STATE.siteMap = current;
+      buildSiteFilter(current, CURRENT_STATE);
+      render(CURRENT_STATE);
+    }
+    siteEditStatus.textContent = '저장됨';
+    siteEditStatus.className = 'edit-status ok';
+    setTimeout(closeSiteEditor, 400);
+  } catch (e) {
+    siteEditStatus.textContent = '저장 실패: ' + e.message;
+    siteEditStatus.className = 'edit-status err';
+  }
+}
+
+document.getElementById('tblwrap').addEventListener('click', (e) => {
+  const el = e.target.closest('.site-chip, .site-empty');
+  if (!el || !el.dataset.sku) return;
+  e.stopPropagation();
+  openSiteEditor(el, el.dataset.sku, el.dataset.curSite || '');
+});
+
+siteEditPopup.addEventListener('click', (e) => e.stopPropagation());
+siteEditPopup.addEventListener('mousedown', (e) => e.stopPropagation());
+document.addEventListener('click', (e) => {
+  if (siteEditPopup.classList.contains('open') && !siteEditPopup.contains(e.target)) {
+    closeSiteEditor();
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && siteEditPopup.classList.contains('open')) closeSiteEditor();
+});
+
+siteEditInput.addEventListener('input', () => renderSiteEditList(siteEditInput.value));
+siteEditInput.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const q = siteEditInput.value.trim();
+  if (!q) return;
+  saveSiteEdit(SITE_EDIT_SKU, q);
+});
+
+siteEditList.addEventListener('click', (e) => {
+  const item = e.target.closest('.edit-item');
+  if (!item) return;
+  if (item.dataset.clear) {
+    saveSiteEdit(SITE_EDIT_SKU, '');
+  } else if (item.dataset.create) {
+    saveSiteEdit(SITE_EDIT_SKU, item.dataset.create);
+  } else if (item.dataset.name) {
+    saveSiteEdit(SITE_EDIT_SKU, item.dataset.name);
+  }
 });
 
 // ===== 커스텀 기간 선택 달력 =====
