@@ -284,6 +284,14 @@
     padding: 8px 10px;
   }
   button.btn.ghost:hover { background: #f6f1ec; color: var(--text); border-color: transparent; }
+  button.btn:disabled {
+    opacity: 0.32;
+    cursor: default;
+    background: transparent;
+    border-color: transparent;
+    color: var(--muted);
+  }
+  button.btn:disabled:hover { background: transparent; color: var(--muted); border-color: transparent; }
 
   .table-wrap {
     background: white;
