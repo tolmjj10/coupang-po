@@ -82,37 +82,79 @@
   }
   .toolbar .spacer { flex: 1 1 auto; }
   .date-range {
+    position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 10px 4px 12px;
+    gap: 6px;
+    padding: 7px 12px;
     border: 1px solid #d3c4b7;
     border-radius: 9px;
     background: var(--card);
     font: 500 13px 'Pretendard', sans-serif;
     color: var(--text);
-  }
-  .date-range:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
-  .date-range select {
-    font: 500 13px 'Pretendard', sans-serif;
-    padding: 4px 6px;
-    border: none;
-    outline: none;
-    background: transparent;
-    color: var(--text);
     cursor: pointer;
-    appearance: none;
-    -webkit-appearance: none;
-    padding-right: 4px;
+    user-select: none;
+    transition: border-color .15s, box-shadow .15s;
   }
-  .date-range select:hover { color: var(--primary); }
-  .date-range .tilde { color: var(--muted); font-size: 12px; padding: 0 2px; }
-  .date-range .label { font-size: 11.5px; color: var(--muted); font-weight: 500; margin-right: 4px; }
+  .date-range:hover { border-color: #b8a595; }
+  .date-range.open { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+  .date-range .label { font-size: 11.5px; color: var(--muted); font-weight: 500; }
+  .date-range .range-text { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .date-range .range-text .tilde { color: var(--muted); margin: 0 6px; }
   .date-range .cal-icon {
     display: inline-flex; align-items: center; justify-content: center;
     color: var(--muted);
-    margin-left: 4px;
-    pointer-events: none;
+    margin-left: 2px;
+  }
+  .cal-popup {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 100;
+    background: #fff;
+    border: 1px solid #e0d6cd;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(60, 40, 20, 0.14), 0 2px 6px rgba(60, 40, 20, 0.08);
+    padding: 12px;
+    min-width: 260px;
+    display: none;
+    cursor: default;
+    user-select: none;
+  }
+  .cal-popup.open { display: block; }
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cal-head .month-label { font-weight: 700; font-size: 13.5px; color: var(--text); letter-spacing: -0.01em; }
+  .cal-nav {
+    width: 26px; height: 26px; border-radius: 6px; border: none;
+    background: transparent; cursor: pointer; color: var(--muted);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 14px; transition: background .12s;
+  }
+  .cal-nav:hover { background: #f6f1ec; color: var(--text); }
+  .cal-nav:disabled { opacity: 0.25; cursor: not-allowed; background: transparent; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .cal-dow { font-size: 10.5px; color: var(--muted); text-align: center; padding: 6px 0 2px; font-weight: 600; }
+  .cal-dow.sun { color: #c46a66; }
+  .cal-dow.sat { color: #4a6b8a; }
+  .cal-cell {
+    text-align: center; font-size: 12.5px; padding: 7px 0;
+    border-radius: 6px; cursor: pointer; color: var(--text);
+    font-variant-numeric: tabular-nums;
+    transition: background .1s;
+  }
+  .cal-cell.empty { visibility: hidden; }
+  .cal-cell.disabled { color: #d5d0c8; cursor: not-allowed; }
+  .cal-cell.disabled:hover { background: transparent; }
+  .cal-cell:not(.disabled):hover { background: var(--accent-light); }
+  .cal-cell.in-range { background: #eef1f4; color: var(--text); border-radius: 0; }
+  .cal-cell.range-start,
+  .cal-cell.range-end { background: var(--primary); color: #fff; font-weight: 700; }
+  .cal-cell.range-start { border-radius: 6px 0 0 6px; }
+  .cal-cell.range-end { border-radius: 0 6px 6px 0; }
+  .cal-cell.range-start.range-end { border-radius: 6px; }
+  .cal-hint {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0eae2;
+    font-size: 11.5px; color: var(--muted); text-align: center;
   }
   .search {
     font: 13px 'Pretendard', sans-serif;
@@ -331,11 +373,9 @@
   </div>
 
   <div class="toolbar">
-    <div class="date-range">
+    <div class="date-range" id="dateRange">
       <span class="label">기간</span>
-      <select id="dateFrom" title="시작 날짜"></select>
-      <span class="tilde">~</span>
-      <select id="dateTo" title="종료 날짜"></select>
+      <span class="range-text" id="rangeText">-</span>
       <span class="cal-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
           <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
@@ -344,6 +384,15 @@
           <line x1="3" y1="10" x2="21" y2="10"/>
         </svg>
       </span>
+      <div class="cal-popup" id="calPopup">
+        <div class="cal-head">
+          <button class="cal-nav" id="calPrev" aria-label="이전 달">‹</button>
+          <span class="month-label" id="calMonth"></span>
+          <button class="cal-nav" id="calNext" aria-label="다음 달">›</button>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-hint" id="calHint">시작 날짜 선택</div>
+      </div>
     </div>
     <div class="spacer"></div>
     <button class="btn icon-only" id="btnDownload" title="엑셀 다운로드">
@@ -426,29 +475,20 @@ function render(state) {
     dateLabelLists[d] = Array.from(dateLabels[d]).sort((a, b) => labelToTimeKey(a).localeCompare(labelToTimeKey(b)));
   }
 
-  // 실제 데이터가 있는 날짜만 선택 가능하도록 option 채우기
-  const fromEl = document.getElementById('dateFrom');
-  const toEl = document.getElementById('dateTo');
-  const prevFrom = fromEl.value;
-  const prevTo = toEl.value;
-
-  const optHtml = allDatesAsc.map(d => {
-    const short = d.length >= 10 ? d.slice(5).replace('-', '/') : d;
-    return `<option value="${d}">${short}</option>`;
-  }).join('');
-  fromEl.innerHTML = optHtml;
-  toEl.innerHTML = optHtml;
-
-  // 기본값: 최근 MAX_VISIBLE_DATES 일
+  // 달력 범위 선택기 초기화
+  DATA_DATES = allDatesAsc;
+  DATA_DATE_SET = new Set(allDatesAsc);
   const maxDate = allDatesAsc[allDatesAsc.length - 1];
   const defaultFrom = allDatesAsc[Math.max(0, allDatesAsc.length - MAX_VISIBLE_DATES)];
+  if (!DATA_DATE_SET.has(RANGE_FROM)) RANGE_FROM = defaultFrom;
+  if (!DATA_DATE_SET.has(RANGE_TO)) RANGE_TO = maxDate;
+  if (RANGE_FROM > RANGE_TO) { const t = RANGE_FROM; RANGE_FROM = RANGE_TO; RANGE_TO = t; }
+  updateRangeText();
+  if (!CAL_VIEW_MONTH) CAL_VIEW_MONTH = RANGE_TO.slice(0, 7);
+  renderCalendar();
 
-  fromEl.value = allDatesAsc.includes(prevFrom) ? prevFrom : defaultFrom;
-  toEl.value = allDatesAsc.includes(prevTo) ? prevTo : maxDate;
-  if (fromEl.value > toEl.value) { const t = fromEl.value; fromEl.value = toEl.value; toEl.value = t; }
-
-  const rangeFrom = fromEl.value;
-  const rangeTo = toEl.value;
+  const rangeFrom = RANGE_FROM;
+  const rangeTo = RANGE_TO;
 
   // 필터링: 선택된 기간 내 데이터 존재 날짜만 (3일 초과면 가로 스크롤)
   const datesAsc = allDatesAsc.filter(d => d >= rangeFrom && d <= rangeTo);
@@ -602,11 +642,130 @@ async function load() {
 }
 
 document.getElementById('reload').addEventListener('click', load);
-document.getElementById('dateFrom').addEventListener('change', () => {
-  if (CURRENT_STATE) render(CURRENT_STATE);
+
+// ===== 커스텀 기간 선택 달력 =====
+let DATA_DATES = [];        // ['2026-09-17', ...]
+let DATA_DATE_SET = new Set();
+let RANGE_FROM = '';
+let RANGE_TO = '';
+let CAL_VIEW_MONTH = '';    // 'YYYY-MM'
+let CAL_PICKING = 'from';   // 'from' 다음엔 'to'
+
+const DOW = ['일','월','화','수','목','금','토'];
+
+function shortDate(d) {
+  return d.length >= 10 ? d.slice(5).replace('-', '/') : d;
+}
+
+function updateRangeText() {
+  const el = document.getElementById('rangeText');
+  if (!RANGE_FROM || !RANGE_TO) { el.textContent = '-'; return; }
+  if (RANGE_FROM === RANGE_TO) {
+    el.innerHTML = shortDate(RANGE_FROM);
+  } else {
+    el.innerHTML = `${shortDate(RANGE_FROM)}<span class="tilde">~</span>${shortDate(RANGE_TO)}`;
+  }
+}
+
+function shiftMonth(ym, delta) {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function renderCalendar() {
+  if (!CAL_VIEW_MONTH) return;
+  const grid = document.getElementById('calGrid');
+  const [y, m] = CAL_VIEW_MONTH.split('-').map(Number);
+  document.getElementById('calMonth').textContent = `${y}년 ${m}월`;
+
+  const first = new Date(y, m - 1, 1);
+  const lastDay = new Date(y, m, 0).getDate();
+  const leading = first.getDay();
+
+  const cells = [];
+  for (let i = 0; i < 7; i++) {
+    const cls = i === 0 ? 'cal-dow sun' : i === 6 ? 'cal-dow sat' : 'cal-dow';
+    cells.push(`<div class="${cls}">${DOW[i]}</div>`);
+  }
+  for (let i = 0; i < leading; i++) cells.push('<div class="cal-cell empty"></div>');
+  for (let d = 1; d <= lastDay; d++) {
+    const iso = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const has = DATA_DATE_SET.has(iso);
+    let cls = 'cal-cell';
+    if (!has) cls += ' disabled';
+    if (RANGE_FROM && RANGE_TO && iso > RANGE_FROM && iso < RANGE_TO) cls += ' in-range';
+    if (iso === RANGE_FROM) cls += ' range-start';
+    if (iso === RANGE_TO) cls += ' range-end';
+    cells.push(`<div class="${cls}" data-date="${iso}">${d}</div>`);
+  }
+  grid.innerHTML = cells.join('');
+
+  const minMonth = DATA_DATES[0]?.slice(0,7);
+  const maxMonth = DATA_DATES[DATA_DATES.length-1]?.slice(0,7);
+  document.getElementById('calPrev').disabled = !minMonth || CAL_VIEW_MONTH <= minMonth;
+  document.getElementById('calNext').disabled = !maxMonth || CAL_VIEW_MONTH >= maxMonth;
+  document.getElementById('calHint').textContent =
+    CAL_PICKING === 'from' ? '시작 날짜를 클릭하세요' : '종료 날짜를 클릭하세요';
+}
+
+const dateRangeEl = document.getElementById('dateRange');
+const calPopupEl = document.getElementById('calPopup');
+
+dateRangeEl.addEventListener('click', (e) => {
+  if (calPopupEl.contains(e.target)) return;
+  const open = calPopupEl.classList.toggle('open');
+  dateRangeEl.classList.toggle('open', open);
+  if (open) {
+    CAL_PICKING = 'from';
+    CAL_VIEW_MONTH = (RANGE_FROM || RANGE_TO || DATA_DATES[DATA_DATES.length-1] || '').slice(0,7);
+    renderCalendar();
+  }
 });
-document.getElementById('dateTo').addEventListener('change', () => {
-  if (CURRENT_STATE) render(CURRENT_STATE);
+
+document.addEventListener('click', (e) => {
+  if (!dateRangeEl.contains(e.target) && calPopupEl.classList.contains('open')) {
+    calPopupEl.classList.remove('open');
+    dateRangeEl.classList.remove('open');
+  }
+});
+
+document.getElementById('calPrev').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const minMonth = DATA_DATES[0]?.slice(0,7);
+  if (minMonth && CAL_VIEW_MONTH > minMonth) {
+    CAL_VIEW_MONTH = shiftMonth(CAL_VIEW_MONTH, -1);
+    renderCalendar();
+  }
+});
+document.getElementById('calNext').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const maxMonth = DATA_DATES[DATA_DATES.length-1]?.slice(0,7);
+  if (maxMonth && CAL_VIEW_MONTH < maxMonth) {
+    CAL_VIEW_MONTH = shiftMonth(CAL_VIEW_MONTH, 1);
+    renderCalendar();
+  }
+});
+
+document.getElementById('calGrid').addEventListener('click', (e) => {
+  const cell = e.target.closest('.cal-cell');
+  if (!cell || cell.classList.contains('disabled') || cell.classList.contains('empty')) return;
+  const iso = cell.dataset.date;
+  if (CAL_PICKING === 'from') {
+    RANGE_FROM = iso;
+    RANGE_TO = iso;
+    CAL_PICKING = 'to';
+    renderCalendar();
+    updateRangeText();
+  } else {
+    if (iso < RANGE_FROM) { RANGE_TO = RANGE_FROM; RANGE_FROM = iso; }
+    else { RANGE_TO = iso; }
+    CAL_PICKING = 'from';
+    updateRangeText();
+    calPopupEl.classList.remove('open');
+    dateRangeEl.classList.remove('open');
+    if (CURRENT_STATE) render(CURRENT_STATE);
+  }
 });
 
 document.getElementById('btnDownload').addEventListener('click', () => {
