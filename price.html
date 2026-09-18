@@ -230,10 +230,13 @@
     z-index: 3;
     white-space: nowrap;
   }
-  /* 두 번째 헤더 행(sub-*)의 top 은 JS 로 date-header 실제 높이에 맞춰 세팅. */
+  /* 두 번째 헤더 행(sub-*)은 첫 행 밑에 붙어야 함.
+     top 값과 실제 date-header 높이 사이 서브픽셀 갭으로 표 내용이 보이는 문제를
+     box-shadow 로 상하 양쪽 배경을 늘려 덮어 방지. */
   th.sub-base, th.sub-price {
-    top: 40px;
+    top: 39px;
     z-index: 2;
+    box-shadow: 0 -2px 0 0 #f5f3ef;
   }
   th.date-header {
     text-align: center;
@@ -248,6 +251,7 @@
     padding: 10px 12px;
     top: 0;
     z-index: 3;
+    box-shadow: 0 2px 0 0 #ede8df;
   }
   th.date-header.has-extra { cursor: pointer; }
   th.date-header.has-extra:hover { background: var(--accent-light); }
@@ -448,20 +452,6 @@ const MAX_VISIBLE_DATES = 3;  // 첫 화면에 보일 최대 날짜 수
 
 let CURRENT_STATE = null;
 
-// date-header 실제 렌더 높이에 sub-header top 을 정확히 맞춰 갭 제거.
-function syncSubHeaderTop() {
-  requestAnimationFrame(() => {
-    const dh = document.querySelector('th.date-header, thead th');
-    if (!dh) return;
-    const h = Math.round(dh.getBoundingClientRect().height);
-    document.querySelectorAll('th.sub-base, th.sub-price').forEach(el => {
-      el.style.top = h + 'px';
-    });
-  });
-}
-
-window.addEventListener('resize', syncSubHeaderTop);
-
 function render(state) {
   CURRENT_STATE = state;
   const history = (state && state.history) || {};
@@ -615,11 +605,8 @@ function render(state) {
       document.querySelectorAll('.extra-' + CSS.escape(d)).forEach(el => {
         el.classList.toggle('shown', expanded);
       });
-      syncSubHeaderTop();
     });
   });
-
-  syncSubHeaderTop();
 
   const q = document.getElementById('q');
   q.oninput = () => {
