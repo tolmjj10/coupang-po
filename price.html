@@ -412,9 +412,25 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding-right: 12px;
+    padding: 0 8px;
   }
-  .c-site.has { color: var(--text); font-weight: 500; }
+  .c-site.has {
+    color: var(--text);
+    font-weight: 500;
+  }
+  .c-site .site-chip {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.4;
+  }
   .name {
     min-width: 280px;
     white-space: normal;
@@ -553,6 +569,39 @@ function labelToTimeKey(label) {
 
 function fmt(n) {
   return (n && Number.isFinite(n)) ? n.toLocaleString() + '원' : '-';
+}
+
+// 사이트명 → 무채색/파스텔 계열 팔레트 (세이지·더스티톤). 20색 순환.
+const SITE_PALETTE = [
+  { bg: '#dde5d3', fg: '#4c5a44' }, // sage
+  { bg: '#e3d4d1', fg: '#6b4f4b' }, // dusty rose
+  { bg: '#d4dde3', fg: '#455663' }, // dusty blue
+  { bg: '#e6d5c3', fg: '#6b503a' }, // muted terracotta
+  { bg: '#dcd4c7', fg: '#5c4f3f' }, // taupe
+  { bg: '#dcd0da', fg: '#5c4859' }, // mauve
+  { bg: '#e0d5b2', fg: '#665836' }, // muted mustard
+  { bg: '#d2d6db', fg: '#4a5058' }, // slate gray
+  { bg: '#d7dab6', fg: '#565934' }, // muted olive
+  { bg: '#e5d3bf', fg: '#664c34' }, // dusty peach
+  { bg: '#d5cfdd', fg: '#4d465b' }, // muted lavender
+  { bg: '#c9dad4', fg: '#3f5a52' }, // muted teal
+  { bg: '#d9d5b3', fg: '#5c5734' }, // muted khaki
+  { bg: '#dcd6cd', fg: '#5a5148' }, // warm gray
+  { bg: '#d5c8cc', fg: '#573f45' }, // muted plum
+  { bg: '#cddbd0', fg: '#3f5947' }, // muted jade
+  { bg: '#d3d6cf', fg: '#4c5148' }, // muted ash
+  { bg: '#d9cec9', fg: '#5a463f' }, // muted stone
+  { bg: '#cfd8d3', fg: '#43554e' }, // muted mist
+  { bg: '#dbccc7', fg: '#5c443f' }, // rose gray
+];
+
+function siteColor(name) {
+  if (!name) return null;
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  return SITE_PALETTE[h % SITE_PALETTE.length];
 }
 
 function escapeHtml(s) {
@@ -701,10 +750,14 @@ function render(state) {
       if (r.price != null) prevPrice = r.price;
     }
     visibleIdx += 1;
+    const sc = siteColor(site);
+    const siteCellInner = site
+      ? `<span class="site-chip" style="background:${sc.bg};color:${sc.fg}">${escapeHtml(site)}</span>`
+      : '-';
     rows.push(
       `<tr>` +
       `<td class="idx">${visibleIdx}</td>` +
-      `<td class="c-site${site?' has':''}">${escapeHtml(site) || '-'}</td>` +
+      `<td class="c-site${site?' has':''}">${siteCellInner}</td>` +
       `<td class="id sku">${escapeHtml(sku)}</td>` +
       `<td class="id">${escapeHtml(viid)}</td>` +
       `<td class="id">${escapeHtml(pid)}</td>` +
@@ -825,13 +878,16 @@ function buildSiteFilter(siteMap, priceRes) {
   }
 
   const list = document.getElementById('siteList');
-  list.innerHTML = SITE_ALL.map(s => `
+  list.innerHTML = SITE_ALL.map(s => {
+    const c = siteColor(s.name);
+    const chip = `<span class="site-chip" style="background:${c.bg};color:${c.fg}">${escapeHtml(s.name)}</span>`;
+    return `
     <label class="site-item">
       <input type="checkbox" data-site="${escapeHtml(s.name)}" ${SITE_FILTER.has(s.name) ? 'checked' : ''}>
-      <span>${escapeHtml(s.name)}</span>
+      ${chip}
       <span class="site-count">${s.count}</span>
-    </label>
-  `).join('');
+    </label>`;
+  }).join('');
 
   list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
     cb.addEventListener('change', () => {
