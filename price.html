@@ -50,48 +50,60 @@
     flex-direction: column;
     overflow: hidden;
   }
-  .page-header {
+  .page-title {
     display: flex;
-    align-items: center;
-    gap: 14px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-    background: var(--card);
-    border: 1px solid #eae1d8;
-    border-radius: 14px;
-    padding: 10px 14px;
-    box-shadow: 0 1px 2px rgba(139, 117, 108, 0.05);
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 4px 12px;
+    border-bottom: 1px solid #eae1d8;
+    margin-bottom: 14px;
   }
-  .page-header h1 {
-    font-size: 20px;
+  .page-title h1 {
+    font-size: 22px;
     font-weight: 700;
     letter-spacing: -0.024em;
-    margin: 0 8px 0 4px;
+    margin: 0;
     color: var(--text);
     line-height: 1.15;
-    white-space: nowrap;
   }
-  .page-header .divider { width: 1px; height: 22px; background: #eae1d8; margin: 0 4px; }
-  .page-header .status {
+  .page-title .status {
     color: var(--muted);
     font-size: 12px;
     font-weight: 500;
-    margin-left: auto;
     white-space: nowrap;
   }
-  .month-sel {
-    font: 500 13px 'Pretendard', sans-serif;
-    padding: 8px 12px;
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .toolbar .spacer { flex: 1 1 auto; }
+  .date-range {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 4px 4px 10px;
     border: 1px solid #d3c4b7;
     border-radius: 9px;
     background: var(--card);
+    font: 500 13px 'Pretendard', sans-serif;
     color: var(--text);
-    outline: none;
-    min-width: 130px;
-    cursor: pointer;
-    transition: border-color .15s, box-shadow .15s;
   }
-  .month-sel:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+  .date-range:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+  .date-range input[type="date"] {
+    font: 500 13px 'Pretendard', sans-serif;
+    padding: 4px 6px;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    color-scheme: light;
+  }
+  .date-range .tilde { color: var(--muted); font-size: 12px; padding: 0 2px; }
+  .date-range .label { font-size: 11.5px; color: var(--muted); font-weight: 500; margin-right: 2px; }
   .search {
     font: 13px 'Pretendard', sans-serif;
     padding: 8px 12px;
@@ -137,7 +149,8 @@
     box-shadow: 0 1px 2px rgba(139, 117, 108, 0.05);
   }
   table {
-    width: 100%;
+    width: max-content;
+    min-width: 100%;
     border-collapse: collapse;
     font-size: 13px;
   }
@@ -302,10 +315,19 @@
 <body>
 
 <div class="container">
-  <div class="page-header">
+  <div class="page-title">
     <h1>판매가 확인</h1>
-    <div class="divider"></div>
-    <select class="month-sel" id="monthSel" title="월별 기간 선택 (최대 3일 표시)"></select>
+    <div class="status" id="status">로딩 중...</div>
+  </div>
+
+  <div class="toolbar">
+    <div class="date-range">
+      <span class="label">기간</span>
+      <input type="date" id="dateFrom">
+      <span class="tilde">~</span>
+      <input type="date" id="dateTo">
+    </div>
+    <div class="spacer"></div>
     <button class="btn icon-only" id="btnDownload" title="엑셀 다운로드">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -315,7 +337,6 @@
     </button>
     <button class="btn ghost" id="reload">새로고침</button>
     <input class="search" type="search" id="q" placeholder="SKU# / 상품명 검색">
-    <div class="status" id="status">로딩 중...</div>
   </div>
 
   <div class="table-wrap" id="tblwrap">
@@ -387,25 +408,27 @@ function render(state) {
     dateLabelLists[d] = Array.from(dateLabels[d]).sort((a, b) => labelToTimeKey(a).localeCompare(labelToTimeKey(b)));
   }
 
-  // 월별 선택 옵션 구성
-  const monthSet = new Set(allDatesAsc.map(d => d.slice(0, 7)));
-  const monthsDesc = Array.from(monthSet).sort().reverse();
-  const monthSel = document.getElementById('monthSel');
-  const prevSel = monthSel.value;
-  monthSel.innerHTML =
-    '<option value="__all__">전체 (최근 3일)</option>' +
-    monthsDesc.map(m => `<option value="${m}">${m.replace('-', '년 ') + '월'}</option>`).join('');
-  // 이전 선택 복원 (첫 로드는 전체)
-  if (prevSel && (prevSel === '__all__' || monthsDesc.includes(prevSel))) {
-    monthSel.value = prevSel;
-  }
-  const selectedMonth = monthSel.value || '__all__';
+  // 날짜 기간 선택 초기화 & min/max 세팅
+  const fromEl = document.getElementById('dateFrom');
+  const toEl = document.getElementById('dateTo');
+  const minDate = allDatesAsc[0];
+  const maxDate = allDatesAsc[allDatesAsc.length - 1];
+  fromEl.min = minDate; fromEl.max = maxDate;
+  toEl.min = minDate; toEl.max = maxDate;
 
-  // 필터링: 선택된 월의 날짜만, 그중 최근 MAX_VISIBLE_DATES 개
-  const filteredDates = selectedMonth === '__all__'
-    ? allDatesAsc
-    : allDatesAsc.filter(d => d.startsWith(selectedMonth));
-  const datesAsc = filteredDates.slice(-MAX_VISIBLE_DATES);
+  // 기본값: 최근 MAX_VISIBLE_DATES 일. 사용자가 이미 선택했으면 유지.
+  const defaultFrom = allDatesAsc[Math.max(0, allDatesAsc.length - MAX_VISIBLE_DATES)];
+  const defaultTo = maxDate;
+  if (!fromEl.value || fromEl.value < minDate || fromEl.value > maxDate) fromEl.value = defaultFrom;
+  if (!toEl.value || toEl.value < minDate || toEl.value > maxDate) toEl.value = defaultTo;
+  // from > to 이면 자동 스왑
+  if (fromEl.value > toEl.value) { const t = fromEl.value; fromEl.value = toEl.value; toEl.value = t; }
+
+  const rangeFrom = fromEl.value;
+  const rangeTo = toEl.value;
+
+  // 필터링: 선택된 기간 내 모든 날짜 (3일 초과면 가로 스크롤로 표시)
+  const datesAsc = allDatesAsc.filter(d => d >= rangeFrom && d <= rangeTo);
 
   const topHeader = [];
   const subHeader = [];
@@ -556,7 +579,10 @@ async function load() {
 }
 
 document.getElementById('reload').addEventListener('click', load);
-document.getElementById('monthSel').addEventListener('change', () => {
+document.getElementById('dateFrom').addEventListener('change', () => {
+  if (CURRENT_STATE) render(CURRENT_STATE);
+});
+document.getElementById('dateTo').addEventListener('change', () => {
   if (CURRENT_STATE) render(CURRENT_STATE);
 });
 
