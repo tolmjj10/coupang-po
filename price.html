@@ -583,9 +583,12 @@
   }
   .site-edit-popup .edit-status.err { color: #a85450; }
   .site-edit-popup .edit-status.ok { color: var(--success); }
+  :root { --name-w: 320px; }
   .name {
     padding-right: 12px;
-    max-width: 320px;
+    width: var(--name-w);
+    max-width: var(--name-w);
+    min-width: var(--name-w);
     white-space: nowrap;
     overflow: hidden;
   }
@@ -599,8 +602,45 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  table.expanded .name { max-width: none; white-space: normal; overflow: visible; }
-  table.expanded .name a { white-space: normal; overflow: visible; text-overflow: unset; display: inline; }
+  th.name-th {
+    width: var(--name-w);
+    max-width: var(--name-w);
+    min-width: var(--name-w);
+    position: sticky;
+  }
+  .name-resizer {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 5;
+    background: transparent;
+    transition: background 0.15s;
+  }
+  .name-resizer::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 30%;
+    bottom: 30%;
+    width: 2px;
+    background: var(--border);
+    border-radius: 1px;
+  }
+  .name-resizer:hover,
+  .name-resizer.dragging {
+    background: rgba(183,137,0,0.15);
+  }
+  .name-resizer:hover::before,
+  .name-resizer.dragging::before {
+    background: var(--accent);
+    top: 15%;
+    bottom: 15%;
+  }
+  body.name-resizing { cursor: col-resize !important; user-select: none; }
+  body.name-resizing * { cursor: col-resize !important; }
   .name a:hover { text-decoration: underline; color: var(--primary-hover); }
   .c-base {
     text-align: center;
@@ -962,7 +1002,7 @@ function render(state) {
   document.getElementById('tblwrap').innerHTML =
     `<table id="t">` +
     `<thead><tr>` +
-    `<th rowspan="2">#</th><th rowspan="2">사이트</th><th rowspan="2">SKU ID</th><th rowspan="2">VendorItem ID</th><th rowspan="2">Product ID</th><th rowspan="2">상품명</th>` +
+    `<th rowspan="2">#</th><th rowspan="2">사이트</th><th rowspan="2">SKU ID</th><th rowspan="2">VendorItem ID</th><th rowspan="2">Product ID</th><th rowspan="2" class="name-th">상품명<span class="name-resizer" id="nameResizer" title="드래그하여 상품명 컬럼 너비 조정"></span></th>` +
     topHeader.join('') +
     `</tr><tr>` + subHeader.join('') + `</tr></thead>` +
     `<tbody>` + rows.join('') + `</tbody></table>`;
@@ -1587,6 +1627,41 @@ document.getElementById('btnDownload').addEventListener('click', () => {
   const stamp = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0')
               + '_' + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0');
   XLSX.writeFile(wb, `판매가_${stamp}.xlsx`);
+});
+
+// ===== 상품명 컬럼 리사이즈 =====
+const NAME_W_KEY = 'price_name_col_width';
+const NAME_W_MIN = 80;
+const NAME_W_MAX = 800;
+const savedNameW = parseInt(localStorage.getItem(NAME_W_KEY), 10);
+if (savedNameW >= NAME_W_MIN && savedNameW <= NAME_W_MAX) {
+  document.documentElement.style.setProperty('--name-w', savedNameW + 'px');
+}
+document.addEventListener('mousedown', (e) => {
+  const r = e.target.closest('#nameResizer');
+  if (!r) return;
+  e.preventDefault();
+  e.stopPropagation();
+  r.classList.add('dragging');
+  document.body.classList.add('name-resizing');
+  const startX = e.clientX;
+  const cs = getComputedStyle(document.documentElement).getPropertyValue('--name-w');
+  const startW = parseInt(cs, 10) || 320;
+  function onMove(ev) {
+    let w = startW + (ev.clientX - startX);
+    w = Math.max(NAME_W_MIN, Math.min(NAME_W_MAX, w));
+    document.documentElement.style.setProperty('--name-w', w + 'px');
+  }
+  function onUp() {
+    r.classList.remove('dragging');
+    document.body.classList.remove('name-resizing');
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    const cur = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--name-w'), 10);
+    if (cur) localStorage.setItem(NAME_W_KEY, String(cur));
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
 });
 
 load();
