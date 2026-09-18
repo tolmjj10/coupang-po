@@ -84,8 +84,8 @@
   .date-range {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 4px 4px 10px;
+    gap: 4px;
+    padding: 4px 10px 4px 12px;
     border: 1px solid #d3c4b7;
     border-radius: 9px;
     background: var(--card);
@@ -93,17 +93,27 @@
     color: var(--text);
   }
   .date-range:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
-  .date-range input[type="date"] {
+  .date-range select {
     font: 500 13px 'Pretendard', sans-serif;
     padding: 4px 6px;
     border: none;
     outline: none;
     background: transparent;
     color: var(--text);
-    color-scheme: light;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 4px;
   }
+  .date-range select:hover { color: var(--primary); }
   .date-range .tilde { color: var(--muted); font-size: 12px; padding: 0 2px; }
-  .date-range .label { font-size: 11.5px; color: var(--muted); font-weight: 500; margin-right: 2px; }
+  .date-range .label { font-size: 11.5px; color: var(--muted); font-weight: 500; margin-right: 4px; }
+  .date-range .cal-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--muted);
+    margin-left: 4px;
+    pointer-events: none;
+  }
   .search {
     font: 13px 'Pretendard', sans-serif;
     padding: 8px 12px;
@@ -323,9 +333,17 @@
   <div class="toolbar">
     <div class="date-range">
       <span class="label">기간</span>
-      <input type="date" id="dateFrom">
+      <select id="dateFrom" title="시작 날짜"></select>
       <span class="tilde">~</span>
-      <input type="date" id="dateTo">
+      <select id="dateTo" title="종료 날짜"></select>
+      <span class="cal-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+      </span>
     </div>
     <div class="spacer"></div>
     <button class="btn icon-only" id="btnDownload" title="엑셀 다운로드">
@@ -408,26 +426,31 @@ function render(state) {
     dateLabelLists[d] = Array.from(dateLabels[d]).sort((a, b) => labelToTimeKey(a).localeCompare(labelToTimeKey(b)));
   }
 
-  // 날짜 기간 선택 초기화 & min/max 세팅
+  // 실제 데이터가 있는 날짜만 선택 가능하도록 option 채우기
   const fromEl = document.getElementById('dateFrom');
   const toEl = document.getElementById('dateTo');
-  const minDate = allDatesAsc[0];
-  const maxDate = allDatesAsc[allDatesAsc.length - 1];
-  fromEl.min = minDate; fromEl.max = maxDate;
-  toEl.min = minDate; toEl.max = maxDate;
+  const prevFrom = fromEl.value;
+  const prevTo = toEl.value;
 
-  // 기본값: 최근 MAX_VISIBLE_DATES 일. 사용자가 이미 선택했으면 유지.
+  const optHtml = allDatesAsc.map(d => {
+    const short = d.length >= 10 ? d.slice(5).replace('-', '/') : d;
+    return `<option value="${d}">${short}</option>`;
+  }).join('');
+  fromEl.innerHTML = optHtml;
+  toEl.innerHTML = optHtml;
+
+  // 기본값: 최근 MAX_VISIBLE_DATES 일
+  const maxDate = allDatesAsc[allDatesAsc.length - 1];
   const defaultFrom = allDatesAsc[Math.max(0, allDatesAsc.length - MAX_VISIBLE_DATES)];
-  const defaultTo = maxDate;
-  if (!fromEl.value || fromEl.value < minDate || fromEl.value > maxDate) fromEl.value = defaultFrom;
-  if (!toEl.value || toEl.value < minDate || toEl.value > maxDate) toEl.value = defaultTo;
-  // from > to 이면 자동 스왑
+
+  fromEl.value = allDatesAsc.includes(prevFrom) ? prevFrom : defaultFrom;
+  toEl.value = allDatesAsc.includes(prevTo) ? prevTo : maxDate;
   if (fromEl.value > toEl.value) { const t = fromEl.value; fromEl.value = toEl.value; toEl.value = t; }
 
   const rangeFrom = fromEl.value;
   const rangeTo = toEl.value;
 
-  // 필터링: 선택된 기간 내 모든 날짜 (3일 초과면 가로 스크롤로 표시)
+  // 필터링: 선택된 기간 내 데이터 존재 날짜만 (3일 초과면 가로 스크롤)
   const datesAsc = allDatesAsc.filter(d => d >= rangeFrom && d <= rangeTo);
 
   const topHeader = [];
