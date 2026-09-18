@@ -722,6 +722,11 @@ function renderCalendar() {
 const dateRangeEl = document.getElementById('dateRange');
 const calPopupEl = document.getElementById('calPopup');
 
+// 팝업 내부 클릭은 바깥으로 전파되지 않게 (재렌더로 e.target이 DOM에서 떨어져
+// dateRange 상위 핸들러가 팝업을 잘못 닫는 문제 방지)
+calPopupEl.addEventListener('click', (e) => e.stopPropagation());
+calPopupEl.addEventListener('mousedown', (e) => e.stopPropagation());
+
 dateRangeEl.addEventListener('click', (e) => {
   if (calPopupEl.contains(e.target)) return;
   const open = calPopupEl.classList.toggle('open');
