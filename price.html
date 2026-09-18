@@ -165,6 +165,91 @@
     margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0eae2;
     font-size: 11.5px; color: var(--muted); text-align: center;
   }
+  .site-filter {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: 1px solid #d3c4b7;
+    border-radius: 9px;
+    background: var(--card);
+    font: 500 13px 'Pretendard', sans-serif;
+    color: var(--text);
+    cursor: pointer;
+    user-select: none;
+    transition: border-color .15s, box-shadow .15s;
+    min-width: 160px;
+  }
+  .site-filter:hover { border-color: #b8a595; }
+  .site-filter.open { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+  .site-filter .label { font-size: 11.5px; color: var(--muted); font-weight: 500; }
+  .site-filter .site-text {
+    flex: 1;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .site-filter .site-text.muted { color: var(--muted); }
+  .site-popup {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 100;
+    background: #fff;
+    border: 1px solid #e0d6cd;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(60, 40, 20, 0.14), 0 2px 6px rgba(60, 40, 20, 0.08);
+    padding: 10px;
+    min-width: 220px;
+    max-height: 340px;
+    display: none;
+    cursor: default;
+  }
+  .site-popup.open { display: block; }
+  .site-popup-head { display: flex; gap: 6px; margin-bottom: 8px; }
+  .site-mini {
+    font: 500 11.5px 'Pretendard', sans-serif;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid #e0d6cd;
+    background: #fff;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background .12s, color .12s;
+  }
+  .site-mini:hover { background: #f6f1ec; color: var(--text); }
+  .site-list {
+    max-height: 260px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .site-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12.5px;
+    color: var(--text);
+    transition: background .1s;
+  }
+  .site-item:hover { background: #f6f1ec; }
+  .site-item input[type="checkbox"] {
+    accent-color: var(--primary);
+    cursor: pointer;
+    margin: 0;
+  }
+  .site-item .site-count {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
   .search {
     font: 13px 'Pretendard', sans-serif;
     padding: 8px 12px;
@@ -320,6 +405,16 @@
     font-weight: 700;
     letter-spacing: -0.01em;
   }
+  .c-site {
+    font-size: 11.5px;
+    color: var(--muted);
+    width: 110px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: 12px;
+  }
+  .c-site.has { color: var(--text); font-weight: 500; }
   .name {
     min-width: 280px;
     white-space: normal;
@@ -405,6 +500,22 @@
         </div>
         <div class="cal-grid" id="calGrid"></div>
         <div class="cal-hint" id="calHint">시작 날짜 선택</div>
+      </div>
+    </div>
+    <div class="site-filter" id="siteFilter">
+      <span class="label">사이트</span>
+      <span class="site-text" id="siteText">전체</span>
+      <span class="cal-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </span>
+      <div class="site-popup" id="sitePopup">
+        <div class="site-popup-head">
+          <button class="site-mini" id="siteAll">전체 선택</button>
+          <button class="site-mini" id="siteNone">해제</button>
+        </div>
+        <div class="site-list" id="siteList"></div>
       </div>
     </div>
     <div class="spacer"></div>
@@ -547,11 +658,24 @@ function render(state) {
     return (a.entry.name || '').localeCompare(b.entry.name || '');
   });
 
+  const siteMap = (state && state.siteMap) || {};   // SKU_ID → site name
+  const siteFilter = SITE_FILTER;                    // Set of selected sites (빈 Set = 전체)
+  const filterActive = siteFilter && siteFilter.size > 0;
+
   const rows = [];
-  entriesSorted.forEach((e, idx) => {
+  let visibleIdx = 0;
+  entriesSorted.forEach((e) => {
     const entry = e.entry;
     const pid = entry.productId || '';
     const viid = entry.vendorItemId || '';
+    const sku = skuMap[viid] || '';
+    const site = (sku && siteMap[sku]) || '';
+
+    // 사이트 필터 적용
+    if (filterActive) {
+      if (!site || !siteFilter.has(site)) return;
+    }
+
     const name = escapeHtml(entry.name);
     const url = entry.url || '#';
     const runs = entry.runs || {};
@@ -576,10 +700,11 @@ function render(state) {
       if (r.basePrice != null) prevBase = r.basePrice;
       if (r.price != null) prevPrice = r.price;
     }
-    const sku = skuMap[viid] || '';
+    visibleIdx += 1;
     rows.push(
       `<tr>` +
-      `<td class="idx">${idx+1}</td>` +
+      `<td class="idx">${visibleIdx}</td>` +
+      `<td class="c-site${site?' has':''}">${escapeHtml(site) || '-'}</td>` +
       `<td class="id sku">${escapeHtml(sku)}</td>` +
       `<td class="id">${escapeHtml(viid)}</td>` +
       `<td class="id">${escapeHtml(pid)}</td>` +
@@ -592,7 +717,7 @@ function render(state) {
   document.getElementById('tblwrap').innerHTML =
     `<table id="t">` +
     `<thead><tr>` +
-    `<th rowspan="2">#</th><th rowspan="2">SKU ID</th><th rowspan="2">VendorItem ID</th><th rowspan="2">Product ID</th><th rowspan="2">상품명</th>` +
+    `<th rowspan="2">#</th><th rowspan="2">사이트</th><th rowspan="2">SKU ID</th><th rowspan="2">VendorItem ID</th><th rowspan="2">Product ID</th><th rowspan="2">상품명</th>` +
     topHeader.join('') +
     `</tr><tr>` + subHeader.join('') + `</tr></thead>` +
     `<tbody>` + rows.join('') + `</tbody></table>`;
@@ -637,16 +762,29 @@ async function fetchSkuMapFromMargin() {
   }
 }
 
+async function fetchSiteMap() {
+  try {
+    const r = await fetch('/api/site-map?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return {};
+    return await r.json();
+  } catch (e) {
+    console.warn('site-map fetch 실패:', e);
+    return {};
+  }
+}
+
 async function load() {
   const st = document.getElementById('status');
   st.textContent = '로딩 중...';
   try {
-    const [priceRes, marginSkuMap] = await Promise.all([
+    const [priceRes, marginSkuMap, siteMap] = await Promise.all([
       fetch(API + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json()),
       fetchSkuMapFromMargin(),
+      fetchSiteMap(),
     ]);
-    // 마진테이블(VIID 기준) 우선, upload.py skuMap 은 폴백
     priceRes.skuMap = Object.assign({}, priceRes.skuMap || {}, marginSkuMap);
+    priceRes.siteMap = siteMap;
+    buildSiteFilter(siteMap, priceRes);
     render(priceRes);
     st.textContent = '갱신: ' + new Date().toLocaleTimeString('ko-KR');
   } catch (e) {
@@ -655,6 +793,85 @@ async function load() {
 }
 
 document.getElementById('reload').addEventListener('click', load);
+
+// ===== 사이트 필터 =====
+let SITE_FILTER = new Set();     // 선택된 사이트 (empty = 전체)
+let SITE_ALL = [];               // [{name, count}]
+
+function updateSiteText() {
+  const el = document.getElementById('siteText');
+  if (SITE_FILTER.size === 0) { el.textContent = '전체'; el.classList.add('muted'); return; }
+  el.classList.remove('muted');
+  if (SITE_FILTER.size === 1) { el.textContent = [...SITE_FILTER][0]; return; }
+  el.textContent = `${[...SITE_FILTER][0]} 외 ${SITE_FILTER.size - 1}`;
+}
+
+function buildSiteFilter(siteMap, priceRes) {
+  // 실제 상품에 매칭되는 사이트 카운트만 노출
+  const skuMap = priceRes.skuMap || {};
+  const history = priceRes.history || {};
+  const counts = {};
+  for (const key in history) {
+    const viid = history[key].vendorItemId || '';
+    const sku = skuMap[viid];
+    const site = sku && siteMap[sku];
+    if (site) counts[site] = (counts[site] || 0) + 1;
+  }
+  SITE_ALL = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }));
+
+  // 사라진 사이트는 필터에서 제거
+  for (const s of Array.from(SITE_FILTER)) {
+    if (!counts[s]) SITE_FILTER.delete(s);
+  }
+
+  const list = document.getElementById('siteList');
+  list.innerHTML = SITE_ALL.map(s => `
+    <label class="site-item">
+      <input type="checkbox" data-site="${escapeHtml(s.name)}" ${SITE_FILTER.has(s.name) ? 'checked' : ''}>
+      <span>${escapeHtml(s.name)}</span>
+      <span class="site-count">${s.count}</span>
+    </label>
+  `).join('');
+
+  list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const name = cb.dataset.site;
+      if (cb.checked) SITE_FILTER.add(name);
+      else SITE_FILTER.delete(name);
+      updateSiteText();
+      if (CURRENT_STATE) render(CURRENT_STATE);
+    });
+  });
+  updateSiteText();
+}
+
+const siteFilterEl = document.getElementById('siteFilter');
+const sitePopupEl = document.getElementById('sitePopup');
+sitePopupEl.addEventListener('click', (e) => e.stopPropagation());
+sitePopupEl.addEventListener('mousedown', (e) => e.stopPropagation());
+siteFilterEl.addEventListener('click', (e) => {
+  if (sitePopupEl.contains(e.target)) return;
+  const open = sitePopupEl.classList.toggle('open');
+  siteFilterEl.classList.toggle('open', open);
+});
+document.addEventListener('click', (e) => {
+  if (!siteFilterEl.contains(e.target) && sitePopupEl.classList.contains('open')) {
+    sitePopupEl.classList.remove('open');
+    siteFilterEl.classList.remove('open');
+  }
+});
+document.getElementById('siteAll').addEventListener('click', () => {
+  SITE_FILTER = new Set(SITE_ALL.map(s => s.name));
+  document.querySelectorAll('#siteList input[type="checkbox"]').forEach(cb => { cb.checked = true; });
+  updateSiteText();
+  if (CURRENT_STATE) render(CURRENT_STATE);
+});
+document.getElementById('siteNone').addEventListener('click', () => {
+  SITE_FILTER.clear();
+  document.querySelectorAll('#siteList input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+  updateSiteText();
+  if (CURRENT_STATE) render(CURRENT_STATE);
+});
 
 // ===== 커스텀 기간 선택 달력 =====
 let DATA_DATES = [];        // ['2026-09-17', ...]
@@ -792,6 +1009,8 @@ document.getElementById('btnDownload').addEventListener('click', () => {
   const history = CURRENT_STATE.history || {};
   const order = CURRENT_STATE.order || [];
   const skuMap = CURRENT_STATE.skuMap || {};
+  const siteMap = CURRENT_STATE.siteMap || {};
+  const filterActive = SITE_FILTER && SITE_FILTER.size > 0;
 
   const orderIdx = new Map(order.map((k, i) => [k, i]));
   const entries = Object.values(history).slice().sort((a, b) => {
@@ -801,11 +1020,13 @@ document.getElementById('btnDownload').addEventListener('click', () => {
     return (a.name || '').localeCompare(b.name || '');
   });
 
-  const aoa = [['SKU ID', 'PID', 'VIID', '상품명', '할인가']];
+  const aoa = [['사이트', 'SKU ID', 'PID', 'VIID', '상품명', '할인가']];
   entries.forEach(e => {
     const viid = e.vendorItemId || '';
     const pid = e.productId || '';
     const sku = skuMap[viid] || '';
+    const site = (sku && siteMap[sku]) || '';
+    if (filterActive && (!site || !SITE_FILTER.has(site))) return;
     const name = e.name || '';
     const runs = e.runs || {};
     let latestPrice = null;
@@ -816,13 +1037,13 @@ document.getElementById('btnDownload').addEventListener('click', () => {
       if (cmp > latestKey) { latestKey = cmp; latestPrice = r.price; }
     }
     aoa.push([
-      sku, pid, viid, name,
+      site, sku, pid, viid, name,
       (latestPrice != null && isFinite(latestPrice)) ? { t: 'n', v: latestPrice, z: '#,##0' } : ''
     ]);
   });
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{wch:12}, {wch:14}, {wch:14}, {wch:44}, {wch:12}];
+  ws['!cols'] = [{wch:14}, {wch:12}, {wch:14}, {wch:14}, {wch:44}, {wch:12}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '판매가');
   const d = new Date();
