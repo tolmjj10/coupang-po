@@ -146,6 +146,10 @@
     border-collapse: collapse;
     font-size: 12.5px;
   }
+  /* 컬럼 리사이즈한 너비가 강제되도록 fixed 레이아웃. 컨텐츠는 필요 시 잘림. */
+  #tbl, .exp-group table, .plan-table-wrap table { table-layout: fixed; }
+  #tbl td, .exp-group table td, .plan-table-wrap table td { overflow: hidden; text-overflow: ellipsis; }
+  #tbl td input, .exp-group table td input, .plan-table-wrap table td input { max-width: 100%; }
   th, td {
     border-bottom: 1px solid var(--border);
     border-right: 1px solid var(--border);
