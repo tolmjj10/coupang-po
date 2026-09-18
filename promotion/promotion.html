@@ -551,18 +551,18 @@
     z-index: 1000;
     background: #fffdf5;
     border: 1px solid #e5c76b;
-    border-radius: 10px;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
-    padding: 10px;
-    width: 280px;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.14);
+    padding: 8px;
+    width: 220px;
     display: none;
   }
   #memoPopover.open { display: block; }
   #memoPopover textarea {
-    width: 100%; min-height: 72px; resize: vertical;
-    border: 1px solid #e5c76b; border-radius: 6px;
-    padding: 6px 8px;
-    font: 13px 'Pretendard', inherit;
+    width: 100%; min-height: 52px; resize: vertical;
+    border: 1px solid #e5c76b; border-radius: 5px;
+    padding: 5px 7px;
+    font: 12.5px 'Pretendard', inherit;
     background: white; box-sizing: border-box;
   }
   #memoPopover textarea:focus { outline: none; border-color: #b78900; box-shadow: 0 0 0 3px rgba(229,199,107,0.25); }
@@ -842,6 +842,7 @@ function render() {
     $('expWrap').style.display = 'block';
     $('planWrap').style.display = 'none';
     renderExperience();
+    initColResize();
     restoreFocus(focusInfo);
     return;
   }
@@ -850,6 +851,7 @@ function render() {
     $('expWrap').style.display = 'none';
     $('planWrap').style.display = 'block';
     renderPlan();
+    initColResize();
     restoreFocus(focusInfo);
     return;
   }
@@ -871,6 +873,7 @@ function render() {
     $('tbody').innerHTML = visible.map(r => rowHtml(r)).join('');
   }
   wireRow();
+  initColResize();
   restoreFocus(focusInfo);
 }
 
@@ -1674,18 +1677,20 @@ $('reloadBtn').addEventListener('click', async () => {
 });
 
 /* ═══════════════════════ 컬럼 리사이즈 ═══════════════════════ */
-const COL_WIDTH_KEY = 'promotion_col_widths';
-function initColResize() {
-  const ths = document.querySelectorAll('#tbl thead th');
-  // 저장된 너비 복원
+const COL_WIDTH_KEY = 'promotion_col_widths';           // 메인 표
+const EXP_COL_WIDTH_KEY = 'promotion_exp_col_widths';   // 체험단 (모든 하위 표 공용)
+const PLAN_COL_WIDTH_KEY = 'promotion_plan_col_widths'; // 기획전 (모든 하위 표 공용)
+
+function applyResizeToTable(table, storageKey) {
+  if (!table) return;
+  const ths = table.querySelectorAll('thead th');
+  if (!ths.length) return;
   let saved = {};
-  try { saved = JSON.parse(localStorage.getItem(COL_WIDTH_KEY)||'{}') || {}; } catch(_) {}
+  try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}') || {}; } catch(_) {}
   ths.forEach((th, idx) => {
-    if (saved[idx] && idx < ths.length - 1) th.style.width = saved[idx] + 'px';
-    // 마지막(삭제 버튼) 컬럼은 리사이즈 제외
-    if (idx === ths.length - 1) return;
-    // 이미 붙어있으면 재삽입 방지
-    if (th.querySelector('.col-resizer')) return;
+    if (saved[idx] != null && idx < ths.length - 1) th.style.width = saved[idx] + 'px';
+    if (idx === ths.length - 1) return;               // 마지막(삭제 버튼) 컬럼은 리사이즈 제외
+    if (th.querySelector('.col-resizer')) return;     // 중복 삽입 방지
     const grip = document.createElement('span');
     grip.className = 'col-resizer';
     th.appendChild(grip);
@@ -1704,17 +1709,33 @@ function initColResize() {
         document.body.style.cursor = '';
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
-        // 저장
+        // 저장 + 같은 storageKey 를 쓰는 모든 표에 즉시 반영
         const widths = {};
-        document.querySelectorAll('#tbl thead th').forEach((h, i) => {
-          widths[i] = Math.round(h.getBoundingClientRect().width);
+        ths.forEach((h, i) => { widths[i] = Math.round(h.getBoundingClientRect().width); });
+        try { localStorage.setItem(storageKey, JSON.stringify(widths)); } catch(_) {}
+        // 같은 view 내 다른 하위 표들도 동기화
+        document.querySelectorAll(`table[data-col-widths="${storageKey}"]`).forEach(t => {
+          if (t === table) return;
+          t.querySelectorAll('thead th').forEach((oth, i) => {
+            if (widths[i] != null && i < oth.parentElement.children.length - 1) {
+              oth.style.width = widths[i] + 'px';
+            }
+          });
         });
-        try { localStorage.setItem(COL_WIDTH_KEY, JSON.stringify(widths)); } catch(_) {}
       }
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
     });
   });
+  table.dataset.colWidths = storageKey;
+}
+
+function initColResize() {
+  // 메인 표
+  applyResizeToTable(document.getElementById('tbl'), COL_WIDTH_KEY);
+  // 체험단·기획전 뷰 안의 모든 하위 표에 각각 적용
+  document.querySelectorAll('#expWrap table').forEach(t => applyResizeToTable(t, EXP_COL_WIDTH_KEY));
+  document.querySelectorAll('#planWrap table').forEach(t => applyResizeToTable(t, PLAN_COL_WIDTH_KEY));
 }
 
 /* ═══════════════════════ Boot ═══════════════════════ */
@@ -1781,6 +1802,16 @@ window.addEventListener('beforeunload', () => {
   }
   function close() { memoPop.classList.remove('open'); memoTargetId = null; }
 
+  function commitIfChanged() {
+    if (!memoTargetId) return;
+    const row = data.find(r => r.id === memoTargetId);
+    if (!row) return;
+    const t = (memoText.value || '').trim();
+    const cur = (row.memo || '').trim();
+    if (t === cur) return; // 변화 없으면 저장 스킵
+    saveMemo(memoText.value);
+  }
+
   function saveMemo(text) {
     if (!memoTargetId) return;
     const row = data.find(r => r.id === memoTargetId);
@@ -1815,7 +1846,10 @@ window.addEventListener('beforeunload', () => {
   memoPop.addEventListener('mousedown', (e) => e.stopPropagation());
   memoPop.addEventListener('contextmenu', (e) => e.stopPropagation());
   document.addEventListener('click', (e) => {
-    if (memoPop.classList.contains('open') && !memoPop.contains(e.target)) close();
+    if (memoPop.classList.contains('open') && !memoPop.contains(e.target)) {
+      commitIfChanged();
+      close();
+    }
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && memoPop.classList.contains('open')) close();
