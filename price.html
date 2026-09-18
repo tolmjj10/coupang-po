@@ -621,6 +621,12 @@
         <div class="site-list" id="siteList"></div>
       </div>
     </div>
+    <button class="btn ghost" id="btnUndo" title="되돌리기 (Ctrl+Z)" disabled>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
+    </button>
+    <button class="btn ghost" id="btnRedo" title="다시하기 (Ctrl+Y)" disabled>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/></svg>
+    </button>
     <div class="spacer"></div>
     <button class="btn icon-only" id="btnDownload" title="엑셀 다운로드">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
@@ -1039,6 +1045,72 @@ document.getElementById('siteNone').addEventListener('click', () => {
   if (CURRENT_STATE) render(CURRENT_STATE);
 });
 
+// ===== 사이트 편집 undo/redo (site-map 스냅샷 기반) =====
+const SITE_UNDO_LIMIT = 50;
+const siteUndoStack = [];  // 이전 상태들
+const siteRedoStack = [];
+
+function updateUndoButtons() {
+  document.getElementById('btnUndo').disabled = siteUndoStack.length === 0;
+  document.getElementById('btnRedo').disabled = siteRedoStack.length === 0;
+}
+
+function pushUndoSnapshot(prevMap) {
+  siteUndoStack.push(JSON.stringify(prevMap || {}));
+  if (siteUndoStack.length > SITE_UNDO_LIMIT) siteUndoStack.shift();
+  siteRedoStack.length = 0;
+  updateUndoButtons();
+}
+
+async function postSiteMap(mapObj) {
+  const resp = await fetch('/api/site-map', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    body: JSON.stringify(mapObj),
+  });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+}
+
+async function applySiteMapAndRender(mapObj) {
+  await postSiteMap(mapObj);
+  if (CURRENT_STATE) {
+    CURRENT_STATE.siteMap = mapObj;
+    buildSiteFilter(mapObj, CURRENT_STATE);
+    render(CURRENT_STATE);
+  }
+}
+
+async function doSiteUndo() {
+  if (!siteUndoStack.length) return;
+  const cur = CURRENT_STATE && CURRENT_STATE.siteMap ? CURRENT_STATE.siteMap : {};
+  const prevStr = siteUndoStack.pop();
+  siteRedoStack.push(JSON.stringify(cur));
+  updateUndoButtons();
+  try { await applySiteMapAndRender(JSON.parse(prevStr)); } catch (e) { console.warn('undo 실패:', e); }
+}
+
+async function doSiteRedo() {
+  if (!siteRedoStack.length) return;
+  const cur = CURRENT_STATE && CURRENT_STATE.siteMap ? CURRENT_STATE.siteMap : {};
+  const nextStr = siteRedoStack.pop();
+  siteUndoStack.push(JSON.stringify(cur));
+  updateUndoButtons();
+  try { await applySiteMapAndRender(JSON.parse(nextStr)); } catch (e) { console.warn('redo 실패:', e); }
+}
+
+document.getElementById('btnUndo').addEventListener('click', doSiteUndo);
+document.getElementById('btnRedo').addEventListener('click', doSiteRedo);
+document.addEventListener('keydown', (e) => {
+  const target = e.target;
+  const inEditable = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+  if (inEditable) return;
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+    e.preventDefault(); doSiteUndo();
+  } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y' || (e.shiftKey && (e.key === 'z' || e.key === 'Z')))) {
+    e.preventDefault(); doSiteRedo();
+  }
+});
+
 // ===== 사이트 개별 편집 (SKU → site 지정) =====
 const siteEditPopup = document.getElementById('siteEditPopup');
 const siteEditInput = document.getElementById('siteEditInput');
@@ -1095,20 +1167,11 @@ async function saveSiteEdit(sku, newSite) {
   try {
     const r = await fetch('/api/site-map?t=' + Date.now(), { cache: 'no-store' });
     const current = r.ok ? await r.json() : {};
-    if (newSite) current[sku] = newSite;
-    else delete current[sku];
-    const resp = await fetch('/api/site-map', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify(current),
-    });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    // 로컬 상태 반영
-    if (CURRENT_STATE) {
-      CURRENT_STATE.siteMap = current;
-      buildSiteFilter(current, CURRENT_STATE);
-      render(CURRENT_STATE);
-    }
+    pushUndoSnapshot(current);
+    const updated = Object.assign({}, current);
+    if (newSite) updated[sku] = newSite;
+    else delete updated[sku];
+    await applySiteMapAndRender(updated);
     siteEditStatus.textContent = '저장됨';
     siteEditStatus.className = 'edit-status ok';
     setTimeout(closeSiteEditor, 400);
