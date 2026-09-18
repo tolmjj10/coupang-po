@@ -1698,6 +1698,8 @@ function applyResizeToTable(table, storageKey) {
     const grip = document.createElement('span');
     grip.className = 'col-resizer';
     th.appendChild(grip);
+    // grip 에서 발생한 click 이 th 로 버블링돼 정렬 토글이 걸리지 않도록 차단
+    grip.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); });
     grip.addEventListener('mousedown', e => {
       e.preventDefault(); e.stopPropagation();
       grip.classList.add('active');
