@@ -1856,7 +1856,14 @@ function applyResizeToTable(table, storageKey) {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}') || {}; } catch(_) {}
   ths.forEach((th, idx) => {
-    if (saved[idx] != null && idx < ths.length - 1) th.style.width = saved[idx] + 'px';
+    // 원본 폭을 최초 1회 dataset 에 캐시 (다른 달로 넘어갈 때 복구용)
+    if (th.dataset.origWidth == null) {
+      th.dataset.origWidth = th.style.width || '';
+    }
+    if (idx < ths.length - 1) {
+      if (saved[idx] != null) th.style.width = saved[idx] + 'px';
+      else th.style.width = th.dataset.origWidth;    // 저장된 값 없으면 원본 복원
+    }
     if (idx === ths.length - 1) return;               // 마지막(삭제 버튼) 컬럼은 리사이즈 제외
     if (th.querySelector('.col-resizer')) return;     // 중복 삽입 방지
     const grip = document.createElement('span');
