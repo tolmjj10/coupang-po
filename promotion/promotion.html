@@ -164,11 +164,19 @@
     font-weight: 600;
     font-size: 11.5px;
     position: sticky; top: 0;
-    z-index: 2;
+    z-index: 3;
     letter-spacing: -0.01em;
     line-height: 1.25;
     overflow: visible;
   }
+  /* 기획전 각 그룹 테이블의 헤더도 상단 고정 (뷰포트 기준) */
+  .plan-table-wrap { overflow: visible; }
+  .plan-table-wrap thead th { position: sticky; top: 0; z-index: 3; background: var(--surface-alt); }
+  /* 즉시할인 탭: 수량(15번째), 판매율(17번째) 컬럼 숨김 */
+  body[data-tab="즉시할인"] #tbl th:nth-child(15),
+  body[data-tab="즉시할인"] #tbl td:nth-child(15),
+  body[data-tab="즉시할인"] #tbl th:nth-child(17),
+  body[data-tab="즉시할인"] #tbl td:nth-child(17) { display: none; }
   th.sortable { cursor: pointer; user-select: none; }
   th.sortable:hover { background: var(--accent-soft); color: var(--text); }
   th .col-resizer {
@@ -838,6 +846,7 @@ function renderTabs() {
 function render() {
   // 재렌더 전 현재 포커스/커서 위치 스냅샷 → 재렌더 후 복원
   const focusInfo = captureFocus();
+  document.body.dataset.tab = activeTab;
   renderMonthTabs();
   renderTabs();
   updateSortIcon();
@@ -1061,9 +1070,7 @@ function renderPlan() {
             <th style="width:92px">프로모션<br>마진(-vat)</th>
             <th style="width:92px">프로모션<br>오아마진율</th>
             <th style="width:98px">공급가(-vat)</th>
-            <th style="width:70px">수량</th>
             <th style="width:76px">판매량</th>
-            <th style="width:74px">판매율</th>
             <th style="width:90px">총 매출</th>
             <th style="width:86px">총 마진</th>
             <th style="width:32px"></th>
@@ -1106,9 +1113,7 @@ function planRowHtml(r) {
     <td class="right calc num strong">${fmtN(d.promoMargin)}</td>
     <td class="right calc num">${fmtPct(d.promoMarginRate)}</td>
     <td class="right calc num">${fmtN(d.supply)}</td>
-    <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="qty" value="${esc(r.qty??'')}"></td>
     <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="sold" value="${esc(r.sold??'')}"></td>
-    <td class="right ${rateCls} strong">${fmtPct(d.soldRate)}</td>
     <td class="right calc num">${fmtN(d.totalRevenue)}</td>
     <td class="right calc num strong">${fmtN(d.totalMargin)}</td>
     <td><button class="row-del" title="삭제" data-row-id="${esc(r.id)}" onmousedown="event.preventDefault()" onclick="window.deletePromoRow(this.dataset.rowId)">✕</button></td>
