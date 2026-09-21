@@ -1147,6 +1147,32 @@ function wirePlan() {
         }
       });
     });
+    // SKU ID 다중 붙여넣기 → 여러 행으로 자동 분할 (기획전)
+    tr.querySelectorAll('input[data-k="skuId"]').forEach(el => {
+      el.addEventListener('paste', (ev) => {
+        const text = (ev.clipboardData || window.clipboardData).getData('text');
+        const parts = text.split(/[\r\n\t,;\s]+/).map(s => s.trim()).filter(Boolean);
+        if (parts.length <= 1) return;
+        ev.preventDefault();
+        const row = data.find(x => x.id === id); if (!row) return;
+        row.skuId = parts[0];
+        const m0 = marginMap[parts[0]];
+        row.priceBase = m0 ? m0.price : null;
+        row.priceEdit = null;
+        const idx = data.indexOf(row);
+        const newRows = parts.slice(1).map(sku => {
+          const m = marginMap[sku];
+          return {
+            id: uid(), type: row.type,
+            date: row.date, endDate: row.endDate, title: row.title,
+            skuId: sku, discountRate: '', qty: '',
+            priceBase: m ? m.price : null, priceEdit: null,
+          };
+        });
+        data.splice(idx + 1, 0, ...newRows);
+        save(); render();
+      });
+    });
   });
   // 그룹 헤더의 시작일/종료일/기획전명 변경 → 그룹의 모든 행에 반영
   const applyGroupEdit = (key, patch) => {
@@ -1204,6 +1230,24 @@ function wireExperience() {
         else row[k] = el.value;
         save();
         if (k === 'skuId' || k === 'qty' || k === 'reviewChecked') scheduleRender();
+      });
+    });
+    // SKU ID 다중 붙여넣기 → 여러 행 자동 분할 (체험단)
+    tr.querySelectorAll('input[data-k="skuId"]').forEach(el => {
+      el.addEventListener('paste', (ev) => {
+        const text = (ev.clipboardData || window.clipboardData).getData('text');
+        const parts = text.split(/[\r\n\t,;\s]+/).map(s => s.trim()).filter(Boolean);
+        if (parts.length <= 1) return;
+        ev.preventDefault();
+        const row = data.find(x => x.id === id); if (!row) return;
+        row.skuId = parts[0];
+        const idx = data.indexOf(row);
+        const newRows = parts.slice(1).map(sku => ({
+          id: uid(), type: '체험단', date: row.date,
+          skuId: sku, qty: '', reviewCount: '', reviewChecked: false,
+        }));
+        data.splice(idx + 1, 0, ...newRows);
+        save(); render();
       });
     });
   });
