@@ -427,25 +427,115 @@ def preprocess_xlsx(src: Path) -> Path:
     excel_recalc(dst)
     print('  재계산 + 캐시 저장')
 
-    # 재계산이 hidden 상태를 지워버리므로 재계산 후 다시 세팅
-    print('숨김 컬럼 재적용 중...')
-    wb2 = openpyxl.load_workbook(dst)
-    for name in wb2.sheetnames:
-        ws = wb2[name]
-        max_col = ws.max_column or 1
-        max_row = ws.max_row or 1
-        ws_v = wb2[name]  # 이미 값이 캐시됨
-        date_cols = detect_date_columns(ws_v, max_col)
-        hidden = compute_hidden_date_cols(ws_v, date_cols)
-        hidden |= ALWAYS_HIDDEN.get(name, set())
-        for c in hidden:
-            letter = col_letter(c)
-            cd = ws.column_dimensions[letter]
-            cd.hidden = True
-            cd.width = 0
-        print(f'  [{name}] 재적용 hidden={len(hidden)}')
-    wb2.save(dst)
+    # 재계산이 hidden 상태를 지워버리므로 직접 XML 편집으로 재적용
+    # (openpyxl 재저장은 LuckyExcel 파싱 오류 유발)
+    apply_hidden_via_xml(dst)
     return dst
+
+
+def apply_hidden_via_xml(xlsx_path: Path):
+    """xlsx 를 zip 으로 열어 sheetN.xml 의 <cols> 를 직접 수정."""
+    import zipfile, shutil as _sh, tempfile as _tf
+    import xml.etree.ElementTree as ET
+    import openpyxl
+
+    # 시트별 hidden 컬럼 계산 (값 기반)
+    wb = openpyxl.load_workbook(xlsx_path, data_only=True)
+    per_sheet_hidden: dict[str, set[int]] = {}
+    for name in wb.sheetnames:
+        ws = wb[name]
+        max_col = ws.max_column or 1
+        date_cols = detect_date_columns(ws, max_col)
+        hidden = compute_hidden_date_cols(ws, date_cols)
+        hidden |= ALWAYS_HIDDEN.get(name, set())
+        per_sheet_hidden[name] = hidden
+
+    # 시트 순서 (workbook.xml 의 sheetId 순으로 sheet1.xml, sheet2.xml, ...)
+    # openpyxl sheetnames 는 표시 순서. xlsx 내부는 rId 순.
+    # 안전하게 workbook.xml + xl/_rels 을 읽어 파일명 매핑
+    with zipfile.ZipFile(xlsx_path, 'r') as z:
+        wb_xml = z.read('xl/workbook.xml').decode('utf-8')
+        rels_xml = z.read('xl/_rels/workbook.xml.rels').decode('utf-8')
+
+    # sheet name → rId
+    name_to_rid = {}
+    for m in re.finditer(r'<sheet\b[^/]*name="([^"]+)"[^/]*r:id="([^"]+)"', wb_xml):
+        name_to_rid[m.group(1)] = m.group(2)
+    # rId → target file (sheetN.xml)
+    rid_to_file = {}
+    for m in re.finditer(r'<Relationship\b[^/]*Id="([^"]+)"[^/]*Target="([^"]+)"', rels_xml):
+        rid_to_file[m.group(1)] = m.group(2)
+
+    tmp_dir = Path(_tf.mkdtemp())
+    extracted = tmp_dir / 'contents'
+    extracted.mkdir()
+    with zipfile.ZipFile(xlsx_path, 'r') as z:
+        z.extractall(extracted)
+
+    for name, hidden in per_sheet_hidden.items():
+        if not hidden: continue
+        rid = name_to_rid.get(name)
+        if not rid: continue
+        rel = rid_to_file.get(rid, '')
+        if not rel: continue
+        sheet_path = extracted / 'xl' / rel.lstrip('/')
+        if not sheet_path.exists(): continue
+        text = sheet_path.read_text(encoding='utf-8')
+
+        # 기존 <cols>...</cols> 를 파싱해 기존 폭/포맷 유지하면서 hidden 만 추가
+        existing = []
+        m_cols = re.search(r'<cols>(.*?)</cols>', text, flags=re.S)
+        if m_cols:
+            for m_col in re.finditer(r'<col\s+([^/]*?)/>', m_cols.group(1)):
+                attrs = dict(re.findall(r'(\w+)="([^"]*)"', m_col.group(1)))
+                try:
+                    mn = int(attrs.get('min', '0')); mx = int(attrs.get('max', mn))
+                except ValueError:
+                    continue
+                existing.append({'min': mn, 'max': mx, 'attrs': attrs})
+
+        # 새 col 리스트 생성 (min..max range 를 hidden 여부에 따라 세분화)
+        new_col_defs = []  # list of {min,max,attrs}
+        # 우선 기존 range 를 hidden 컬럼과 non-hidden 으로 쪼갬
+        covered = set()
+        for e in existing:
+            for c in range(e['min'], e['max']+1):
+                covered.add(c)
+                a = dict(e['attrs'])
+                a['min'] = str(c); a['max'] = str(c)
+                if c in hidden:
+                    a['hidden'] = '1'
+                    a['customWidth'] = '1'
+                    a['width'] = '0'
+                new_col_defs.append({'min': c, 'attrs': a})
+        # 기존 <col> 에 없던 hidden 컬럼은 새로 추가
+        for c in sorted(hidden):
+            if c in covered: continue
+            new_col_defs.append({'min': c, 'attrs': {'min': str(c), 'max': str(c), 'width': '0', 'hidden': '1', 'customWidth': '1'}})
+        new_col_defs.sort(key=lambda x: x['min'])
+
+        cols_body = ''.join(
+            '<col ' + ' '.join(f'{k}="{v}"' for k, v in d['attrs'].items()) + '/>'
+            for d in new_col_defs
+        )
+        new_cols = f'<cols>{cols_body}</cols>'
+        if m_cols:
+            text = text[:m_cols.start()] + new_cols + text[m_cols.end():]
+        else:
+            text = text.replace('<sheetData>', new_cols + '<sheetData>', 1)
+        sheet_path.write_text(text, encoding='utf-8')
+        print(f'  [{name}] XML hidden 적용 {len(hidden)}개')
+
+    # 다시 zip 으로 묶음
+    new_xlsx = tmp_dir / 'new.xlsx'
+    with zipfile.ZipFile(new_xlsx, 'w', zipfile.ZIP_DEFLATED) as z:
+        for root, _, files in os.walk(extracted):
+            for f in files:
+                fp = Path(root) / f
+                arc = fp.relative_to(extracted).as_posix()
+                z.write(fp, arc)
+    _sh.move(str(new_xlsx), str(xlsx_path))
+    _sh.rmtree(tmp_dir, ignore_errors=True)
 
 
 HTML_TEMPLATE = r'''<!doctype html>
