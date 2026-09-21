@@ -1,19 +1,22 @@
 """
-일일판매재고.xlsb → Luckysheet 뷰어(단일 HTML) 생성.
+일일판매재고.xlsb + data/daily/*.csv → Luckysheet 뷰어(HTML) 생성.
 
 - xlsb → xlsx (Excel COM)
+- data/daily/*.csv 자동 집계 → 9월 출고 시트 해당 날짜 컬럼에 반영 (SKU별 출고수량 합)
 - xlsx 전처리:
-  * 최근 7일 데이터 있는 날짜 컬럼만 남기고 나머지 숨김 (미래/빈 컬럼 자동 숨김)
-  * 특정 컬럼(판매가능일수=1자리, 평균판매량/공급가/원가/단가/판매가/금액=정수) 서식 강제 적용
-- 브라우저에서 LuckyExcel 이 xlsx 를 Luckysheet 포맷으로 변환 → 편집/수식 지원
+  * 최근 7일 데이터 있는 날짜 컬럼만 남기고 나머지 숨김
+  * 특정 컬럼 서식 강제 적용
+- 브라우저에서 LuckyExcel + Luckysheet 로 편집/수식 지원
 """
-import os, sys, io, base64, tempfile, shutil, re, datetime as dt
+import os, sys, io, base64, tempfile, shutil, re, csv, datetime as dt
 from pathlib import Path
+from collections import defaultdict
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', write_through=True)
 
 BASE = Path(__file__).parent
 SRC_XLSB = BASE / '일일판매재고.xlsb'
+CSV_DIR = BASE.parent / 'data' / 'daily'   # data/daily/*.csv 를 매일 합침
 # 이 폴더 자체가 웹 배포 경로 (coupang-po.pages.dev/daily/)
 OUT_HTML = BASE / 'index.html'
 
@@ -23,23 +26,64 @@ TODAY = dt.date.today()
 DATE_SERIAL_RANGE = (40000, 60000)
 
 
+IS_WINDOWS = sys.platform.startswith('win')
+
+
 def xlsb_to_xlsx(src: Path) -> Path:
-    import win32com.client
+    """Windows: Excel COM. Linux: LibreOffice headless."""
     dst = Path(tempfile.gettempdir()) / (src.stem + '_conv.xlsx')
     if dst.exists():
         dst.unlink()
-    excel = win32com.client.DispatchEx('Excel.Application')
-    excel.Visible = False
-    excel.DisplayAlerts = False
-    try:
-        wb = excel.Workbooks.Open(str(src), ReadOnly=True, UpdateLinks=0)
-        for i in range(1, wb.Sheets.Count + 1):
-            wb.Sheets(i).Visible = -1
-        wb.SaveAs(str(dst), FileFormat=51)
-        wb.Close(SaveChanges=False)
-    finally:
-        excel.Quit()
+    if IS_WINDOWS:
+        import win32com.client
+        excel = win32com.client.DispatchEx('Excel.Application')
+        excel.Visible = False; excel.DisplayAlerts = False
+        try:
+            wb = excel.Workbooks.Open(str(src), ReadOnly=True, UpdateLinks=0)
+            for i in range(1, wb.Sheets.Count + 1):
+                wb.Sheets(i).Visible = -1
+            wb.SaveAs(str(dst), FileFormat=51)
+            wb.Close(SaveChanges=False)
+        finally:
+            excel.Quit()
+    else:
+        import subprocess
+        out_dir = Path(tempfile.gettempdir())
+        subprocess.run(
+            ['libreoffice', '--headless', '--calc', '--convert-to', 'xlsx', '--outdir', str(out_dir), str(src)],
+            check=True, timeout=300,
+        )
+        conv = out_dir / (src.stem + '.xlsx')
+        if conv != dst:
+            shutil.move(str(conv), str(dst))
     return dst
+
+
+def excel_recalc(path: Path) -> None:
+    """수식 결과값을 캐시로 저장. Windows: Excel. Linux: LibreOffice."""
+    if IS_WINDOWS:
+        import win32com.client
+        excel = win32com.client.DispatchEx('Excel.Application')
+        excel.Visible = False; excel.DisplayAlerts = False
+        try:
+            wb = excel.Workbooks.Open(str(path), UpdateLinks=0)
+            excel.CalculateFull()
+            wb.Save()
+            wb.Close(SaveChanges=False)
+        finally:
+            excel.Quit()
+    else:
+        import subprocess
+        out_dir = path.parent
+        # 임시 폴더에 변환 → 원본 덮어쓰기
+        tmp_out = Path(tempfile.gettempdir()) / '_recalc_out'
+        tmp_out.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            ['libreoffice', '--headless', '--calc', '--convert-to', 'xlsx', '--outdir', str(tmp_out), str(path)],
+            check=True, timeout=300,
+        )
+        result = tmp_out / (path.stem + '.xlsx')
+        shutil.move(str(result), str(path))
 
 
 def detect_date_columns(ws, max_col: int) -> dict:
@@ -116,6 +160,100 @@ def col_letter(c: int) -> str:
     return s
 
 
+def parse_daily_csv(csv_path: Path) -> tuple[dt.date | None, dict]:
+    """CSV 파싱 → (date, {sku: {'out': 합, 'in': 합, 'stock': max}})"""
+    per_sku = defaultdict(lambda: {'out': 0, 'in': 0, 'stock': 0})
+    date = None
+    try:
+        with open(csv_path, encoding='utf-8-sig', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if not date:
+                    d = (row.get('날짜') or '').strip()
+                    try: date = dt.datetime.strptime(d, '%Y%m%d').date()
+                    except ValueError: pass
+                sku = (row.get('SKU ID') or '').strip()
+                if not sku: continue
+                try:
+                    per_sku[sku]['out'] += int(row.get('출고수량') or 0)
+                    per_sku[sku]['in']  += int(row.get('입고수량') or 0)
+                    per_sku[sku]['stock'] = max(per_sku[sku]['stock'], int(row.get('현재재고수량') or 0))
+                except ValueError:
+                    pass
+    except Exception as e:
+        print(f'  !! CSV 파싱 실패 {csv_path.name}: {e}')
+    return date, dict(per_sku)
+
+
+def aggregate_csvs_into_wb(wb, wb_vals):
+    """data/daily/*.csv 를 읽어 9월 출고 / 9월 입고 시트 해당 날짜 컬럼에 반영."""
+    if not CSV_DIR.exists():
+        print(f'  CSV 폴더 없음 (스킵): {CSV_DIR}')
+        return
+    csvs = sorted(CSV_DIR.glob('basic_operation_rocket_*.csv'))
+    if not csvs:
+        print(f'  CSV 파일 없음: {CSV_DIR}')
+        return
+
+    per_date = {}
+    for cp in csvs:
+        d, data = parse_daily_csv(cp)
+        if d: per_date[d] = data
+    if not per_date:
+        print('  CSV 유효 데이터 없음')
+        return
+    print(f'  CSV 집계: {len(per_date)}일 ({min(per_date)} ~ {max(per_date)})')
+
+    for sheet_name, out_field in (('9월 출고', 'out'), ('9월 입고', 'in')):
+        if sheet_name not in wb.sheetnames:
+            continue
+        ws = wb[sheet_name]
+        ws_v = wb_vals[sheet_name]
+        max_col = ws.max_column or 1
+        max_row = ws.max_row or 1
+
+        # SKU ID 컬럼 + 헤더 행 탐지
+        sku_col = None
+        header_row = None
+        for r in range(1, min(15, max_row + 1)):
+            for c in range(1, max_col + 1):
+                v = ws_v.cell(row=r, column=c).value
+                if isinstance(v, str) and v.strip() == 'SKU ID':
+                    sku_col = c; header_row = r
+                    break
+            if sku_col: break
+        if not sku_col:
+            print(f'  [{sheet_name}] SKU ID 컬럼 못 찾음')
+            continue
+
+        # 날짜 → 컬럼 매핑
+        date_to_col = {}
+        for c in range(1, max_col + 1):
+            v = ws_v.cell(row=header_row, column=c).value
+            if isinstance(v, dt.datetime): date_to_col[v.date()] = c
+            elif isinstance(v, dt.date):   date_to_col[v] = c
+
+        # SKU → 행 매핑
+        sku_to_row = {}
+        for r in range(header_row + 1, max_row + 1):
+            v = ws_v.cell(row=r, column=sku_col).value
+            if v is None: continue
+            sku = str(v).strip()
+            if sku and sku not in sku_to_row:
+                sku_to_row[sku] = r
+
+        written = 0; missing_dates = 0; missing_skus = set()
+        for date, sku_data in per_date.items():
+            col = date_to_col.get(date)
+            if not col: missing_dates += 1; continue
+            for sku, data in sku_data.items():
+                row = sku_to_row.get(sku)
+                if not row: missing_skus.add(sku); continue
+                ws.cell(row=row, column=col).value = data[out_field]
+                written += 1
+        print(f'  [{sheet_name}] 반영 {written:,}셀 · 날짜미매칭 {missing_dates} · SKU미매칭 {len(missing_skus)}')
+
+
 def preprocess_xlsx(src: Path) -> Path:
     """xlsx 전처리:
     - 수식 → 캐시된 값으로 대체 (Luckysheet formula.js 파싱 오류 회피)
@@ -130,6 +268,10 @@ def preprocess_xlsx(src: Path) -> Path:
 
     wb_vals = openpyxl.load_workbook(dst, data_only=True)
     wb = openpyxl.load_workbook(dst)
+
+    # data/daily/*.csv 를 시트에 반영 (수식 변환 전에 실행 → 이후 Excel 재계산이 값 반영)
+    print('CSV 자동 반영 중...')
+    aggregate_csvs_into_wb(wb, wb_vals)
 
     for name in wb.sheetnames:
         ws = wb[name]
@@ -258,19 +400,9 @@ def preprocess_xlsx(src: Path) -> Path:
         print(f'  전처리 [{name}] hidden dates={len(hidden)} formulas→값={formula_replaced} 재삽입={formulas_added}')
     wb.save(dst)
 
-    # Excel COM 재계산 → 수식 결과값 캐시 (Luckysheet 가 화면에 즉시 표시)
-    import win32com.client
-    excel = win32com.client.DispatchEx('Excel.Application')
-    excel.Visible = False
-    excel.DisplayAlerts = False
-    try:
-        wb2 = excel.Workbooks.Open(str(dst), UpdateLinks=0)
-        excel.CalculateFull()
-        wb2.Save()
-        wb2.Close(SaveChanges=False)
-        print('  Excel 재계산 + 캐시 저장')
-    finally:
-        excel.Quit()
+    # 수식 결과값 캐시 (Luckysheet 가 즉시 화면에 표시)
+    excel_recalc(dst)
+    print('  재계산 + 캐시 저장')
     return dst
 
 

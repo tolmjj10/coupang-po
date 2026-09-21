@@ -1,0 +1,50 @@
+name: Daily viewer build
+
+on:
+  push:
+    paths:
+      - 'data/daily/**'
+      - 'daily/일일판매재고.xlsb'
+      - 'daily/xlsb_to_luckysheet.py'
+      - '.github/workflows/daily-build.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: daily-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LibreOffice
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libreoffice --no-install-recommends
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps
+        run: pip install openpyxl
+
+      - name: Build viewer
+        working-directory: daily
+        run: python xlsb_to_luckysheet.py
+
+      - name: Commit + push if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet daily/index.html; then
+            echo "no changes"; exit 0
+          fi
+          git add daily/index.html
+          git commit -m "daily: auto rebuild from data/daily/ CSVs"
+          git push
