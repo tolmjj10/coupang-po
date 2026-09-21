@@ -933,7 +933,7 @@ function buildMixedRows(rows) {
         const rangeText = range === '~' ? '(날짜 미지정)' : range.replace(/^~/, '(시작일 없음) ~ ').replace(/~$/, ' ~ (종료일 없음)');
         const titlePart = r.title ? ` · <b>${esc(r.title)}</b>` : '';
         html += `<tr class="group-header"><td colspan="${COLSPAN}">기획전 · ${esc(rangeText)}${titlePart}<span class="group-count">${g.length}건</span></td></tr>`;
-        for (const gr of g) html += rowHtml(gr);
+        for (const gr of g) html += rowHtml(gr, { hideDate: true });
       }
       continue;
     }
@@ -962,7 +962,7 @@ function buildGroupedRows(rows, tabType) {
     const rangeText = g.range === '~' ? '(날짜 미지정)' : g.range.replace(/^~/, '(시작일 없음) ~ ').replace(/~$/, ' ~ (종료일 없음)');
     const titlePart = (tabType === '기획전' && g.title) ? ` · <b>${esc(g.title)}</b>` : '';
     const header = `<tr class="group-header"><td colspan="${COLSPAN}">${esc(rangeText)}${titlePart}<span class="group-count">${g.rows.length}건</span></td></tr>`;
-    return header + g.rows.map(r => rowHtml(r)).join('');
+    return header + g.rows.map(r => rowHtml(r, { hideDate: true })).join('');
   }).join('');
 }
 
@@ -1443,15 +1443,16 @@ function dateCellHtml(r) {
   return dateInput;
 }
 
-function rowHtml(r) {
+function rowHtml(r, opts) {
   const d = derive(r);
   const typeCls = d ? (r.type||'') : '';
   const missingSku = r.skuId && !d.m;
   const missingVP = r.skuId && !d.viid;
   const conflict = findConflict(r);
   const rowCls = r.type ? `row-${r.type}` : '';
+  const hideDate = opts && opts.hideDate;
   return `<tr data-id="${r.id}" class="${rowCls}">
-    <td class="date-cell">${dateCellHtml(r)}</td>
+    <td class="date-cell">${hideDate ? '' : dateCellHtml(r)}</td>
     <td>
       <select data-k="type">
         <option value="">-</option>
@@ -1843,10 +1844,10 @@ $('reloadBtn').addEventListener('click', async () => {
   saveStatus('갱신 완료');
 });
 
-/* ═══════════════════════ 컬럼 리사이즈 ═══════════════════════ */
-const COL_WIDTH_KEY = 'promotion_col_widths';           // 메인 표
-const EXP_COL_WIDTH_KEY = 'promotion_exp_col_widths';   // 체험단 (모든 하위 표 공용)
-const PLAN_COL_WIDTH_KEY = 'promotion_plan_col_widths'; // 기획전 (모든 하위 표 공용)
+/* ═══════════════════════ 컬럼 리사이즈 (월별 독립 저장) ═══════════════════════ */
+function COL_WIDTH_KEY()      { return `promotion_col_widths_${activeMonth}`; }        // 메인 표
+function EXP_COL_WIDTH_KEY()  { return `promotion_exp_col_widths_${activeMonth}`; }    // 체험단
+function PLAN_COL_WIDTH_KEY() { return `promotion_plan_col_widths_${activeMonth}`; }   // 기획전
 
 function applyResizeToTable(table, storageKey) {
   if (!table) return;
@@ -1901,10 +1902,10 @@ function applyResizeToTable(table, storageKey) {
 
 function initColResize() {
   // 메인 표
-  applyResizeToTable(document.getElementById('tbl'), COL_WIDTH_KEY);
+  applyResizeToTable(document.getElementById('tbl'), COL_WIDTH_KEY());
   // 체험단·기획전 뷰 안의 모든 하위 표에 각각 적용
-  document.querySelectorAll('#expWrap table').forEach(t => applyResizeToTable(t, EXP_COL_WIDTH_KEY));
-  document.querySelectorAll('#planWrap table').forEach(t => applyResizeToTable(t, PLAN_COL_WIDTH_KEY));
+  document.querySelectorAll('#expWrap table').forEach(t => applyResizeToTable(t, EXP_COL_WIDTH_KEY()));
+  document.querySelectorAll('#planWrap table').forEach(t => applyResizeToTable(t, PLAN_COL_WIDTH_KEY()));
 }
 
 /* ═══════════════════════ Boot ═══════════════════════ */
