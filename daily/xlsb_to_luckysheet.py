@@ -273,13 +273,26 @@ def preprocess_xlsx(src: Path) -> Path:
     print('CSV 자동 반영 중...')
     aggregate_csvs_into_wb(wb, wb_vals)
 
+    # CSV 반영 후 wb 를 값 기준으로 다시 읽어 hidden 판정용으로 사용
+    # (하지만 파일에 아직 저장 전이므로 wb 자체를 직접 참조)
+    # openpyxl 은 .value 가 cell.value 로 노출되므로 wb 그대로 has_data 판정 가능
+
+    # 9월 출고 / 9월 입고 시트에서 항상 숨길 컬럼
+    ALWAYS_HIDDEN = {
+        '9월 출고': {16, 17},   # P: 현재고*원가, Q: 현재고*공급가(+VAT)
+        '9월 입고': {16, 17},
+    }
+
     for name in wb.sheetnames:
         ws = wb[name]
         ws_v = wb_vals[name]
         max_col = ws.max_column or 1
         max_row = ws.max_row or 1
         date_cols = detect_date_columns(ws_v, max_col)
-        hidden = compute_hidden_date_cols(ws_v, date_cols)
+        # CSV 반영 후의 데이터로 판정하려면 ws(값이 최신) 사용
+        hidden = compute_hidden_date_cols(ws, date_cols)
+        # 시트별 항상 숨길 컬럼 추가
+        hidden |= ALWAYS_HIDDEN.get(name, set())
         headers = collect_headers(ws_v, max_col)
 
         # 수식 → 값
@@ -312,6 +325,8 @@ def preprocess_xlsx(src: Path) -> Path:
         last14_cols = [c for _, c in dated_with_data[-14:]]
         # 8월 판매량용: 8월 날짜만
         aug_cols = [c for d, c in dated_with_data if d.month == 8]
+        # 9월 총합계용: 9월 날짜만
+        sep_cols = [c for d, c in dated_with_data if d.month == 9]
 
         # 요약 컬럼 찾기
         col_targets = {}  # col idx → formula_type
@@ -327,6 +342,8 @@ def preprocess_xlsx(src: Path) -> Path:
                 col_targets[c] = '8sum'
             elif '판매가능일수' in h:
                 col_targets[c] = 'days'
+            elif h.strip() == '총합계':
+                col_targets[c] = 'sepSum'
 
         # 재고량 컬럼: "재고량" 정확 매칭 or "재고일" (실제 재고 수량이 들어있는 컬럼) 을 찾음.
         # 잘못된 컬럼(재고현황 = 텍스트 카테고리) 피하려고 숫자 값인 것 우선.
@@ -381,15 +398,20 @@ def preprocess_xlsx(src: Path) -> Path:
                     stock_ref = f'{col_letter(stock_col)}{r}'
                     rng = range_or_list(last7_cols, r)
                     f = f'=IF(AVERAGE({rng})=0,0,{stock_ref}/AVERAGE({rng}))'
+                elif kind == 'sepSum':
+                    rng = range_or_list(sep_cols, r)
+                    if rng: f = f'=SUM({rng})'
                 if f:
                     ws.cell(row=r, column=c).value = f
                     formulas_added += 1
 
-        # 숨김 + 서식
+        # 숨김 + 서식 (hidden=True + width=0 → LibreOffice/Luckysheet 재변환에도 유지)
         for c in range(1, max_col + 1):
             letter = col_letter(c)
             if c in hidden:
-                ws.column_dimensions[letter].hidden = True
+                cd = ws.column_dimensions[letter]
+                cd.hidden = True
+                cd.width = 0
             fmt = decimals_format_for(headers.get(c, ''))
             if fmt:
                 for r in range(1, max_row + 1):
