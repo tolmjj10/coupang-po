@@ -14,10 +14,8 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', write_through
 
 BASE = Path(__file__).parent
 SRC_XLSB = BASE / '일일판매재고.xlsb'
-# 로컬 뷰용 (file://)
-OUT_HTML_LOCAL = BASE / '일일판매재고_뷰어.html'
-# 웹 배포용 (coupang-po.pages.dev/daily/)
-OUT_HTML_WEB = BASE.parent / 'daily' / 'index.html'
+# 이 폴더 자체가 웹 배포 경로 (coupang-po.pages.dev/daily/)
+OUT_HTML = BASE / 'index.html'
 
 DATE_WINDOW_DAYS = 7
 EXCEL_EPOCH = dt.date(1899, 12, 30)
@@ -385,11 +383,8 @@ def main():
     print(f'base64 크기: {len(b64):,} chars')
 
     html = HTML_TEMPLATE.replace('__XLSX_B64__', b64)
-    OUT_HTML_LOCAL.write_text(html, encoding='utf-8')
-    OUT_HTML_WEB.parent.mkdir(parents=True, exist_ok=True)
-    OUT_HTML_WEB.write_text(html, encoding='utf-8')
-    print(f'로컬: {OUT_HTML_LOCAL}  ({os.path.getsize(OUT_HTML_LOCAL):,} bytes)')
-    print(f'웹:   {OUT_HTML_WEB}')
+    OUT_HTML.write_text(html, encoding='utf-8')
+    print(f'완료: {OUT_HTML}  ({os.path.getsize(OUT_HTML):,} bytes)')
 
 
 if __name__ == '__main__':
