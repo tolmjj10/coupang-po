@@ -25,6 +25,13 @@ EXCEL_EPOCH = dt.date(1899, 12, 30)
 TODAY = dt.date.today()
 DATE_SERIAL_RANGE = (40000, 60000)
 
+# 시트별 항상 숨길 컬럼
+# B: 광고, D: 쿠팡카테고리, F: 광고취합용, P: 현재고*원가, Q: 현재고*공급가(+VAT)
+ALWAYS_HIDDEN = {
+    '9월 출고': {2, 4, 6, 16, 17},
+    '9월 입고': {2, 4, 6, 16, 17},
+}
+
 
 IS_WINDOWS = sys.platform.startswith('win')
 
@@ -277,12 +284,6 @@ def preprocess_xlsx(src: Path) -> Path:
     # (하지만 파일에 아직 저장 전이므로 wb 자체를 직접 참조)
     # openpyxl 은 .value 가 cell.value 로 노출되므로 wb 그대로 has_data 판정 가능
 
-    # 9월 출고 / 9월 입고 시트에서 항상 숨길 컬럼
-    ALWAYS_HIDDEN = {
-        '9월 출고': {2, 4, 6, 16, 17},   # B: 광고, D: 쿠팡카테고리, F: 광고취합용, P: 현재고*원가, Q: 현재고*공급가(+VAT)
-        '9월 입고': {2, 4, 6, 16, 17},
-    }
-
     for name in wb.sheetnames:
         ws = wb[name]
         ws_v = wb_vals[name]
@@ -425,6 +426,25 @@ def preprocess_xlsx(src: Path) -> Path:
     # 수식 결과값 캐시 (Luckysheet 가 즉시 화면에 표시)
     excel_recalc(dst)
     print('  재계산 + 캐시 저장')
+
+    # 재계산이 hidden 상태를 지워버리므로 재계산 후 다시 세팅
+    print('숨김 컬럼 재적용 중...')
+    wb2 = openpyxl.load_workbook(dst)
+    for name in wb2.sheetnames:
+        ws = wb2[name]
+        max_col = ws.max_column or 1
+        max_row = ws.max_row or 1
+        ws_v = wb2[name]  # 이미 값이 캐시됨
+        date_cols = detect_date_columns(ws_v, max_col)
+        hidden = compute_hidden_date_cols(ws_v, date_cols)
+        hidden |= ALWAYS_HIDDEN.get(name, set())
+        for c in hidden:
+            letter = col_letter(c)
+            cd = ws.column_dimensions[letter]
+            cd.hidden = True
+            cd.width = 0
+        print(f'  [{name}] 재적용 hidden={len(hidden)}')
+    wb2.save(dst)
     return dst
 
 
