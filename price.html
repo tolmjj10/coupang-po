@@ -400,6 +400,19 @@
   }
   .time-tag.extra-tag { display: none; }
   .time-tag.extra-tag.shown { display: inline-block; }
+  .time-tag.manual-tag {
+    cursor: pointer;
+    background: #eef4ff;
+    color: #2563eb;
+    border-color: #c9daff;
+  }
+  .time-tag.manual-tag:hover { background: #dfe9ff; }
+  .time-tag.manual-tag .manual-del {
+    margin-left: 3px;
+    font-weight: 700;
+    opacity: 0.7;
+  }
+  .time-tag.manual-tag:hover .manual-del { opacity: 1; }
   td {
     padding: 8px 12px;
     border-bottom: 1px solid #f5f6f9;
@@ -957,8 +970,16 @@ function render(state) {
     const cls = hasExtra ? ' has-extra' : '';
     const toggleAttr = hasExtra ? ` data-date="${d}" data-collapsed-span="${collapsedSpan}" data-expanded-span="${expandedSpan}"` : '';
     const icon = hasExtra ? ' <span class="expand-icon">▶</span>' : '';
-    const extrasTags = extras.map(l => `<span class="time-tag extra-tag extra-${d}">${l}</span>`).join('');
-    const latestTag = ` <span class="time-tag">${latest}</span>`;
+    const tagHtml = (l) => {
+      if (l === '수동') return `<span class="time-tag manual-tag" data-manual-date="${d}" title="클릭: 수동 컬럼 삭제">${l} <span class="manual-del">×</span></span>`;
+      return `<span class="time-tag">${l}</span>`;
+    };
+    const extraTagHtml = (l) => {
+      if (l === '수동') return `<span class="time-tag manual-tag extra-tag extra-${d}" data-manual-date="${d}" title="클릭: 수동 컬럼 삭제">${l} <span class="manual-del">×</span></span>`;
+      return `<span class="time-tag extra-tag extra-${d}">${l}</span>`;
+    };
+    const extrasTags = extras.map(extraTagHtml).join('');
+    const latestTag = ` ${tagHtml(latest)}`;
 
     topHeader.push(
       `<th colspan="${collapsedSpan}" class="date-header${cls}"${toggleAttr}>` +
@@ -1067,6 +1088,23 @@ function render(state) {
       });
       const anyExpanded = document.querySelectorAll('th.date-header.expanded').length > 0;
       document.getElementById('t').classList.toggle('expanded', anyExpanded);
+    });
+  });
+
+  document.querySelectorAll('.manual-tag').forEach(tag => {
+    tag.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const d = tag.dataset.manualDate;
+      if (!confirm(`${d} 수동 컬럼을 삭제할까요? (저장 전 상태에서만 되돌릴 수 있음)`)) return;
+      const runKey = `${d}_수동`;
+      const history = CURRENT_STATE?.history || {};
+      let removed = 0;
+      for (const key in history) {
+        const runs = history[key].runs;
+        if (runs && runs[runKey]) { delete runs[runKey]; removed += 1; }
+      }
+      if (removed) setDirty(true);
+      render(CURRENT_STATE);
     });
   });
 
