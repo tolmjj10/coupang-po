@@ -177,6 +177,15 @@
   body[data-tab="즉시할인"] #tbl td:nth-child(15),
   body[data-tab="즉시할인"] #tbl th:nth-child(17),
   body[data-tab="즉시할인"] #tbl td:nth-child(17) { display: none; }
+  /* 기획전 그룹 접기 버튼 */
+  .plan-toggle {
+    background: transparent; border: none; cursor: pointer;
+    font-size: 12px; color: var(--muted); padding: 4px 8px;
+    margin-right: 6px; border-radius: 4px;
+  }
+  .plan-toggle:hover { background: var(--surface-alt); color: var(--text); }
+  .exp-group.collapsed .plan-table-wrap,
+  .exp-group.collapsed .exp-add-row { display: none; }
   th.sortable { cursor: pointer; user-select: none; }
   th.sortable:hover { background: var(--accent-soft); color: var(--text); }
   th .col-resizer {
@@ -684,6 +693,13 @@ let data = [];        // rows
 let marginMap = {};   // skuId → {name, cost, price, originN, supply, curMargin}
 let viidMap = {};     // skuId → {viid, pid}
 let activeTab = '전체';
+// 기획전 그룹 접힘 상태 (key = 그룹 key). localStorage 로 새로고침 후에도 유지
+const collapsedPlans = new Set(
+  (function(){ try { return JSON.parse(localStorage.getItem('collapsedPlans')||'[]'); } catch(_) { return []; } })()
+);
+function persistCollapsedPlans() {
+  try { localStorage.setItem('collapsedPlans', JSON.stringify([...collapsedPlans])); } catch(_) {}
+}
 const _now = new Date();
 let activeMonth = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}`;
 // 정렬 방향: 'none'(입력 순), 'asc'(오름차순), 'desc'(내림차순). 기본은 none — 사용자가 입력한 순서 유지
@@ -1045,8 +1061,10 @@ function renderPlan() {
   }
   sortedGroups.forEach(g => {
     const rowsHtml = g.rows.map(r => planRowHtml(r)).join('');
-    html += `<div class="exp-group" data-plan-key="${esc(g.key)}">
+    const collapsed = collapsedPlans.has(g.key);
+    html += `<div class="exp-group ${collapsed?'collapsed':''}" data-plan-key="${esc(g.key)}">
       <div class="exp-group-head plan-group-head">
+        <button class="plan-toggle" data-plan-toggle="${esc(g.key)}" title="${collapsed?'펼치기':'숨기기'}">${collapsed?'▶':'▼'}</button>
         <div class="plan-range">
           <input type="date" class="plan-date-start" value="${esc(g.date)}" data-plan-key="${esc(g.key)}">
           <span class="tilde">~</span>
@@ -1225,6 +1243,16 @@ function wirePlan() {
   });
   $('planWrap').querySelectorAll('.plan-title-input').forEach(el => {
     el.addEventListener('change', () => applyGroupEdit(el.dataset.planKey, { title: el.value }));
+  });
+  // 그룹 펼치기/숨기기
+  $('planWrap').querySelectorAll('[data-plan-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.planToggle;
+      if (collapsedPlans.has(key)) collapsedPlans.delete(key);
+      else collapsedPlans.add(key);
+      persistCollapsedPlans();
+      render();
+    });
   });
   // 이 기획전에 SKU 추가
   $('planWrap').querySelectorAll('[data-add-plan]').forEach(btn => {
