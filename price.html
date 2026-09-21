@@ -690,6 +690,23 @@
   .c-base.dash, .c-price.dash { color: #d5d0c8; font-weight: 400; text-decoration: none; }
   .c-price.changed { color: #2563eb; }
   .c-base.changed { color: #6b8ff0; }
+  /* 수동 입력 셀 */
+  .c-base.manual, .c-price.manual {
+    background: #f6f4ee;
+    cursor: text;
+    outline: none;
+  }
+  .c-base.manual:focus, .c-price.manual:focus {
+    background: #fff;
+    box-shadow: inset 0 0 0 2px var(--accent);
+  }
+  .c-base.manual.dash, .c-price.manual.dash { color: var(--muted); text-decoration: none; font-weight: 700; }
+  #btnSave:not(:disabled) {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  #btnSave:not(:disabled):hover { filter: brightness(0.95); }
   .extra-col { display: none; }
   .extra-col.shown { display: table-cell; }
   .empty {
@@ -775,6 +792,8 @@
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
     </button>
+    <button class="btn ghost" id="btnAddManual" title="오늘 날짜로 수동 컬럼 추가 (직전 판매가 자동 채움)">+ 오늘 추가</button>
+    <button class="btn ghost" id="btnSave" title="수동 수정 사항 서버 저장" disabled>저장</button>
     <button class="btn ghost" id="reload">새로고침</button>
     <input class="search" type="search" id="q" placeholder="SKU# / 상품명 검색">
   </div>
@@ -949,11 +968,11 @@ function render(state) {
     for (const l of extras) {
       subHeader.push(`<th class="sub-base extra-col extra-${d}" data-date="${d}">판매가</th>`);
       subHeader.push(`<th class="sub-price extra-col extra-${d}" data-date="${d}">할인가</th>`);
-      colMetas.push({date: d, label: l, isExtra: true});
+      colMetas.push({date: d, label: l, isExtra: true, isManual: l === '수동'});
     }
     subHeader.push(`<th class="sub-base">판매가</th>`);
     subHeader.push(`<th class="sub-price">할인가</th>`);
-    colMetas.push({date: d, label: latest, isExtra: false});
+    colMetas.push({date: d, label: latest, isExtra: false, isManual: latest === '수동'});
   }
 
   const orderIdx = new Map(order.map((k, i) => [k, i]));
@@ -995,14 +1014,17 @@ function render(state) {
     for (const cm of colMetas) {
       const r = runByDL[`${cm.date}||${cm.label}`] || {};
       const exCls = cm.isExtra ? ` extra-col extra-${cm.date}` : '';
+      const manCls = cm.isManual ? ' manual' : '';
+      const editAttr = cm.isManual ? ` contenteditable="true" data-field="base" data-pkey="${escapeHtml(e.key)}" data-date="${cm.date}" data-label="${escapeHtml(cm.label)}"` : '';
+      const editAttrP = cm.isManual ? ` contenteditable="true" data-field="price" data-pkey="${escapeHtml(e.key)}" data-date="${cm.date}" data-label="${escapeHtml(cm.label)}"` : '';
       const baseVal = fmt(r.basePrice);
       const priceVal = fmt(r.price);
       const baseChanged = (prevBase != null && r.basePrice != null && r.basePrice !== prevBase);
       const priceChanged = (prevPrice != null && r.price != null && r.price !== prevPrice);
-      const baseCls = `c-base${exCls}${baseVal==='-'?' dash':''}${baseChanged?' changed':''}`;
-      const priceCls = `c-price${exCls}${priceVal==='-'?' dash':''}${priceChanged?' changed':''}`;
-      cells.push(`<td class="${baseCls}" data-date="${cm.date}">${baseVal}</td>`);
-      cells.push(`<td class="${priceCls}" data-date="${cm.date}">${priceVal}</td>`);
+      const baseCls = `c-base${exCls}${manCls}${baseVal==='-'?' dash':''}${baseChanged?' changed':''}`;
+      const priceCls = `c-price${exCls}${manCls}${priceVal==='-'?' dash':''}${priceChanged?' changed':''}`;
+      cells.push(`<td class="${baseCls}" data-date="${cm.date}"${editAttr}>${baseVal}</td>`);
+      cells.push(`<td class="${priceCls}" data-date="${cm.date}"${editAttrP}>${priceVal}</td>`);
       if (r.basePrice != null) prevBase = r.basePrice;
       if (r.price != null) prevPrice = r.price;
     }
@@ -1121,6 +1143,145 @@ async function load() {
 }
 
 document.getElementById('reload').addEventListener('click', load);
+
+// ===== 수동 판매가 입력 =====
+let DIRTY = false;
+function setDirty(v) {
+  DIRTY = v;
+  const btn = document.getElementById('btnSave');
+  btn.disabled = !v;
+  btn.textContent = v ? '저장 *' : '저장';
+}
+window.addEventListener('beforeunload', (e) => {
+  if (DIRTY) { e.preventDefault(); e.returnValue = ''; }
+});
+
+function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+document.getElementById('btnAddManual').addEventListener('click', () => {
+  if (!CURRENT_STATE) return;
+  const today = todayStr();
+  const label = '수동';
+  const runKey = `${today}_${label}`;
+  const history = CURRENT_STATE.history || {};
+  let added = 0, alreadyExists = 0;
+  for (const key in history) {
+    const entry = history[key];
+    const runs = entry.runs = entry.runs || {};
+    if (runs[runKey]) { alreadyExists += 1; continue; }
+    // 마지막(가장 최근) run 찾기 - date, label 순 정렬
+    const runKeys = Object.keys(runs).sort((a, b) => {
+      const ra = runs[a], rb = runs[b];
+      const da = ra.date || '', db = rb.date || '';
+      if (da !== db) return da.localeCompare(db);
+      return labelToTimeKey(ra.label || '').localeCompare(labelToTimeKey(rb.label || ''));
+    });
+    const last = runKeys.length ? runs[runKeys[runKeys.length - 1]] : null;
+    runs[runKey] = {
+      date: today,
+      label,
+      ts: label,
+      basePrice: last && last.basePrice != null ? last.basePrice : null,
+      price: last && last.price != null ? last.price : null,
+    };
+    added += 1;
+  }
+  if (added === 0 && alreadyExists > 0) {
+    alert(`오늘(${today}) 수동 컬럼이 이미 존재합니다. 셀을 클릭해 수정 후 저장하세요.`);
+  }
+  setDirty(true);
+  render(CURRENT_STATE);
+});
+
+function parseWon(s) {
+  if (s == null) return null;
+  const digits = String(s).replace(/[^\d]/g, '');
+  return digits ? parseInt(digits, 10) : null;
+}
+
+document.addEventListener('input', (ev) => {
+  const el = ev.target;
+  if (!(el instanceof HTMLElement)) return;
+  if (!el.matches('td.manual[contenteditable]')) return;
+  const pkey = el.dataset.pkey;
+  const date = el.dataset.date;
+  const label = el.dataset.label;
+  const field = el.dataset.field; // 'base' | 'price'
+  const runKey = `${date}_${label}`;
+  const run = CURRENT_STATE?.history?.[pkey]?.runs?.[runKey];
+  if (!run) return;
+  const n = parseWon(el.textContent);
+  if (field === 'base') run.basePrice = n;
+  else run.price = n;
+  setDirty(true);
+});
+
+// Enter → 다음 셀로 이동 (편집 편의)
+document.addEventListener('keydown', (ev) => {
+  const el = ev.target;
+  if (!(el instanceof HTMLElement) || !el.matches('td.manual[contenteditable]')) return;
+  if (ev.key === 'Enter') {
+    ev.preventDefault();
+    el.blur();
+    // 같은 컬럼 아래 행 셀로 이동
+    const tr = el.closest('tr');
+    const next = tr?.nextElementSibling;
+    if (next) {
+      const idx = Array.from(tr.children).indexOf(el);
+      const target = next.children[idx];
+      if (target && target.hasAttribute('contenteditable')) {
+        target.focus();
+        document.getSelection().selectAllChildren(target);
+      }
+    }
+  } else if (ev.key === 'Escape') {
+    el.blur();
+  }
+});
+
+// 편집 종료 시 포맷 정리 + 색상 재계산
+document.addEventListener('blur', (ev) => {
+  const el = ev.target;
+  if (!(el instanceof HTMLElement) || !el.matches('td.manual[contenteditable]')) return;
+  const n = parseWon(el.textContent);
+  el.textContent = n != null ? n.toLocaleString() + '원' : '-';
+  el.classList.toggle('dash', n == null);
+  // 색상 갱신을 위해 재렌더
+  render(CURRENT_STATE);
+}, true);
+
+document.getElementById('btnSave').addEventListener('click', async () => {
+  const btn = document.getElementById('btnSave');
+  const st = document.getElementById('status');
+  if (!CURRENT_STATE) return;
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  try {
+    const payload = {
+      history: CURRENT_STATE.history || {},
+      order: CURRENT_STATE.order || [],
+      skuMap: CURRENT_STATE.skuMap || {},
+    };
+    const r = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    setDirty(false);
+    st.textContent = '저장 완료: ' + new Date().toLocaleTimeString('ko-KR');
+  } catch (e) {
+    btn.textContent = '저장';
+    btn.disabled = false;
+    alert('저장 실패: ' + e.message);
+  }
+});
 
 // ===== 사이트 필터 =====
 let SITE_FILTER = new Set();     // 선택된 사이트 (empty = 전체)
