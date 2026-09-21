@@ -596,47 +596,22 @@
     --stick-4: calc(var(--col-idx-w) + var(--col-site-w) + var(--col-sku-w) + var(--col-viid-w));
     --stick-5: calc(var(--col-idx-w) + var(--col-site-w) + var(--col-sku-w) + var(--col-viid-w) + var(--col-pid-w));
   }
-  /* 좌측 6개 컬럼 sticky-left */
+  /* 좌측 6개 컬럼 폭 (sticky 제거 — 전체가 가로 스크롤 시 같이 움직임) */
   th.idx-th, td.idx {
-    position: sticky; left: 0; z-index: 4;
     width: var(--col-idx-w); min-width: var(--col-idx-w); max-width: var(--col-idx-w);
   }
   th.c-site-th, td.c-site {
-    position: sticky; left: var(--stick-1); z-index: 4;
     width: var(--col-site-w); min-width: var(--col-site-w); max-width: var(--col-site-w);
     overflow: hidden;
   }
   th.sku-th, td.id.sku {
-    position: sticky; left: var(--stick-2); z-index: 4;
     width: var(--col-sku-w); min-width: var(--col-sku-w); max-width: var(--col-sku-w);
   }
   th.viid-th, td.viid {
-    position: sticky; left: var(--stick-3); z-index: 4;
     width: var(--col-viid-w); min-width: var(--col-viid-w); max-width: var(--col-viid-w);
   }
   th.pid-th, td.pid {
-    position: sticky; left: var(--stick-4); z-index: 4;
     width: var(--col-pid-w); min-width: var(--col-pid-w); max-width: var(--col-pid-w);
-  }
-  /* header는 top:0도 함께 (기존 th 규칙 유지) — z-index 상향 */
-  th.idx-th, th.c-site-th, th.sku-th, th.viid-th, th.pid-th, th.name-th {
-    z-index: 6;
-  }
-  /* body sticky 셀 배경 (스크롤 시 뒤 내용 비침 방지) */
-  tbody td.idx, tbody td.c-site, tbody td.id.sku, tbody td.viid, tbody td.pid, tbody td.name {
-    background: #fff;
-  }
-  tbody tr:hover td.idx,
-  tbody tr:hover td.c-site,
-  tbody tr:hover td.id.sku,
-  tbody tr:hover td.viid,
-  tbody tr:hover td.pid,
-  tbody tr:hover td.name {
-    background: #fafbfd;
-  }
-  /* 상품명 우측 경계 그림자 (sticky 끝을 시각적으로 표시) */
-  th.name-th, td.name {
-    box-shadow: 4px 0 6px -4px rgba(0,0,0,0.08);
   }
   .name {
     padding-right: 12px;
@@ -657,7 +632,6 @@
     text-overflow: ellipsis;
   }
   th.name-th, td.name {
-    position: sticky; left: var(--stick-5);
     width: var(--name-w);
     max-width: var(--name-w);
     min-width: var(--name-w);
