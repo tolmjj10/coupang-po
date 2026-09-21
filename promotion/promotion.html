@@ -1173,6 +1173,34 @@ function wirePlan() {
         save(); render();
       });
     });
+    // 할인율/판매가/수량 세로 붙여넣기 → 같은 기획전 그룹 내 아래 행에 순차 반영
+    tr.querySelectorAll('input[data-k="discountRate"], input[data-k="priceEdit"], input[data-k="qty"]').forEach(el => {
+      el.addEventListener('paste', (ev) => {
+        const text = (ev.clipboardData || window.clipboardData).getData('text');
+        const parts = text.split(/[\r\n\t;]+/).map(s => s.trim()).filter(s => s !== '');
+        if (parts.length <= 1) return;
+        ev.preventDefault();
+        const startRow = data.find(x => x.id === id); if (!startRow) return;
+        const k = el.dataset.k;
+        // 같은 기획전 그룹(type/date/endDate/title 일치)의 행들 중 현재 행부터 이어지는 것
+        const startIdx = data.indexOf(startRow);
+        const groupKey = `${startRow.date||''}|${startRow.endDate||''}|${startRow.title||''}`;
+        let filled = 0;
+        for (let i = startIdx; i < data.length && filled < parts.length; i++) {
+          const r = data[i];
+          if (r.type !== '기획전') break;
+          if (`${r.date||''}|${r.endDate||''}|${r.title||''}` !== groupKey) break;
+          const v = parts[filled];
+          if (k === 'priceEdit') {
+            r.priceEdit = v.replace(/[,\s]/g, '') || null;
+          } else {
+            r[k] = v;
+          }
+          filled += 1;
+        }
+        save(); render();
+      });
+    });
   });
   // 그룹 헤더의 시작일/종료일/기획전명 변경 → 그룹의 모든 행에 반영
   const applyGroupEdit = (key, patch) => {
@@ -1247,6 +1275,28 @@ function wireExperience() {
           skuId: sku, qty: '', reviewCount: '', reviewChecked: false,
         }));
         data.splice(idx + 1, 0, ...newRows);
+        save(); render();
+      });
+    });
+    // 수량/리뷰수 세로 붙여넣기 → 같은 날짜 그룹 내 아래 행에 순차 반영 (체험단)
+    tr.querySelectorAll('input[data-k="qty"], input[data-k="reviewCount"]').forEach(el => {
+      el.addEventListener('paste', (ev) => {
+        const text = (ev.clipboardData || window.clipboardData).getData('text');
+        const parts = text.split(/[\r\n\t;]+/).map(s => s.trim()).filter(s => s !== '');
+        if (parts.length <= 1) return;
+        ev.preventDefault();
+        const startRow = data.find(x => x.id === id); if (!startRow) return;
+        const k = el.dataset.k;
+        const startIdx = data.indexOf(startRow);
+        const groupDate = startRow.date || '';
+        let filled = 0;
+        for (let i = startIdx; i < data.length && filled < parts.length; i++) {
+          const r = data[i];
+          if (r.type !== '체험단') break;
+          if ((r.date||'') !== groupDate) break;
+          r[k] = parts[filled];
+          filled += 1;
+        }
         save(); render();
       });
     });
