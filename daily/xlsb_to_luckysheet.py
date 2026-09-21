@@ -563,6 +563,8 @@ HTML_TEMPLATE = r'''<!doctype html>
 <script src="https://cdn.jsdelivr.net/npm/luckyexcel@1.0.1/dist/luckyexcel.umd.js"></script>
 <script>
 const XLSX_B64 = "__XLSX_B64__";
+// {sheetName: [0-indexed hidden col idx, ...]}
+const HIDDEN_COLS = __HIDDEN_COLS_JSON__;
 
 function b64ToUint8(b64) {
   const bin = atob(b64);
@@ -593,6 +595,14 @@ function initSheet() {
     if (!exportJson || !exportJson.sheets || !exportJson.sheets.length) {
       loader.textContent = '엑셀 파싱 실패 (콘솔 확인)';
       return;
+    }
+    // Hidden columns 를 Luckysheet 시트 config 에 주입
+    for (const sh of exportJson.sheets) {
+      const cols = HIDDEN_COLS[sh.name] || [];
+      if (!cols.length) continue;
+      sh.config = sh.config || {};
+      sh.config.colhidden = sh.config.colhidden || {};
+      for (const c of cols) sh.config.colhidden[c] = 0;
     }
     loader.style.display = 'none';
     luckysheet.create({
@@ -646,7 +656,23 @@ def main():
     b64 = base64.b64encode(data).decode('ascii')
     print(f'base64 크기: {len(b64):,} chars')
 
-    html = HTML_TEMPLATE.replace('__XLSX_B64__', b64)
+    # 각 시트별 hidden 컬럼 (0-indexed) → JS 로 전달
+    import json, openpyxl
+    wb = openpyxl.load_workbook(prep, data_only=True)
+    hidden_by_sheet = {}
+    for name in wb.sheetnames:
+        ws = wb[name]
+        max_col = ws.max_column or 1
+        date_cols = detect_date_columns(ws, max_col)
+        hidden = compute_hidden_date_cols(ws, date_cols)
+        hidden |= ALWAYS_HIDDEN.get(name, set())
+        # 1-based → 0-based
+        hidden_by_sheet[name] = sorted(c - 1 for c in hidden)
+        print(f'  hidden [{name}]: {len(hidden)}개')
+
+    hidden_json = json.dumps(hidden_by_sheet, ensure_ascii=False)
+
+    html = HTML_TEMPLATE.replace('__XLSX_B64__', b64).replace('__HIDDEN_COLS_JSON__', hidden_json)
     OUT_HTML.write_text(html, encoding='utf-8')
     print(f'완료: {OUT_HTML}  ({os.path.getsize(OUT_HTML):,} bytes)')
 
