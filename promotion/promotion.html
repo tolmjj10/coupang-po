@@ -895,15 +895,51 @@ function render() {
   });
   visible = sortByDate(visible);
   $('emptyState').style.display = visible.length ? 'none' : 'block';
-  // 기획전·즉시할인 탭은 날짜 범위별 그룹 헤더로 묶어 표시
+  // 기획전·즉시할인 탭은 날짜 범위별 그룹 헤더로 묶어 표시.
+  // 전체 탭에서도 '기획전' 유형 행들은 그룹 헤더로 묶음.
   if (activeTab === '즉시할인') {
     $('tbody').innerHTML = buildGroupedRows(visible, activeTab);
+  } else if (activeTab === '전체') {
+    $('tbody').innerHTML = buildMixedRows(visible);
   } else {
     $('tbody').innerHTML = visible.map(r => rowHtml(r)).join('');
   }
   wireRow();
   initColResize();
   restoreFocus(focusInfo);
+}
+
+function buildMixedRows(rows) {
+  // 전체 탭: 기획전 유형만 (date, endDate, title) 로 그룹핑, 그 외 유형은 개별 행 그대로
+  const COLSPAN = 20;
+  const planKey = r => `${r.date||''}~${r.endDate||''}|${r.title||''}`;
+  // 정렬된 rows 순회하며 기획전 그룹 헤더 삽입
+  let html = '';
+  const emittedPlanKeys = new Set();
+  const planGroups = new Map();
+  rows.forEach(r => {
+    if (r.type !== '기획전') return;
+    const k = planKey(r);
+    if (!planGroups.has(k)) planGroups.set(k, []);
+    planGroups.get(k).push(r);
+  });
+  for (const r of rows) {
+    if (r.type === '기획전') {
+      const k = planKey(r);
+      if (!emittedPlanKeys.has(k)) {
+        emittedPlanKeys.add(k);
+        const g = planGroups.get(k);
+        const range = `${r.date||''}~${r.endDate||''}`;
+        const rangeText = range === '~' ? '(날짜 미지정)' : range.replace(/^~/, '(시작일 없음) ~ ').replace(/~$/, ' ~ (종료일 없음)');
+        const titlePart = r.title ? ` · <b>${esc(r.title)}</b>` : '';
+        html += `<tr class="group-header"><td colspan="${COLSPAN}">기획전 · ${esc(rangeText)}${titlePart}<span class="group-count">${g.length}건</span></td></tr>`;
+        for (const gr of g) html += rowHtml(gr);
+      }
+      continue;
+    }
+    html += rowHtml(r);
+  }
+  return html;
 }
 
 function buildGroupedRows(rows, tabType) {
