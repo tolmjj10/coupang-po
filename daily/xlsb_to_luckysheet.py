@@ -19,6 +19,9 @@ SRC_XLSB = BASE / '일일판매재고.xlsb'
 CSV_DIR = BASE.parent / 'data' / 'daily'   # data/daily/*.csv 를 매일 합침
 # 이 폴더 자체가 웹 배포 경로 (coupang-po.pages.dev/daily/)
 OUT_HTML = BASE / 'index.html'
+# 5행 수식 템플릿 원본 (여러 개 있으면 이름순 최신)
+TEMPLATE_GLOB = '쿠팡 일일판매량 *.xlsx'
+TEMPLATE_SHEET = '9월 출고'
 
 DATE_WINDOW_DAYS = 7
 EXCEL_EPOCH = dt.date(1899, 12, 30)
@@ -295,6 +298,72 @@ def aggregate_csvs_into_wb(wb, wb_vals):
             print(f'  [{sheet_name}] 현재고(FC+VF) {stock_written:,}행 · 기준일 {latest_date}')
 
 
+_TEMPLATE_ROW5_CACHE = None
+
+def load_template_row5() -> dict:
+    """쿠팡 일일판매량 *.xlsx (최신) 의 9월 출고 시트 5행 수식/값을 로드."""
+    global _TEMPLATE_ROW5_CACHE
+    if _TEMPLATE_ROW5_CACHE is not None:
+        return _TEMPLATE_ROW5_CACHE
+    import openpyxl
+    candidates = sorted(BASE.glob(TEMPLATE_GLOB))
+    if not candidates:
+        print(f'  ! 템플릿 파일 없음: {TEMPLATE_GLOB}')
+        _TEMPLATE_ROW5_CACHE = {}
+        return _TEMPLATE_ROW5_CACHE
+    tpath = candidates[-1]
+    print(f'  템플릿 로드: {tpath.name}')
+    wb = openpyxl.load_workbook(tpath, data_only=False)
+    if TEMPLATE_SHEET not in wb.sheetnames:
+        print(f'  ! 템플릿에 {TEMPLATE_SHEET} 없음')
+        _TEMPLATE_ROW5_CACHE = {}
+        return _TEMPLATE_ROW5_CACHE
+    ws = wb[TEMPLATE_SHEET]
+    row5 = {}  # col idx → formula string (starts with =)
+    for c in range(1, ws.max_column + 1):
+        v = ws.cell(row=5, column=c).value
+        if isinstance(v, str) and v.startswith('='):
+            row5[c] = v
+    print(f'  템플릿 5행 수식 {len(row5)}개')
+    _TEMPLATE_ROW5_CACHE = row5
+    return row5
+
+
+def strip_external_ref(formula: str) -> str:
+    """`[N]시트명!$B:$C` 형태의 외부 워크북 참조에서 `[N]` 제거 → 로컬 시트 참조."""
+    return re.sub(r'\[\d+\]', '', formula)
+
+
+def apply_template_row5(ws, ws_v, data_start: int, max_row: int, max_col: int, header_row: int) -> int:
+    """템플릿 5행 수식을 각 데이터 행에 openpyxl Translator 로 복제."""
+    from openpyxl.formula.translate import Translator
+    row5 = load_template_row5()
+    if not row5:
+        return 0
+
+    added = 0
+    for c, tmpl_formula in row5.items():
+        if c > max_col:
+            continue
+        clean = strip_external_ref(tmpl_formula)
+        letter = col_letter(c)
+        origin = f'{letter}5'
+        for r in range(data_start, max_row + 1):
+            # SKU ID 컬럼(G)이 비어있으면 데이터 행 아님 → 건너뜀
+            if ws_v.cell(row=r, column=7).value in (None, ''):
+                continue
+            if r == 5:
+                new_formula = clean
+            else:
+                try:
+                    new_formula = Translator(clean, origin=origin).translate_formula(f'{letter}{r}')
+                except Exception:
+                    new_formula = clean
+            ws.cell(row=r, column=c).value = new_formula
+            added += 1
+    return added
+
+
 def preprocess_xlsx(src: Path) -> Path:
     """xlsx 전처리:
     - 수식 → 캐시된 값으로 대체 (Luckysheet formula.js 파싱 오류 회피)
@@ -363,145 +432,10 @@ def preprocess_xlsx(src: Path) -> Path:
         # 9월 총합계용: 9월 날짜만
         sep_cols = [c for d, c in dated_with_data if d.month == 9]
 
-        # 헤더 정규화 (공백/개행 제거)
-        def norm(s: str) -> str:
-            return re.sub(r'\s+', '', s or '')
-
-        # 요약 컬럼 찾기 (정규화 매칭)
-        col_targets = {}  # col idx → formula_type
-        cost_col = supply_vat_col = supply_novat_col = margin_col = None
-        seven_avg_col = stock_col = totalrev_col = None
-        for c in range(1, max_col + 1):
-            h = headers.get(c, '')
-            n = norm(h)
-            if '7일평균판매량' in n:
-                col_targets[c] = '7avg'; seven_avg_col = c
-            elif '14일평균판매량' in n:
-                col_targets[c] = '14avg'
-            elif '8월평균판매량' in n:
-                col_targets[c] = '8avg'
-            elif '8월판매량' in n:
-                col_targets[c] = '8sum'
-            elif '판매가능일수' in n:
-                col_targets[c] = 'days'
-            elif n == '현재고':
-                stock_col = c
-            elif '총합계' in n:
-                col_targets[c] = 'sepSum'
-            elif n == '원가':
-                col_targets[c] = 'cost'; cost_col = c
-            elif n == '원가총액':
-                col_targets[c] = 'costTotal'
-            elif n == '공급가(+VAT)':
-                col_targets[c] = 'supplyVat'; supply_vat_col = c
-            elif n == '공급가(-VAT)':
-                col_targets[c] = 'supplyNoVat'; supply_novat_col = c
-            elif n == '오아마진(-vat)':
-                col_targets[c] = 'margin'; margin_col = c
-            elif n == '오아총마진':
-                col_targets[c] = 'marginTotal'
-            elif n == '오아마진율':
-                col_targets[c] = 'marginRate'
-            elif n == '일일매출액':
-                col_targets[c] = 'dailyRev'
-            elif n == '총매출':
-                col_targets[c] = 'totalRev'; totalrev_col = c
-            elif n == '평균일매출':
-                col_targets[c] = 'avgDailyRev'
-
+        # 템플릿 xlsx (쿠팡 일일판매량 *.xlsx) 5행 수식을 전 데이터 행에 복제
         formulas_added = 0
-
-        def range_or_list(cols, row):
-            """연속된 컬럼이면 A:B 범위, 아니면 콤마 리스트."""
-            if not cols:
-                return None
-            s = sorted(cols)
-            if s[-1] - s[0] == len(s) - 1:
-                return f'{col_letter(s[0])}{row}:{col_letter(s[-1])}{row}'
-            return ','.join(f'{col_letter(cc)}{row}' for cc in s)
-
-        # SKU ID 컬럼 (VLOOKUP 조회 키). 헤더에 'SKUID' 포함 매칭.
-        sku_id_col = None
-        for c in range(1, max_col + 1):
-            n = norm(headers.get(c, ''))
-            if 'SKUID' in n:
-                sku_id_col = c
-                break
-
-        # 마진테이블 시트 존재 확인 (없으면 VLOOKUP 스킵)
-        has_margin = MARGIN_SHEET in wb.sheetnames
-
-        # 총합계 컬럼 (BJ) - marginTotal/costTotal 등에서 참조
-        sep_sum_col = next((c for c, k in col_targets.items() if k == 'sepSum'), None)
-
-        # 9월 date columns 중 데이터가 있는 마지막 컬럼(=전일자) & 데이터 일수
-        sep_data_cols = sorted(sep_cols)  # 이미 데이터 있는 9월 date col 만
-        prev_day_col = sep_data_cols[-1] if sep_data_cols else None
-        sep_days_count = len(sep_data_cols)
-
-        def vlookup(sku_ref: str, col_idx: int) -> str:
-            return f"VLOOKUP({sku_ref},{MARGIN_LOOKUP_RANGE},{col_idx},FALSE)"
-
-        def iferror(inner: str, fallback: str = '""') -> str:
-            return f"IFERROR({inner},{fallback})"
-
-        for r in range(data_start, max_row + 1):
-            for c, kind in col_targets.items():
-                # 원래 값이 없던 행(빈 행/서브총계 등)은 건너뜀
-                orig = ws_v.cell(row=r, column=c).value
-                if orig is None:
-                    continue
-
-                f = None
-                if kind == '7avg':
-                    rng = range_or_list(last7_cols, r)
-                    if rng: f = f'=AVERAGE({rng})'
-                elif kind == '14avg':
-                    rng = range_or_list(last14_cols, r)
-                    if rng: f = f'=AVERAGE({rng})'
-                elif kind == '8avg':
-                    rng = range_or_list(aug_cols, r)
-                    if rng: f = f'=AVERAGE({rng})'
-                elif kind == '8sum':
-                    rng = range_or_list(aug_cols, r)
-                    if rng: f = f'=SUM({rng})'
-                elif kind == 'days' and stock_col and seven_avg_col:
-                    j = f'{col_letter(stock_col)}{r}'
-                    o = f'{col_letter(seven_avg_col)}{r}'
-                    f = f'=IF({o}=0,0,{j}/{o})'
-                elif kind == 'sepSum':
-                    rng = range_or_list(sep_cols, r)
-                    if rng: f = f'=SUM({rng})'
-                elif kind == 'cost' and has_margin and sku_id_col:
-                    sku_ref = f'{col_letter(sku_id_col)}{r}'
-                    f = '=' + iferror(vlookup(sku_ref, MARGIN_COL_COST), '0')
-                elif kind == 'costTotal' and cost_col and sep_sum_col:
-                    f = f'={col_letter(cost_col)}{r}*{col_letter(sep_sum_col)}{r}'
-                elif kind == 'supplyVat' and has_margin and sku_id_col:
-                    sku_ref = f'{col_letter(sku_id_col)}{r}'
-                    f = '=' + iferror(vlookup(sku_ref, MARGIN_COL_SUPPLY), '0')
-                elif kind == 'supplyNoVat' and has_margin and sku_id_col:
-                    sku_ref = f'{col_letter(sku_id_col)}{r}'
-                    supply = vlookup(sku_ref, MARGIN_COL_SUPPLY)
-                    vat = vlookup(sku_ref, MARGIN_COL_VAT)
-                    f = '=' + iferror(f'{supply}-{vat}', '0')
-                elif kind == 'margin' and has_margin and sku_id_col:
-                    sku_ref = f'{col_letter(sku_id_col)}{r}'
-                    f = '=' + iferror(vlookup(sku_ref, MARGIN_COL_MARGIN), '0')
-                elif kind == 'marginTotal' and margin_col and sep_sum_col:
-                    f = f'={col_letter(margin_col)}{r}*{col_letter(sep_sum_col)}{r}'
-                elif kind == 'marginRate' and has_margin and sku_id_col:
-                    sku_ref = f'{col_letter(sku_id_col)}{r}'
-                    f = '=' + iferror(vlookup(sku_ref, MARGIN_COL_RATE), '0')
-                elif kind == 'dailyRev' and prev_day_col and supply_novat_col:
-                    f = f'={col_letter(prev_day_col)}{r}*{col_letter(supply_novat_col)}{r}'
-                elif kind == 'totalRev' and sep_sum_col and supply_novat_col:
-                    f = f'={col_letter(sep_sum_col)}{r}*{col_letter(supply_novat_col)}{r}'
-                elif kind == 'avgDailyRev' and totalrev_col and sep_days_count > 0:
-                    f = f'={col_letter(totalrev_col)}{r}/{sep_days_count}'
-                if f:
-                    ws.cell(row=r, column=c).value = f
-                    formulas_added += 1
+        if name == TEMPLATE_SHEET:
+            formulas_added = apply_template_row5(ws, ws_v, data_start, max_row, max_col, header_row)
 
         # 숨김 + 서식 (hidden=True + width=0 → LibreOffice/Luckysheet 재변환에도 유지)
         for c in range(1, max_col + 1):
