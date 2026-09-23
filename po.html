@@ -525,7 +525,7 @@ const DEFAULT_MASTER_DATA=[{"SKU#":"3636925","상품명":"오아안개가습기5
 let orderData=null, masterData=null, stockData=null, salesData=null;
 let transitMap={}; // norm(상품코드) → 운송 중 수량
 let issueMap={}; // norm(SKU ID) → 특이사항 문구
-let categoryMap={}; // norm(SKU) → 카테고리 (이슈제품 파일 H/I열)
+let categoryMap={}; // norm(SKU#) → 카테고리 (마진테이블 API 에서 로드)
 let matchedRows=[], activeFilter='all', allOpen=true;
 const fileState={order:false,master:false,stock:false};
 
@@ -2436,24 +2436,31 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
           var ws=wb.Sheets[wb.SheetNames[0]];
           var rows=XLSX.utils.sheet_to_json(ws,{defval:''});
           issueMap={};
-          categoryMap={};
           rows.forEach(function(row){
             var keys=Object.keys(row);
             var skuKey=keys.find(function(k){ var n=norm(k); return n==='skuid'||n==='sku'||n==='옵션코드'; })||keys[0];
             var noteKey=keys.find(function(k){ var n=norm(k); return n==='특이사항'||n==='메모'||n==='비고'||n==='note'; });
             var sku=norm(row[skuKey]);
             if(sku) issueMap[sku]=noteKey?String(row[noteKey]||'').trim()||'확인필요':'확인필요';
-            var catKey=keys.find(function(k){ return norm(k)==='카테고리'; });
-            var catSkuKey=keys.find(function(k){ var n=norm(k); return n==='sku#'||n==='sku번호'||n==='sku_no'||n==='skuno'; });
-            if(catKey && catSkuKey){
-              var cat=String(row[catKey]||'').trim();
-              var csku=norm(row[catSkuKey]);
-              if(cat && csku) categoryMap[csku]=cat;
-            }
           });
-          console.log('[VOAR] issue loaded: '+Object.keys(issueMap).length+'건, category: '+Object.keys(categoryMap).length+'건');
+          console.log('[VOAR] issue loaded: '+Object.keys(issueMap).length+'건');
         } catch(e){ console.warn('[VOAR] issue parse err:', e.message); }
       }));
+      /* 카테고리 맵: 마진테이블 API에서 SKU# → 카테고리 로드 (여름가전/제습기 배지용) */
+      jobs.push(fetch('/api/margin-state', { cache: 'no-store' }).then(function(res){
+        if(!res.ok) return;
+        return res.json();
+      }).then(function(parsed){
+        if(!parsed) return;
+        var mrows = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.rows) ? parsed.rows : []);
+        categoryMap = {};
+        mrows.forEach(function(r){
+          var sku = norm(r.sku);
+          var cat = String(r.cat||'').trim();
+          if(sku && cat) categoryMap[sku] = cat;
+        });
+        console.log('[VOAR] category loaded from margin: '+Object.keys(categoryMap).length+'건');
+      }).catch(function(e){ console.warn('[VOAR] margin category load err:', e.message); }));
       /* sales: daily/ 폴더의 YYYYMMDD 파일 우선 병합, 없으면 기존 방식 */
       var dailyFiles=pickDailySales(files);
       if(dailyFiles.length>0){
