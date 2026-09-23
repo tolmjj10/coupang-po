@@ -286,6 +286,11 @@
   .table-wrap::-webkit-scrollbar-thumb,.side::-webkit-scrollbar-thumb{background:#d9d1c8;border-radius:8px;border:2px solid var(--surface);}
   .table-wrap::-webkit-scrollbar-thumb:hover,.side::-webkit-scrollbar-thumb:hover{background:#b8ada2;}
   .table-wrap::-webkit-scrollbar-track,.side::-webkit-scrollbar-track{background:transparent;}
+  /* 공급가 변경 날짜 셀: 브라우저 기본 캘린더 아이콘 숨김 */
+  input.pc-date::-webkit-calendar-picker-indicator{opacity:0;display:none;-webkit-appearance:none;}
+  input.pc-date::-webkit-inner-spin-button,
+  input.pc-date::-webkit-clear-button{display:none;-webkit-appearance:none;}
+  input.pc-date{cursor:pointer;}
 </style>
 </head>
 <body class="sidebar-collapsed">
@@ -1501,8 +1506,12 @@ function pcStartAutosave(){
     if(pcDirty && !pcSaving) pcSaveRemote();
   }, PC_AUTOSAVE_MS);
 }
+function pcTodayStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
 function pcBlankRow(){
-  return { _id: uid(), date:'', sku:'', name:'', oldPrice:null, oldSupply:null, newPrice:null, newSupply:null, newSupplyManual:false, done:false };
+  return { _id: uid(), date: pcTodayStr(), sku:'', name:'', oldPrice:null, oldSupply:null, newPrice:null, newSupply:null, newSupplyManual:false, done:false };
 }
 function pcFmtInt(v){
   if(v == null || v === '') return '';
@@ -1530,7 +1539,7 @@ function pcRender(){
     const doneStyle = r.done ? 'opacity:0.55;background:#f2ede9;' : '';
     return `<tr data-id="${r._id}" style="${doneStyle}">
       <td style="padding:6px 6px;border-bottom:1px solid var(--hairline);text-align:center;">
-        <input class="pc-inp" data-k="date" type="date" value="${esc(r.date||'')}" style="width:100%;padding:6px 6px;border:1px solid var(--hairline);border-radius:6px;text-align:center;font-size:12px;background:${r.done?'#f8f5f2':'#fff'};color:var(--text);font-family:inherit;">
+        <input class="pc-inp pc-date" data-k="date" type="date" value="${esc(r.date||pcTodayStr())}" style="width:100%;padding:6px 6px;border:1px solid var(--hairline);border-radius:6px;text-align:center;font-size:12px;background:${r.done?'#f8f5f2':'#fff'};color:var(--text);font-family:inherit;">
       </td>
       <td style="padding:6px 6px;border-bottom:1px solid var(--hairline);text-align:center;">
         <input class="pc-inp" data-k="sku" value="${esc(r.sku||'')}" style="width:100%;padding:6px 6px;border:1px solid var(--hairline);border-radius:6px;text-align:center;font-family:monospace;font-size:12px;background:${r.done?'#f8f5f2':'#fff'};" placeholder="SKU#">
