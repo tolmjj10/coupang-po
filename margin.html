@@ -1579,6 +1579,19 @@ function pcApplyToMargin(r){
   render();
   return true;
 }
+function pcRevertOnMargin(r){
+  const target = pcLookupBySku(r.sku);
+  if(!target) return false;
+  const patch = {};
+  if(r.oldPrice != null)  patch.price = Number(r.oldPrice);
+  if(r.oldSupply != null) patch.cost  = Math.round(Number(r.oldSupply) * 1.1);
+  if(!Object.keys(patch).length) return false;
+  pushHistory();
+  Object.assign(target, patch);
+  markDirtyNoHistory();
+  render();
+  return true;
+}
 
 document.getElementById('btnPriceChange').addEventListener('click', pcOpen);
 document.getElementById('btnBackToMargin').addEventListener('click', pcCloseFn);
@@ -1642,7 +1655,9 @@ document.getElementById('pcTbody').addEventListener('change', ev=>{
       r.done = true;
       showToast(`SKU# ${r.sku} 반영됨 · 저장 필요`);
     } else {
+      const reverted = pcRevertOnMargin(r);
       r.done = false;
+      if(reverted) showToast(`SKU# ${r.sku} 원상복구됨 · 저장 필요`);
     }
     pcMarkDirty(); pcRender();
   }
