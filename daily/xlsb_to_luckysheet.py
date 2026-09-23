@@ -137,6 +137,10 @@ def column_has_data(ws, c: int, header_end_row: int = 10) -> bool:
 def compute_hidden_date_cols(ws, date_cols: dict) -> set:
     if not date_cols:
         return set()
+    # 현재 월 날짜는 미래 포함 항상 표시 (예: 9/1~9/30 전부)
+    keep_set = {c for c, d in date_cols.items()
+                if d.year == TODAY.year and d.month == TODAY.month}
+    # 이외 월은 데이터 있는 최근 N일만 표시
     keep = []
     for c, d in date_cols.items():
         if d > TODAY:
@@ -145,7 +149,7 @@ def compute_hidden_date_cols(ws, date_cols: dict) -> set:
             continue
         keep.append((d, c))
     keep.sort(reverse=True)
-    keep_set = {c for _, c in keep[:DATE_WINDOW_DAYS]}
+    keep_set |= {c for _, c in keep[:DATE_WINDOW_DAYS]}
     return set(date_cols.keys()) - keep_set
 
 
