@@ -658,6 +658,15 @@
     padding-right: 20px;
   }
   input.real-name.has-model:hover { background-color: #fffbea; }
+  /* 전산명 중복 표시: 다른 행과 이름이 동일할 때 */
+  input.real-name.is-dup {
+    background-color: #fee2e2 !important;
+    border-color: #dc2626 !important;
+    color: #991b1b !important;
+    font-weight: 700;
+  }
+  input.real-name.is-dup:hover { background-color: #fecaca !important; }
+  input.real-name.is-dup:focus { background-color: #ffffff !important; }
 
   .detail-url-wrap { display: flex; gap: 4px; align-items: center; white-space: nowrap; }
   .detail-url-wrap input.detail-url-input {
@@ -1365,6 +1374,24 @@ function _sortIcon(key) {
   return sortAsc ? '↑' : '↓';
 }
 
+/* 전산명 중복 실시간 갱신 — 편집 도중(oninput) 리렌더 없이 클래스만 토글.
+   현재 DOM의 real-name 입력값들을 기준으로 카운트하여 표시(저장 전 상태에도 반응). */
+function refreshDupHighlight() {
+  const inputs = document.querySelectorAll('input.real-name');
+  const counts = {};
+  inputs.forEach(inp => {
+    const v = (inp.value || '').trim();
+    if (!v) return;
+    counts[v] = (counts[v] || 0) + 1;
+  });
+  inputs.forEach(inp => {
+    const v = (inp.value || '').trim();
+    const isDup = !!(v && counts[v] > 1);
+    inp.classList.toggle('is-dup', isDup);
+    if (isDup) inp.title = '⚠ 중복 전산명 (기존 신제품과 이름이 같음)';
+  });
+}
+
 function render() {
   const q = document.getElementById('search').value.trim().toLowerCase();
   let filtered = data;
@@ -1409,6 +1436,14 @@ function render() {
   const _ai = document.getElementById('sortArrivalIcon'); if (_ai) _ai.textContent = _sortIcon('arrival');
   const _di = document.getElementById('sortDetailIcon');  if (_di) _di.textContent = _sortIcon('detail');
 
+  /* 전산명 중복 카운트: 트림된 값이 2회 이상 등장 시 해당 input에 빨간 표시 */
+  const _dupCounts = {};
+  data.forEach(r => {
+    const n = (r.realName || '').trim();
+    if (!n) return;
+    _dupCounts[n] = (_dupCounts[n] || 0) + 1;
+  });
+
   const tbody = document.getElementById('tbody');
   tbody.innerHTML = filtered.map(row => {
     const st = statusOf(row);
@@ -1427,8 +1462,11 @@ function render() {
           const _mdl = getModelForName(row.realName);
           const _sku = getSkuForName(row.realName);
           const _hasInfo = (_mdl || _sku) ? ' has-model' : '';
-          const _title = row.memo ? '📝 ' + esc(row.memo) : esc(row.realName);
-          return `<input type="text" class="real-name ${row.memo?'has-memo':''}${_hasInfo}" value="${esc(row.realName)}" title="${_title}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value)" onmousedown="window.__rnRightClick=(event.button===2)" oncontextmenu="editMemo(event,'${row.id}')" onfocus="if(!window.__rnRightClick) showRealNameInfo(this,'${row.id}'); window.__rnRightClick=false;">`;
+          const _nameTrim = (row.realName || '').trim();
+          const _isDup = _nameTrim && _dupCounts[_nameTrim] > 1;
+          const _dupCls = _isDup ? ' is-dup' : '';
+          const _title = _isDup ? '⚠ 중복 전산명 (기존 신제품과 이름이 같음)' : (row.memo ? '📝 ' + esc(row.memo) : esc(row.realName));
+          return `<input type="text" class="real-name ${row.memo?'has-memo':''}${_hasInfo}${_dupCls}" value="${esc(row.realName)}" title="${_title}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value); refreshDupHighlight();" oninput="refreshDupHighlight()" onmousedown="window.__rnRightClick=(event.button===2)" oncontextmenu="editMemo(event,'${row.id}')" onfocus="if(!window.__rnRightClick) showRealNameInfo(this,'${row.id}'); window.__rnRightClick=false;">`;
         })()}</td>
         <td>
           <div class="date-cell">
