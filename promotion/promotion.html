@@ -1757,6 +1757,20 @@ $('addBtn').addEventListener('click', () => {
   save(); render();
 });
 $('saveBtn').addEventListener('click', () => { clearTimeout(_saveTimer); saveRemote({ force: true }); });
+
+/* 날짜 input 클릭/포커스 시 캘린더 즉시 열기 (기본 동작: 첫 클릭은 드래그 선택, 두 번째만 열림) */
+document.addEventListener('click', ev => {
+  const t = ev.target;
+  if (t && t.tagName === 'INPUT' && t.type === 'date') {
+    try { t.showPicker && t.showPicker(); } catch(_){}
+  }
+}, true);
+document.addEventListener('focus', ev => {
+  const t = ev.target;
+  if (t && t.tagName === 'INPUT' && t.type === 'date') {
+    try { t.showPicker && t.showPicker(); } catch(_){}
+  }
+}, true);
 document.getElementById('dateSortTh').addEventListener('click', () => {
   // 3단 토글: none → desc → asc → none
   sortDir = sortDir === 'none' ? 'desc' : (sortDir === 'desc' ? 'asc' : 'none');
