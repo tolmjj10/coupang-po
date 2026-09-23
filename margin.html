@@ -1263,6 +1263,121 @@ window.addEventListener('keydown',ev=>{
 window.addEventListener('beforeunload',ev=>{
   if(dirty){ ev.preventDefault(); ev.returnValue=''; }
 });
+
+/* ═══════════════════════ 제품 현황 조회 팝오버 (상품명 우클릭 → 상품코드/모델명) ═══════════════════════ */
+const _PS_REPO = { owner: 'tolmjj10', repo: 'coupang-po', branch: 'main', dir: 'newproduct/new' };
+window.__prodStatusMap = window.__prodStatusMap || {};
+
+async function _fetchProductStatus(){
+  try{
+    const listUrl = `https://api.github.com/repos/${_PS_REPO.owner}/${_PS_REPO.repo}/contents/${encodeURI(_PS_REPO.dir)}?ref=${_PS_REPO.branch}`;
+    const listRes = await fetch(listUrl, { headers: { 'Accept': 'application/vnd.github+json' } });
+    if(!listRes.ok){ console.warn('[margin] 제품현황 list HTTP', listRes.status); return; }
+    const files = await listRes.json();
+    const NAME_RE = /^제품\s*현황\s*조회.*\.xlsx?$/i;
+    const matches = (files||[]).filter(f=>f.type==='file' && NAME_RE.test(f.name));
+    if(!matches.length){ console.log('[margin] 제품 현황 조회 파일 없음'); return; }
+    matches.sort((a,b)=> a.name < b.name ? 1 : a.name > b.name ? -1 : 0);
+    const target = matches[0];
+    const abRes = await fetch(target.download_url);
+    if(!abRes.ok) return;
+    const ab = await abRes.arrayBuffer();
+    const wb = XLSX.read(ab, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const aoa = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+    if(aoa.length < 2) return;
+    let hIdx = -1;
+    for(let i=0; i<Math.min(aoa.length,15); i++){
+      const row = (aoa[i]||[]).map(v=>String(v||'').trim());
+      if(row.some(c=>c==='제품명')){ hIdx = i; break; }
+    }
+    if(hIdx < 0){ console.warn('[margin] 제품현황 헤더 없음'); return; }
+    const header = (aoa[hIdx]||[]).map(v=>String(v||'').trim());
+    const findIdx = (fn)=>header.findIndex(fn);
+    const nameCol  = findIdx(h=>h==='제품명');
+    const modelCol = findIdx(h=>/^모델(명|번호|no)?$/i.test(h));
+    const codeCol  = findIdx(h=>/^(상품\s*코드|프로\s*코드|product\s*code)$/i.test(h));
+    if(nameCol < 0) return;
+    const map = {};
+    for(let r=hIdx+1; r<aoa.length; r++){
+      const row = aoa[r]||[];
+      const name = String(row[nameCol]||'').trim();
+      if(!name) continue;
+      const model = modelCol>=0 ? String(row[modelCol]||'').trim() : '';
+      const code  = codeCol>=0  ? String(row[codeCol]||'').trim()  : '';
+      if(!map[name] && (model || code)) map[name] = { model, code };
+    }
+    window.__prodStatusMap = map;
+    console.log('[margin] 제품 현황 맵 로드', Object.keys(map).length, '건 (파일:', target.name + ')');
+  } catch(e){ console.warn('[margin] 제품현황 로드 실패:', e.message); }
+}
+_fetchProductStatus();
+window.addEventListener('focus', _fetchProductStatus);
+
+let _psPop = null;
+function _psEnsure(){
+  if(_psPop) return _psPop;
+  const el = document.createElement('div');
+  el.id = '__prodStatusPop';
+  el.style.cssText = 'position:absolute;z-index:1000;background:#fffdf5;border:1px solid #e5c76b;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,0.12);padding:8px 10px;min-width:180px;font-size:12px;color:#4a3c1e;line-height:1.5;display:none;user-select:text;font-family:inherit;';
+  document.body.appendChild(el);
+  _psPop = el;
+  el.addEventListener('mousedown', ev=>ev.stopPropagation());
+  return el;
+}
+function _psHide(){ if(_psPop) _psPop.style.display='none'; }
+function _psShow(cellEl, name){
+  const info = (window.__prodStatusMap||{})[name];
+  if(!info || (!info.model && !info.code)){ _psHide(); return; }
+  const pop = _psEnsure();
+  const line = (label,val) => `<div style="display:flex;gap:6px;align-items:center;margin:2px 0;"><span style="color:#8a7a3a;font-weight:600;min-width:56px;">${label}</span><span class="__psCopy" data-copy="${esc(val)}" style="cursor:pointer;padding:2px 6px;border-radius:4px;background:#fff;border:1px solid #e5c76b;font-weight:600;font-family:monospace;">${esc(val)}</span></div>`;
+  const rows2 = [];
+  if(info.code)  rows2.push(line('상품코드', info.code));
+  if(info.model) rows2.push(line('모델명',   info.model));
+  pop.innerHTML = rows2.join('') + `<div style="color:#a68a4a;font-size:10.5px;margin-top:4px;">클릭해서 복사</div>`;
+  const rect = cellEl.getBoundingClientRect();
+  const popW = 240;
+  let left = window.scrollX + rect.left;
+  const top = window.scrollY + rect.bottom + 4;
+  if(left + popW > window.scrollX + window.innerWidth - 8) left = window.scrollX + window.innerWidth - popW - 8;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  pop.style.display = 'block';
+  pop.querySelectorAll('.__psCopy').forEach(sp=>{
+    sp.onclick = async ()=>{
+      const v = sp.dataset.copy;
+      try{ await navigator.clipboard.writeText(v); }
+      catch(_){
+        const ta = document.createElement('textarea'); ta.value=v; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select();
+        try{ document.execCommand('copy'); } catch(_){}
+        ta.remove();
+      }
+      sp.style.background = '#e4d68a';
+      setTimeout(()=>{ sp.style.background='#fff'; }, 400);
+    };
+  });
+}
+document.getElementById('tbody').addEventListener('contextmenu', ev=>{
+  const cell = ev.target.closest('td.col-name .cell');
+  if(!cell) return;
+  const tr = cell.closest('tr'); if(!tr) return;
+  const r = rows.find(x=>x._id===tr.dataset.id); if(!r) return;
+  const name = String(r.name||'').trim();
+  if(!name) return;
+  const info = (window.__prodStatusMap||{})[name];
+  if(!info) return; // 매칭 안 되면 기본 브라우저 메뉴 유지
+  ev.preventDefault();
+  _psShow(cell, name);
+});
+document.addEventListener('mousedown', ev=>{
+  if(!_psPop || _psPop.style.display==='none') return;
+  if(_psPop.contains(ev.target)) return;
+  _psHide();
+});
+window.addEventListener('scroll', _psHide, true);
+document.addEventListener('keydown', ev=>{ if(ev.key==='Escape') _psHide(); });
+
 load();
 </script>
 </body>
