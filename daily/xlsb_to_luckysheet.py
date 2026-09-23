@@ -26,11 +26,21 @@ TODAY = dt.date.today()
 DATE_SERIAL_RANGE = (40000, 60000)
 
 # 시트별 항상 숨길 컬럼
-# B: 광고, D: 쿠팡카테고리, F: 광고취합용, P: 현재고*원가, Q: 현재고*공급가(+VAT)
+# B: 광고, C: 품목, D: 쿠팡카테고리, F: 광고취합용, P: 현재고*원가, Q: 현재고*공급가(+VAT)
 ALWAYS_HIDDEN = {
-    '9월 출고': {2, 4, 6, 16, 17},
-    '9월 입고': {2, 4, 6, 16, 17},
+    '9월 출고': {2, 3, 4, 6, 16, 17},
+    '9월 입고': {2, 3, 4, 6, 16, 17},
 }
+
+# 마진테이블 시트: SKU# 컬럼 B, 조회 대상 범위 B:O
+MARGIN_SHEET = '마진테이블'
+MARGIN_LOOKUP_RANGE = "'마진테이블'!$B:$O"
+# B:O 범위 내에서 각 컬럼 위치 (B=1)
+MARGIN_COL_COST   = 10  # K: 원가
+MARGIN_COL_SUPPLY = 5   # F: 공급가
+MARGIN_COL_VAT    = 6   # G: 부가세
+MARGIN_COL_MARGIN = 13  # N: 마진(-vat)
+MARGIN_COL_RATE   = 14  # O: 이익율
 
 
 IS_WINDOWS = sys.platform.startswith('win')
@@ -168,8 +178,9 @@ def col_letter(c: int) -> str:
 
 
 def parse_daily_csv(csv_path: Path) -> tuple[dt.date | None, dict]:
-    """CSV 파싱 → (date, {sku: {'out': 합, 'in': 합, 'stock': max}})"""
-    per_sku = defaultdict(lambda: {'out': 0, 'in': 0, 'stock': 0})
+    """CSV 파싱 → (date, {sku: {'out','in','stock_fcvf'}}).
+    stock_fcvf: 센터가 FC* 또는 VF* 로 시작하는 행들의 현재재고수량 합계."""
+    per_sku = defaultdict(lambda: {'out': 0, 'in': 0, 'stock_fcvf': 0})
     date = None
     try:
         with open(csv_path, encoding='utf-8-sig', newline='') as f:
@@ -181,10 +192,12 @@ def parse_daily_csv(csv_path: Path) -> tuple[dt.date | None, dict]:
                     except ValueError: pass
                 sku = (row.get('SKU ID') or '').strip()
                 if not sku: continue
+                center = (row.get('센터') or '').strip().upper()
                 try:
                     per_sku[sku]['out'] += int(row.get('출고수량') or 0)
                     per_sku[sku]['in']  += int(row.get('입고수량') or 0)
-                    per_sku[sku]['stock'] = max(per_sku[sku]['stock'], int(row.get('현재재고수량') or 0))
+                    if center.startswith('FC') or center.startswith('VF'):
+                        per_sku[sku]['stock_fcvf'] += int(row.get('현재재고수량') or 0)
                 except ValueError:
                     pass
     except Exception as e:
@@ -211,6 +224,9 @@ def aggregate_csvs_into_wb(wb, wb_vals):
         return
     print(f'  CSV 집계: {len(per_date)}일 ({min(per_date)} ~ {max(per_date)})')
 
+    latest_date = max(per_date)
+    latest_stock = {sku: d['stock_fcvf'] for sku, d in per_date[latest_date].items()}
+
     for sheet_name, out_field in (('9월 출고', 'out'), ('9월 입고', 'in')):
         if sheet_name not in wb.sheetnames:
             continue
@@ -232,6 +248,14 @@ def aggregate_csvs_into_wb(wb, wb_vals):
         if not sku_col:
             print(f'  [{sheet_name}] SKU ID 컬럼 못 찾음')
             continue
+
+        # 현재고 컬럼 (헤더가 정확히 '현재고')
+        stock_col = None
+        for c in range(1, max_col + 1):
+            v = ws_v.cell(row=header_row, column=c).value
+            if isinstance(v, str) and v.strip() == '현재고':
+                stock_col = c
+                break
 
         # 날짜 → 컬럼 매핑
         date_to_col = {}
@@ -259,6 +283,16 @@ def aggregate_csvs_into_wb(wb, wb_vals):
                 ws.cell(row=row, column=col).value = data[out_field]
                 written += 1
         print(f'  [{sheet_name}] 반영 {written:,}셀 · 날짜미매칭 {missing_dates} · SKU미매칭 {len(missing_skus)}')
+
+        # 최신 CSV FC+VF 합계를 현재고 컬럼에 값으로 기록 (9월 출고 시트만)
+        if stock_col and sheet_name == '9월 출고':
+            stock_written = 0
+            for sku, qty in latest_stock.items():
+                row = sku_to_row.get(sku)
+                if not row: continue
+                ws.cell(row=row, column=stock_col).value = qty
+                stock_written += 1
+            print(f'  [{sheet_name}] 현재고(FC+VF) {stock_written:,}행 · 기준일 {latest_date}')
 
 
 def preprocess_xlsx(src: Path) -> Path:
@@ -329,40 +363,51 @@ def preprocess_xlsx(src: Path) -> Path:
         # 9월 총합계용: 9월 날짜만
         sep_cols = [c for d, c in dated_with_data if d.month == 9]
 
-        # 요약 컬럼 찾기
+        # 헤더 정규화 (공백/개행 제거)
+        def norm(s: str) -> str:
+            return re.sub(r'\s+', '', s or '')
+
+        # 요약 컬럼 찾기 (정규화 매칭)
         col_targets = {}  # col idx → formula_type
+        cost_col = supply_vat_col = supply_novat_col = margin_col = None
+        seven_avg_col = stock_col = totalrev_col = None
         for c in range(1, max_col + 1):
             h = headers.get(c, '')
-            if '7일평균판매량' in h:
-                col_targets[c] = '7avg'
-            elif '14일평균판매량' in h:
+            n = norm(h)
+            if '7일평균판매량' in n:
+                col_targets[c] = '7avg'; seven_avg_col = c
+            elif '14일평균판매량' in n:
                 col_targets[c] = '14avg'
-            elif '8월평균판매량' in h:
+            elif '8월평균판매량' in n:
                 col_targets[c] = '8avg'
-            elif '8월 판매량' in h or '8월판매량' in h:
+            elif '8월판매량' in n:
                 col_targets[c] = '8sum'
-            elif '판매가능일수' in h:
+            elif '판매가능일수' in n:
                 col_targets[c] = 'days'
-            elif h.strip() == '총합계':
-                col_targets[c] = 'sepSum'
-
-        # 재고량 컬럼: "재고량" 정확 매칭 or "재고일" (실제 재고 수량이 들어있는 컬럼) 을 찾음.
-        # 잘못된 컬럼(재고현황 = 텍스트 카테고리) 피하려고 숫자 값인 것 우선.
-        stock_col = None
-        for c in range(1, max_col + 1):
-            h = headers.get(c, '').strip()
-            if h in ('재고량', '재고'):
+            elif n == '현재고':
                 stock_col = c
-                break
-        if stock_col is None:
-            # 폴백: 헤더 '재고일' 이면서 데이터가 정수형이면 실제 수량
-            for c in range(1, max_col + 1):
-                h = headers.get(c, '').strip()
-                if h == '재고일':
-                    sample = ws_v.cell(row=data_start, column=c).value
-                    if isinstance(sample, (int, float)) and not isinstance(sample, bool):
-                        stock_col = c
-                        break
+            elif '총합계' in n:
+                col_targets[c] = 'sepSum'
+            elif n == '원가':
+                col_targets[c] = 'cost'; cost_col = c
+            elif n == '원가총액':
+                col_targets[c] = 'costTotal'
+            elif n == '공급가(+VAT)':
+                col_targets[c] = 'supplyVat'; supply_vat_col = c
+            elif n == '공급가(-VAT)':
+                col_targets[c] = 'supplyNoVat'; supply_novat_col = c
+            elif n == '오아마진(-vat)':
+                col_targets[c] = 'margin'; margin_col = c
+            elif n == '오아총마진':
+                col_targets[c] = 'marginTotal'
+            elif n == '오아마진율':
+                col_targets[c] = 'marginRate'
+            elif n == '일일매출액':
+                col_targets[c] = 'dailyRev'
+            elif n == '총매출':
+                col_targets[c] = 'totalRev'; totalrev_col = c
+            elif n == '평균일매출':
+                col_targets[c] = 'avgDailyRev'
 
         formulas_added = 0
 
@@ -374,6 +419,31 @@ def preprocess_xlsx(src: Path) -> Path:
             if s[-1] - s[0] == len(s) - 1:
                 return f'{col_letter(s[0])}{row}:{col_letter(s[-1])}{row}'
             return ','.join(f'{col_letter(cc)}{row}' for cc in s)
+
+        # SKU ID 컬럼 (VLOOKUP 조회 키). 헤더에 'SKUID' 포함 매칭.
+        sku_id_col = None
+        for c in range(1, max_col + 1):
+            n = norm(headers.get(c, ''))
+            if 'SKUID' in n:
+                sku_id_col = c
+                break
+
+        # 마진테이블 시트 존재 확인 (없으면 VLOOKUP 스킵)
+        has_margin = MARGIN_SHEET in wb.sheetnames
+
+        # 총합계 컬럼 (BJ) - marginTotal/costTotal 등에서 참조
+        sep_sum_col = next((c for c, k in col_targets.items() if k == 'sepSum'), None)
+
+        # 9월 date columns 중 데이터가 있는 마지막 컬럼(=전일자) & 데이터 일수
+        sep_data_cols = sorted(sep_cols)  # 이미 데이터 있는 9월 date col 만
+        prev_day_col = sep_data_cols[-1] if sep_data_cols else None
+        sep_days_count = len(sep_data_cols)
+
+        def vlookup(sku_ref: str, col_idx: int) -> str:
+            return f"VLOOKUP({sku_ref},{MARGIN_LOOKUP_RANGE},{col_idx},FALSE)"
+
+        def iferror(inner: str, fallback: str = '""') -> str:
+            return f"IFERROR({inner},{fallback})"
 
         for r in range(data_start, max_row + 1):
             for c, kind in col_targets.items():
@@ -395,13 +465,40 @@ def preprocess_xlsx(src: Path) -> Path:
                 elif kind == '8sum':
                     rng = range_or_list(aug_cols, r)
                     if rng: f = f'=SUM({rng})'
-                elif kind == 'days' and stock_col and last7_cols:
-                    stock_ref = f'{col_letter(stock_col)}{r}'
-                    rng = range_or_list(last7_cols, r)
-                    f = f'=IF(AVERAGE({rng})=0,0,{stock_ref}/AVERAGE({rng}))'
+                elif kind == 'days' and stock_col and seven_avg_col:
+                    j = f'{col_letter(stock_col)}{r}'
+                    o = f'{col_letter(seven_avg_col)}{r}'
+                    f = f'=IF({o}=0,0,{j}/{o})'
                 elif kind == 'sepSum':
                     rng = range_or_list(sep_cols, r)
                     if rng: f = f'=SUM({rng})'
+                elif kind == 'cost' and has_margin and sku_id_col:
+                    sku_ref = f'{col_letter(sku_id_col)}{r}'
+                    f = '=' + iferror(vlookup(sku_ref, MARGIN_COL_COST), '0')
+                elif kind == 'costTotal' and cost_col and sep_sum_col:
+                    f = f'={col_letter(cost_col)}{r}*{col_letter(sep_sum_col)}{r}'
+                elif kind == 'supplyVat' and has_margin and sku_id_col:
+                    sku_ref = f'{col_letter(sku_id_col)}{r}'
+                    f = '=' + iferror(vlookup(sku_ref, MARGIN_COL_SUPPLY), '0')
+                elif kind == 'supplyNoVat' and has_margin and sku_id_col:
+                    sku_ref = f'{col_letter(sku_id_col)}{r}'
+                    supply = vlookup(sku_ref, MARGIN_COL_SUPPLY)
+                    vat = vlookup(sku_ref, MARGIN_COL_VAT)
+                    f = '=' + iferror(f'{supply}-{vat}', '0')
+                elif kind == 'margin' and has_margin and sku_id_col:
+                    sku_ref = f'{col_letter(sku_id_col)}{r}'
+                    f = '=' + iferror(vlookup(sku_ref, MARGIN_COL_MARGIN), '0')
+                elif kind == 'marginTotal' and margin_col and sep_sum_col:
+                    f = f'={col_letter(margin_col)}{r}*{col_letter(sep_sum_col)}{r}'
+                elif kind == 'marginRate' and has_margin and sku_id_col:
+                    sku_ref = f'{col_letter(sku_id_col)}{r}'
+                    f = '=' + iferror(vlookup(sku_ref, MARGIN_COL_RATE), '0')
+                elif kind == 'dailyRev' and prev_day_col and supply_novat_col:
+                    f = f'={col_letter(prev_day_col)}{r}*{col_letter(supply_novat_col)}{r}'
+                elif kind == 'totalRev' and sep_sum_col and supply_novat_col:
+                    f = f'={col_letter(sep_sum_col)}{r}*{col_letter(supply_novat_col)}{r}'
+                elif kind == 'avgDailyRev' and totalrev_col and sep_days_count > 0:
+                    f = f'={col_letter(totalrev_col)}{r}/{sep_days_count}'
                 if f:
                     ws.cell(row=r, column=c).value = f
                     formulas_added += 1
