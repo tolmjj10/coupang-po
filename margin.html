@@ -1539,7 +1539,7 @@ function pcRender(){
     const doneStyle = r.done ? 'opacity:0.55;background:#f2ede9;' : '';
     return `<tr data-id="${r._id}" style="${doneStyle}">
       <td style="padding:6px 6px;border-bottom:1px solid var(--hairline);text-align:center;">
-        <input class="pc-inp pc-date" data-k="date" type="date" value="${esc(r.date||pcTodayStr())}" style="width:100%;padding:6px 6px;border:1px solid var(--hairline);border-radius:6px;text-align:center;font-size:12px;background:${r.done?'#f8f5f2':'#fff'};color:var(--text);font-family:inherit;">
+        <input class="pc-inp pc-date" data-k="date" type="date" value="${esc(r.date||pcTodayStr())}" onclick="try{this.showPicker&&this.showPicker()}catch(_){}" onfocus="try{this.showPicker&&this.showPicker()}catch(_){}" style="width:100%;padding:6px 6px;border:1px solid var(--hairline);border-radius:6px;text-align:center;font-size:12px;background:${r.done?'#f8f5f2':'#fff'};color:var(--text);font-family:inherit;">
       </td>
       <td style="padding:6px 6px;border-bottom:1px solid var(--hairline);text-align:center;">
         <input class="pc-inp" data-k="sku" value="${esc(r.sku||'')}" style="width:100%;padding:6px 6px;border:1px solid var(--hairline);border-radius:6px;text-align:center;font-family:monospace;font-size:12px;background:${r.done?'#f8f5f2':'#fff'};" placeholder="SKU#">
