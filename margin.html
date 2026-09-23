@@ -299,20 +299,24 @@
   <main class="main">
     <div class="page-head">
       <div class="title-block">
-        <h1>마진테이블</h1>
+        <h1 id="pageTitle">마진테이블</h1>
         <div class="sub">
           <span id="status">불러오는 중…</span>
           <span id="saveInfo" class="save-info"></span>
         </div>
       </div>
+      <div class="page-head-actions" style="display:flex;gap:8px;">
+        <button class="btn ghost" id="btnBackToMargin" style="display:none;">← 마진테이블로</button>
+        <button class="btn" id="btnPriceChange" title="공급가 변경 시트로 이동">공급가 변경</button>
+      </div>
     </div>
 
+    <div id="marginView">
     <div class="toolbar">
       <div class="actions">
         <button class="btn primary" id="btnAdd">＋ 행 추가</button>
         <button class="btn" id="btnSave">저장</button>
         <button class="btn ghost" id="btnReload">새로고침</button>
-        <button class="btn ghost" id="btnPriceChange" title="공급가 변경 시트 열기">공급가 변경</button>
         <div class="divider"></div>
         <button class="btn ghost" id="btnUndo" title="되돌리기 (Ctrl+Z)" disabled>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
@@ -340,43 +344,41 @@
         <tbody id="tbody"></tbody>
       </table>
     </div>
-  </main>
-</div>
+    </div><!-- /#marginView -->
 
-<!-- ═══ 공급가 변경 모달 ═══ -->
-<div id="pcOverlay" style="display:none;position:fixed;inset:0;background:rgba(42,26,21,0.35);z-index:900;backdrop-filter:blur(2px);"></div>
-<div id="pcModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(1100px,94vw);max-height:86vh;background:var(--surface);border:1px solid var(--hairline-strong);border-radius:14px;box-shadow:var(--shadow-md);z-index:901;overflow:hidden;flex-direction:column;">
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--hairline);background:var(--surface-alt);">
-    <div style="display:flex;align-items:baseline;gap:10px;">
-      <h2 style="font-size:15px;font-weight:700;color:var(--text);">공급가 변경</h2>
-      <span style="font-size:11.5px;color:var(--hint);">SKU# 입력 → 기존값 자동 채움 · 변경 판매가 입력 시 <b style="color:var(--text);">31% 마진</b>으로 공급가 자동 계산 · 완료 체크 시 마진테이블에 반영</span>
+    <!-- ═══ 공급가 변경 뷰 ═══ -->
+    <div id="priceChangeView" style="display:none;">
+      <div class="toolbar">
+        <div class="actions">
+          <button class="btn primary" id="pcAdd">＋ 행 추가</button>
+        </div>
+        <div class="search">
+          <span style="font-size:11.5px;color:var(--hint);">SKU# 입력 → 기존값 자동 채움 · 변경 판매가 입력 시 <b style="color:var(--text);">31% 마진</b>으로 공급가 자동 계산 · 완료 체크 시 마진테이블에 반영</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="pcTbl" style="width:100%;border-collapse:separate;border-spacing:0;font-size:12px;white-space:nowrap;table-layout:fixed;">
+          <thead>
+            <tr>
+              <th style="width:96px;text-align:center;">SKU#</th>
+              <th style="text-align:left;">상품명</th>
+              <th style="width:100px;text-align:right;">기존 판매가</th>
+              <th style="width:100px;text-align:right;">기존 공급가</th>
+              <th style="width:108px;text-align:right;background:#f8f5f2;">변경 판매가</th>
+              <th style="width:108px;text-align:right;background:#f8f5f2;">변경 공급가</th>
+              <th style="width:64px;text-align:center;">완료</th>
+              <th style="width:44px;"></th>
+            </tr>
+          </thead>
+          <tbody id="pcTbody"></tbody>
+        </table>
+      </div>
+      <div style="padding:10px 4px 0;font-size:11.5px;color:var(--hint);display:flex;justify-content:space-between;align-items:center;">
+        <span id="pcStatus">0건</span>
+        <span>💡 변경 공급가는 수기 편집 가능 · 완료 체크 시 마진테이블의 매입가(= 공급가 × 1.1)와 소비자가를 갱신함</span>
+      </div>
     </div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn primary" id="pcAdd">＋ 행 추가</button>
-      <button class="btn ghost" id="pcClose">닫기</button>
-    </div>
-  </div>
-  <div style="overflow:auto;flex:1;padding:0;">
-    <table id="pcTbl" style="width:100%;border-collapse:separate;border-spacing:0;font-size:12px;table-layout:fixed;">
-      <thead>
-        <tr style="background:var(--surface-alt);">
-          <th style="padding:10px 8px;border-bottom:1px solid var(--hairline);text-align:center;font-weight:600;color:var(--muted);width:90px;">SKU#</th>
-          <th style="padding:10px 8px;border-bottom:1px solid var(--hairline);text-align:left;font-weight:600;color:var(--muted);">상품명</th>
-          <th style="padding:10px 8px;border-bottom:1px solid var(--hairline);text-align:right;font-weight:600;color:var(--muted);width:96px;">기존 판매가</th>
-          <th style="padding:10px 8px;border-bottom:1px solid var(--hairline);text-align:right;font-weight:600;color:var(--muted);width:96px;">기존 공급가</th>
-          <th style="padding:10px 8px;border-bottom:1px solid var(--hairline);text-align:right;font-weight:600;color:var(--muted);width:104px;background:#f8f5f2;">변경 판매가</th>
-          <th style="padding:10px 8px;border-bottom:1px solid var(--hairline);text-align:right;font-weight:600;color:var(--muted);width:104px;background:#f8f5f2;">변경 공급가</th>
-          <th style="padding:10px 8px;border-bottom:1px solid var(--hairline);text-align:center;font-weight:600;color:var(--muted);width:64px;">완료</th>
-          <th style="padding:10px 8px;border-bottom:1px solid var(--hairline);width:36px;"></th>
-        </tr>
-      </thead>
-      <tbody id="pcTbody"></tbody>
-    </table>
-  </div>
-  <div style="padding:10px 18px;border-top:1px solid var(--hairline);background:var(--surface-alt);font-size:11.5px;color:var(--hint);display:flex;justify-content:space-between;align-items:center;">
-    <span id="pcStatus">0건</span>
-    <span>💡 변경 공급가는 수기 편집 가능 · 완료 체크 시 마진테이블의 매입가(= 공급가 × 1.1)와 소비자가를 갱신함</span>
-  </div>
+  </main>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1488,14 +1490,19 @@ function pcRender(){
   document.getElementById('pcStatus').textContent = `${pcRows.length}건${doneCnt?' · 완료 '+doneCnt+'건':''}`;
 }
 function pcOpen(){
-  document.getElementById('pcOverlay').style.display = 'block';
-  const m = document.getElementById('pcModal');
-  m.style.display = 'flex';
+  document.getElementById('marginView').style.display = 'none';
+  document.getElementById('priceChangeView').style.display = 'block';
+  document.getElementById('btnPriceChange').style.display = 'none';
+  document.getElementById('btnBackToMargin').style.display = 'inline-flex';
+  document.getElementById('pageTitle').textContent = '공급가 변경';
   pcRender();
 }
 function pcCloseFn(){
-  document.getElementById('pcOverlay').style.display = 'none';
-  document.getElementById('pcModal').style.display = 'none';
+  document.getElementById('priceChangeView').style.display = 'none';
+  document.getElementById('marginView').style.display = 'block';
+  document.getElementById('btnBackToMargin').style.display = 'none';
+  document.getElementById('btnPriceChange').style.display = 'inline-flex';
+  document.getElementById('pageTitle').textContent = '마진테이블';
 }
 function pcApplyToMargin(r){
   const target = pcLookupBySku(r.sku);
@@ -1511,11 +1518,8 @@ function pcApplyToMargin(r){
   return true;
 }
 
-document.getElementById('btnPriceChange').addEventListener('click', ()=>{
-  pcOpen();
-});
-document.getElementById('pcClose').addEventListener('click', pcCloseFn);
-document.getElementById('pcOverlay').addEventListener('click', pcCloseFn);
+document.getElementById('btnPriceChange').addEventListener('click', pcOpen);
+document.getElementById('btnBackToMargin').addEventListener('click', pcCloseFn);
 document.getElementById('pcAdd').addEventListener('click', ()=>{
   pcRows.push(pcBlankRow());
   pcSave(); pcRender();
@@ -1590,7 +1594,7 @@ document.getElementById('pcTbody').addEventListener('click', ev=>{
   pcSave(); pcRender();
 });
 document.addEventListener('keydown', ev=>{
-  if(ev.key === 'Escape' && document.getElementById('pcModal').style.display === 'flex'){
+  if(ev.key === 'Escape' && document.getElementById('priceChangeView').style.display === 'block'){
     pcCloseFn();
   }
 });
