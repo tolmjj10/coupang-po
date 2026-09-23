@@ -351,6 +351,8 @@
       <div class="toolbar">
         <div class="actions">
           <button class="btn primary" id="pcAdd">＋ 행 추가</button>
+          <button class="btn" id="pcSave">저장</button>
+          <span id="pcSaveInfo" class="save-info" style="margin-left:6px;font-size:11.5px;color:var(--hint);"></span>
         </div>
         <div class="search">
           <span style="font-size:11.5px;color:var(--hint);">SKU# 입력 → 기존값 자동 채움 · 변경 판매가 입력 시 <b style="color:var(--text);">31% 마진</b>으로 공급가 자동 계산 · 완료 체크 시 마진테이블에 반영</span>
@@ -1417,12 +1419,18 @@ document.addEventListener('mousedown', ev=>{
 window.addEventListener('scroll', _psHide, true);
 document.addEventListener('keydown', ev=>{ if(ev.key==='Escape') _psHide(); });
 
-/* ═══════════════════════ 공급가 변경 모달 ═══════════════════════ */
+/* ═══════════════════════ 공급가 변경 뷰 ═══════════════════════ */
 const PC_STORAGE_KEY = 'coupang_margin_price_change_v1';
+const PC_API = '/api/price-change-state';
 const PC_MARGIN_RATE = 0.31; // 공급가 = 판매가 × (1 - 0.31)
+const PC_AUTOSAVE_MS = 60 * 1000;
 let pcRows = [];
+let pcDirty = false;
+let pcSaving = false;
+let pcLastSavedAt = null;
+let pcAutosaveTimer = null;
 
-function pcLoad(){
+function pcLoadLocal(){
   try{
     const raw = localStorage.getItem(PC_STORAGE_KEY);
     if(raw){
@@ -1432,11 +1440,65 @@ function pcLoad(){
   } catch(_){}
   if(!pcRows.length) pcRows = [pcBlankRow()];
 }
-function pcSave(){
+async function pcLoadRemote(){
+  try{
+    const res = await fetch(PC_API, { cache: 'no-store' });
+    if(!res.ok) return false;
+    const parsed = await res.json();
+    if(Array.isArray(parsed) && parsed.length){
+      pcRows = parsed.map(r=>({ _id: uid(), ...r }));
+      pcPersistLocal();
+      return true;
+    }
+  } catch(_){}
+  return false;
+}
+function pcPersistLocal(){
   try{
     const persist = pcRows.map(({_id, ...rest})=>rest);
     localStorage.setItem(PC_STORAGE_KEY, JSON.stringify(persist));
   } catch(_){}
+}
+function pcMarkDirty(){
+  pcDirty = true;
+  pcPersistLocal();
+  pcUpdateSaveInfo();
+}
+function pcUpdateSaveInfo(){
+  const el = document.getElementById('pcSaveInfo');
+  if(!el) return;
+  if(pcSaving){ el.textContent = '저장 중…'; return; }
+  if(pcDirty){ el.textContent = '● 변경사항 있음'; return; }
+  if(pcLastSavedAt){
+    const d = new Date(pcLastSavedAt);
+    el.textContent = '저장됨 · ' + d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+  } else el.textContent = '';
+}
+async function pcSaveRemote(){
+  if(pcSaving) return;
+  pcSaving = true; pcUpdateSaveInfo();
+  try{
+    const payload = pcRows.map(({_id, ...rest})=>rest);
+    const res = await fetch(PC_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    pcDirty = false;
+    pcLastSavedAt = Date.now();
+    pcPersistLocal();
+  } catch(e){
+    showToast('공급가 변경 저장 실패: ' + e.message, '#b04a3a');
+  } finally {
+    pcSaving = false; pcUpdateSaveInfo();
+  }
+}
+function pcStartAutosave(){
+  if(pcAutosaveTimer) return;
+  pcAutosaveTimer = setInterval(()=>{
+    if(pcDirty && !pcSaving) pcSaveRemote();
+  }, PC_AUTOSAVE_MS);
 }
 function pcBlankRow(){
   return { _id: uid(), sku:'', name:'', oldPrice:null, oldSupply:null, newPrice:null, newSupply:null, newSupplyManual:false, done:false };
@@ -1522,7 +1584,7 @@ document.getElementById('btnPriceChange').addEventListener('click', pcOpen);
 document.getElementById('btnBackToMargin').addEventListener('click', pcCloseFn);
 document.getElementById('pcAdd').addEventListener('click', ()=>{
   pcRows.push(pcBlankRow());
-  pcSave(); pcRender();
+  pcMarkDirty(); pcRender();
 });
 document.getElementById('pcTbody').addEventListener('input', ev=>{
   const inp = ev.target.closest('.pc-inp');
@@ -1544,7 +1606,7 @@ document.getElementById('pcTbody').addEventListener('input', ev=>{
     r.newSupply = pcParseNum(inp.value);
     r.newSupplyManual = (r.newSupply != null);
   }
-  pcSave();
+  pcMarkDirty();
 });
 document.getElementById('pcTbody').addEventListener('change', ev=>{
   const inp = ev.target.closest('.pc-inp');
@@ -1562,7 +1624,7 @@ document.getElementById('pcTbody').addEventListener('change', ev=>{
     if(!r.newSupplyManual && r.newPrice != null){
       r.newSupply = Math.round(r.newPrice * (1 - PC_MARGIN_RATE));
     }
-    pcSave(); pcRender();
+    pcMarkDirty(); pcRender();
     return;
   }
   const chk = ev.target.closest('.pc-done');
@@ -1582,7 +1644,7 @@ document.getElementById('pcTbody').addEventListener('change', ev=>{
     } else {
       r.done = false;
     }
-    pcSave(); pcRender();
+    pcMarkDirty(); pcRender();
   }
 });
 document.getElementById('pcTbody').addEventListener('click', ev=>{
@@ -1591,14 +1653,18 @@ document.getElementById('pcTbody').addEventListener('click', ev=>{
   const tr = del.closest('tr'); if(!tr) return;
   pcRows = pcRows.filter(x=>x._id !== tr.dataset.id);
   if(!pcRows.length) pcRows.push(pcBlankRow());
-  pcSave(); pcRender();
+  pcMarkDirty(); pcRender();
 });
 document.addEventListener('keydown', ev=>{
   if(ev.key === 'Escape' && document.getElementById('priceChangeView').style.display === 'block'){
     pcCloseFn();
   }
 });
-pcLoad();
+pcLoadLocal();
+pcLoadRemote().then(hadRemote => { if(hadRemote){ pcUpdateSaveInfo(); if(document.getElementById('priceChangeView').style.display==='block') pcRender(); } });
+pcStartAutosave();
+window.addEventListener('focus', ()=>{ if(!pcDirty) pcLoadRemote().then(had=>{ if(had && document.getElementById('priceChangeView').style.display==='block') pcRender(); }); });
+document.getElementById('pcSave').addEventListener('click', pcSaveRemote);
 
 load();
 </script>
