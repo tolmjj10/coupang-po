@@ -964,6 +964,9 @@ async function loadRemote() {
     const res = await fetch(API_URL, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const remote = await res.json();
+    /* fetch 중에 사용자가 편집했다면 원격본으로 덮지 않음 (경쟁 조건 방지) */
+    if (_isDirty) return;
+    if (Date.now() < _suppressRemoteLoadUntil) return;
     const p = _parsePayload(remote);
     if (p.rows.length > 0) {
       data = p.rows;
@@ -1043,6 +1046,8 @@ function save() {
   _prevSnapshot = JSON.stringify(data);
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts }));
   _isDirty = true;
+  /* 편집 직후 진행 중이거나 곧 시작할 원격 로드가 로컬을 덮지 않도록 억제 (다음 자동저장 주기 + 여유) */
+  _suppressRemoteLoadUntil = Date.now() + 90 * 1000;
   const el = document.getElementById('saveStatus');
   if (el) el.textContent = '● 미저장 (자동 저장 대기 중)';
   refreshUndoUI();
