@@ -366,6 +366,7 @@ td { padding: 9px 11px; vertical-align: middle; }
 .qty-stock { font-size: 12.5px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: 0.1px; }
 .qty-stock.oaa-low { background: #fef08a; color: #854d0e; font-weight: 700; padding: 2px 8px; border-radius: 5px; }
 .qty-stock.oaa-zero { background: #fee2e2; color: #b91c1c; font-weight: 700; padding: 2px 8px; border-radius: 5px; }
+.qty-stock.halved { color: #2563eb !important; }
 /* DOC 강조: 10일 미만 */
 .doc-cell.doc-low { color: #dc2626; font-weight: 800; }
 /* 중복 SKU: 셀 자체만 약한 빨강 배경 */
@@ -997,8 +998,10 @@ function runMatch(){
     { sku:'64778161', targetProcode:'A02799' },  // 오아베이직빗고데기-블루 → (FV)-블루 재고(A02799) 사용
     { sku:'77463489', targetProcode:'A03267' },
     { sku:'77463490', targetProcode:'A03268' },
-    { sku:'12434130', targetProcode:'E0186' },   // 오아클린이소프트리필칫솔모4P-블랙 → 2P-블랙 재고 사용
-    { sku:'11671480', targetProcode:'E0185' }    // 오아클린이소프트리필칫솔모4P-화이트 → 2P-화이트 재고 사용
+    { sku:'12434130', targetProcode:'E0186', halve:true },  // 리필칫솔모4P-블랙 → 2P-블랙 재고 / 반으로 표시
+    { sku:'11671480', targetProcode:'E0185', halve:true },  // 리필칫솔모4P-화이트 → 2P-화이트 재고 / 반으로 표시
+    { sku:'14134778', targetProcode:'E0235', halve:true },  // 미세모2P-블랙 (4P와 재고 공유) / 반으로 표시
+    { sku:'14134779', targetProcode:'E0233', halve:true }   // 미세모2P-화이트 (4P와 재고 공유) / 반으로 표시
   ];
   PROCODE_OVERRIDES.forEach(ov=>{
     const skuKey=norm(ov.sku);
@@ -1007,6 +1010,7 @@ function runMatch(){
     } else {
       masterMap[skuKey].procode=ov.targetProcode;
     }
+    if(ov.halve) masterMap[skuKey].halve=true;
   });
 
   /* ── Stock map ── 포항 창고 행만 취합, 동일 상품코드는 합산 */
@@ -1098,7 +1102,8 @@ function runMatch(){
       if(hit){ procode=hit; procodeFromName=true; }
     }
     const stockEntry =procode?stockMap[norm(procode)]:null;
-    const stockQty   =stockEntry?stockEntry.qty:null;
+    const stockHalved=!!(masterEntry && masterEntry.halve && stockEntry);
+    const stockQty   =stockEntry?(stockHalved?Math.floor(stockEntry.qty/2):stockEntry.qty):null;
 
     /* 판매재고 매칭: SKU ID로 피벗에서 조회 */
     const pivotEntry=sp?.pivot[norm(orderSku)]||null;
@@ -1143,7 +1148,7 @@ function runMatch(){
       procode:procode||null,
       masterName:masterEntry?.name||(marginMatched?mgEntry.name:''),
       stockName:stockEntry?.displayName||(marginMatched?mgEntry.name:''),
-      orderQty, stockQty, status,
+      orderQty, stockQty, stockHalved, status,
       diff:stockQty!==null?stockQty-orderQty:null,
       noMaster:!masterEntry && !marginMatched && !procodeFromName,
       noStock:(!!masterEntry||marginMatched||procodeFromName) && !stockEntry,
@@ -1356,7 +1361,9 @@ function renderAll(){
       let stockCell;
       if(r.stockQty!==null){
         const oaaCls=r.stockQty===0?' oaa-zero':(r.stockQty<500?' oaa-low':'');
-        stockCell=`<span class="qty-stock ${r.status}${oaaCls}">${r.stockQty.toLocaleString()}</span>`;
+        const halvedCls=r.stockHalved?' halved':'';
+        const halvedTitle=r.stockHalved?' title="공유 재고 - 반으로 표시"':'';
+        stockCell=`<span class="qty-stock ${r.status}${oaaCls}${halvedCls}"${halvedTitle}>${r.stockQty.toLocaleString()}</span>`;
       } else if(r.noMaster){
         stockCell=`<span class="qty-stock unmatched">마스터 없음</span>`;
       } else if(r.noStock){
