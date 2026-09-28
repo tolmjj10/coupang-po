@@ -996,7 +996,9 @@ function runMatch(){
   const PROCODE_OVERRIDES=[
     { sku:'64778161', targetProcode:'A02799' },  // 오아베이직빗고데기-블루 → (FV)-블루 재고(A02799) 사용
     { sku:'77463489', targetProcode:'A03267' },
-    { sku:'77463490', targetProcode:'A03268' }
+    { sku:'77463490', targetProcode:'A03268' },
+    { sku:'12434130', targetProcode:'E0186' },   // 오아클린이소프트리필칫솔모4P-블랙 → 2P-블랙 재고 사용
+    { sku:'11671480', targetProcode:'E0185' }    // 오아클린이소프트리필칫솔모4P-화이트 → 2P-화이트 재고 사용
   ];
   PROCODE_OVERRIDES.forEach(ov=>{
     const skuKey=norm(ov.sku);
