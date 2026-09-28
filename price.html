@@ -1046,10 +1046,8 @@ function render(state) {
       const priceCls = `c-price${exCls}${manCls}${priceVal==='-'?' dash':''}${priceChanged?' changed':''}`;
       cells.push(`<td class="${baseCls}" data-date="${cm.date}"${editAttr}>${baseVal}</td>`);
       cells.push(`<td class="${priceCls}" data-date="${cm.date}"${editAttrP}>${priceVal}</td>`);
-      if (!cm.isExtra) {
-        if (r.basePrice != null) prevBase = r.basePrice;
-        if (r.price != null) prevPrice = r.price;
-      }
+      if (r.basePrice != null) prevBase = r.basePrice;
+      if (r.price != null) prevPrice = r.price;
     }
     visibleIdx += 1;
     const sc = siteColor(site);
