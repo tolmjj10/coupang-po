@@ -666,7 +666,7 @@ const guesses={
   'master-name':   ['상품명','제품명','품명','name','product'],
   'stock-procode': ['상품코드(단품)','상품코드','프로코드','procode','pro_code','pro코드','관리코드','코드','프로'],
   'stock-name':    ['상품명','제품명','품명','name','product','상품'],
-  'stock-qty':     ['재고','재고수량','수량','qty','quantity','stock','available','가용'],
+  'stock-qty':     ['발송 가능','발송가능','발송 가능 재고','재고','재고수량','수량','qty','quantity','stock','available','가용'],
   'sales-sku':     ['sku id','skuid','sku_id','옵션코드','vendoritemid','상품코드'],
   'sales-date':    ['날짜','date','일자','기준일'],
   'sales-out':     ['출고수량','출고','outqty','판매수량','shipped'],
@@ -874,7 +874,7 @@ function loadFile(type,input){
       /* 상품코드 기본 — 신규 파일은 '상품코드(단품)', 구파일은 '상품코드' */
       fillSelect('m-stock-procode',cols,'stock-procode',false,'상품코드(단품)');
       fillSelect('m-stock-name',cols,'stock-name');
-      fillSelect('m-stock-qty',cols,'stock-qty',false,'발송 가능 재고');
+      fillSelect('m-stock-qty',cols,'stock-qty',false,'발송 가능');
       /* 운송 중 컬럼이 있으면 같이 추출 */
       transitMap={};
       const tCol=cols.find(h=>norm(h)==='운송중'||norm(h)==='운송 중');
@@ -2087,7 +2087,7 @@ async function saveResult(mode){
       document.getElementById('card-stock').classList.add('loaded');
       fillSelect('m-stock-procode', cols, 'stock-procode', false, '상품코드(단품)');
       fillSelect('m-stock-name',    cols, 'stock-name');
-      fillSelect('m-stock-qty',     cols, 'stock-qty', false, '발송 가능 재고');
+      fillSelect('m-stock-qty',     cols, 'stock-qty', false, '발송 가능');
       transitMap = {};
       var tCol = cols.find(function(h){ return norm(h)==='운송중' || norm(h)==='운송 중'; });
       var cCol = cols.find(function(h){ return norm(h)==='상품코드'; });
