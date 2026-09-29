@@ -584,6 +584,36 @@ function initMaster(){
 
 window.addEventListener('DOMContentLoaded', initMaster);
 
+/* ═══════════════════════ 프리즌 SKU→프로코드 (누적 스냅샷) ═══════════════════════
+   SKU 와 프로코드의 대응 관계는 바뀌지 않는다는 전제로,
+   과거에 한 번이라도 매칭에 성공한 (SKU, procode) 쌍을 localStorage 에 눌러붙여둔다.
+   → 매입가.xlsx 나 제품현황.xlsx 상태와 상관없이 이전에 확정된 매칭은 계속 유지되고,
+     새 SKU 만 아래의 이름 폴백 로직을 태우게 된다. */
+let frozenSkuProcodeMap = {}; // { normalizedSku: procode }
+const FROZEN_KEY = 'po_frozen_sku_procode';
+try {
+  const raw = localStorage.getItem(FROZEN_KEY);
+  if (raw) {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') frozenSkuProcodeMap = parsed;
+  }
+} catch(_) {}
+function persistFrozenMap(newlyMatched) {
+  let changed = false;
+  newlyMatched.forEach(r => {
+    const sku = norm(r.orderSku);
+    const pc = String(r.procode||'').trim();
+    if (!sku || !pc) return;
+    if (frozenSkuProcodeMap[sku] !== pc) {
+      frozenSkuProcodeMap[sku] = pc;
+      changed = true;
+    }
+  });
+  if (changed) {
+    try { localStorage.setItem(FROZEN_KEY, JSON.stringify(frozenSkuProcodeMap)); } catch(_){}
+  }
+}
+
 /* ═══════════════════════ 마진테이블 매입가 로드 ═══════════════════════ */
 let marginPriceMap = {};   // { normalizedSku: cost(매입가) } — 하위 호환용
 let marginProductMap = {}; // { normalizedSku: {name, cost} } — 미매칭 SKU 를 마진테이블로 인식하기 위한 확장 맵
@@ -639,6 +669,69 @@ window.addEventListener('DOMContentLoaded', loadMarginPrices);
 setInterval(loadMarginPrices, 60000);
 // 창이 포커스될 때도 즉시 재확인 (탭 전환 후 복귀 시)
 window.addEventListener('focus', loadMarginPrices);
+
+/* ═══════════════════════ 제품 현황 조회 (상품명 → 프로코드) 폴백 소스 ═══════════════════════
+   매입가.xlsx 업로드가 뜸해지면서 신제품의 SKU→프로코드 매핑이 누락되는 문제를 보완.
+   `newproduct/new/제품 현황 조회_*.xlsx` 를 GitHub 에서 직접 로드해
+   상품명 기준(제품명 → 프로코드) 폴백 맵을 만든다. */
+let productStatusNameMap = {}; // { normalizedName: procode }
+async function loadProductStatus() {
+  try {
+    const cached = localStorage.getItem('po_prodstatus_cache');
+    if (cached) {
+      const m = JSON.parse(cached);
+      if (m && typeof m === 'object') productStatusNameMap = m;
+    }
+  } catch (_) {}
+  try {
+    const listUrl = 'https://api.github.com/repos/tolmjj10/coupang-po/contents/' + encodeURI('newproduct/new') + '?ref=main';
+    const listRes = await fetch(listUrl, { headers: { 'Accept': 'application/vnd.github+json' } });
+    if (!listRes.ok) { console.warn('[po] 제품현황 list HTTP', listRes.status); return; }
+    const files = await listRes.json();
+    const NAME_RE = /^제품\s*현황\s*조회.*\.xlsx?$/i;
+    const matches = (files||[]).filter(f=>f.type==='file' && NAME_RE.test(f.name));
+    if (!matches.length) return;
+    matches.sort((a,b)=> a.name < b.name ? 1 : a.name > b.name ? -1 : 0);
+    const target = matches[0];
+    const abRes = await fetch(target.download_url);
+    if (!abRes.ok) return;
+    const ab = await abRes.arrayBuffer();
+    const wb = XLSX.read(ab, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const aoa = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+    if (aoa.length < 2) return;
+    let hIdx = -1;
+    for (let i=0; i<Math.min(aoa.length,15); i++) {
+      const row = (aoa[i]||[]).map(v=>String(v||'').trim());
+      if (row.some(c=>c==='제품명')) { hIdx = i; break; }
+    }
+    if (hIdx < 0) return;
+    const header = (aoa[hIdx]||[]).map(v=>String(v||'').trim());
+    const nameCol = header.findIndex(h=>h==='제품명');
+    const codeCol = header.findIndex(h=>/^(상품\s*코드|프로\s*코드|product\s*code)$/i.test(h));
+    if (nameCol < 0 || codeCol < 0) return;
+    const map = {};
+    for (let r=hIdx+1; r<aoa.length; r++) {
+      const row = aoa[r]||[];
+      const name = norm(row[nameCol]);
+      const code = String(row[codeCol]||'').trim();
+      if (!name || !code) continue;
+      if (!map[name]) map[name] = code;
+    }
+    const prevCount = Object.keys(productStatusNameMap).length;
+    productStatusNameMap = map;
+    try { localStorage.setItem('po_prodstatus_cache', JSON.stringify(map)); } catch(_) {}
+    console.log('[po] 제품현황 로드', Object.keys(map).length, '건 (파일:', target.name + ')');
+    if (typeof matchedRows !== 'undefined' && matchedRows && matchedRows.length &&
+        Object.keys(map).length !== prevCount && typeof runMatch === 'function') {
+      console.log('[po] 제품현황 변경 감지 → 자동 재매칭');
+      try { runMatch(); } catch(_){}
+    }
+  } catch (e) { console.warn('[po] loadProductStatus 실패:', e.message); }
+}
+window.addEventListener('DOMContentLoaded', loadProductStatus);
+window.addEventListener('focus', loadProductStatus);
+setInterval(loadProductStatus, 5 * 60000); // 5분 폴링
 
 /* ═══════════════════════ EXCLUDED BRANDS ═══════════════════════ */
 const ALLOWED_BRAND_PREFIXES=['오아','보아르'];
@@ -1096,11 +1189,22 @@ function runMatch(){
 
     const masterEntry=masterMap[norm(orderSku)];
     let procode      =masterEntry?masterEntry.procode:null;
-    /* 마스터에 없으면 상품명(전산명 완전 일치)으로 폴백 */
+    /* 프리즌 맵: 과거에 확정된 SKU→procode 는 매입가/제품현황 상태와 무관하게 계속 유지 */
+    if(!procode){
+      const frozen=frozenSkuProcodeMap[norm(orderSku)];
+      if(frozen) procode=frozen;
+    }
+    /* 마스터·프리즌에 없으면 상품명(전산명 완전 일치)으로 폴백 */
     let procodeFromName=false;
     if(!procode){
       const hit=stockNameToProcode[norm(orderName)];
       if(hit){ procode=hit; procodeFromName=true; }
+    }
+    /* 여전히 없으면 '제품 현황 조회' xlsx (제품명 → 프로코드) 로 폴백 —
+       매입가.xlsx 를 업로드하지 않아도 신제품이 매칭되도록. */
+    if(!procode){
+      const hit2=productStatusNameMap[norm(orderName)];
+      if(hit2){ procode=hit2; procodeFromName=true; }
     }
     const stockEntry =procode?stockMap[norm(procode)]:null;
     const stockHalved=!!(masterEntry && masterEntry.halve && stockEntry);
@@ -1168,6 +1272,9 @@ function runMatch(){
   const _dupCnt={};
   matchedRows.forEach(r=>{ const s=norm(r.orderSku); if(s) _dupCnt[s]=(_dupCnt[s]||0)+1; });
   matchedRows.forEach(r=>{ const s=norm(r.orderSku); r.isDup=!!(s && _dupCnt[s]>1); });
+
+  /* 이번 매칭에서 확정된 (SKU, procode) 를 프리즌 맵에 눌러붙임 → 다음 실행부터 고정 */
+  persistFrozenMap(matchedRows);
 
   renderStats();
   renderAll();
@@ -2229,9 +2336,9 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
 (function(){
   var CFG=window.__VOAR_REPO__;
   var PATTERNS={
-    order:  /^발주리스트/,
+    order:  /^(발주리스트|PO_SKU_LIST)/i,
     sales:  /^(일일판매|\d{8})/,
-    stock:  /^전산재고/,
+    stock:  /^(전산재고|제품\s*현황\s*조회)/,
     master: /^매입가/,
     issue:  /^이슈제품/
   };
