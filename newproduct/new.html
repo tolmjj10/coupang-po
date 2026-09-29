@@ -632,15 +632,8 @@
     border-color: var(--accent) !important;
   }
 
-  input.real-name.has-memo {
-    background: #fff4f3;
-    border-color: #f0b6b1 !important;
-    color: #a4423b;
-    font-weight: 600;
-  }
-  input.real-name.has-memo:hover { background: #ffe9e7; }
-  input.real-name.has-memo:focus { background: #ffffff; }
-  /* 입고예정일 / 상세전달일자 셀에 메모가 있으면 셀 우측 상단에 작은 노란 점 표시 */
+  /* 메모가 있는 셀(전산명 / 입고예정일 / 상세전달일자 / 로켓·벤플·광고·윙)은
+     셀 우측 상단에 작은 갈색 점만 표시. 배경·글씨색은 변경하지 않는다. */
   td.cell-has-memo { position: relative; }
   td.cell-has-memo::after {
     content: '';
@@ -1458,15 +1451,15 @@ function render() {
           </select>
         </td>
         <td><input type="text" class="reg-name ${row.regName ? 'filled' : ''}" value="${esc(row.regName)}" title="${esc(row.regName)}" placeholder="✎ 등록시 기입" oninput="upd('${row.id}','regName',this.value); this.classList.toggle('filled', !!this.value); this.title=this.value;"></td>
-        <td>${(() => {
+        <td class="${row.memo?'cell-has-memo':''}">${(() => {
           const _mdl = getModelForName(row.realName);
           const _sku = getSkuForName(row.realName);
           const _hasInfo = (_mdl || _sku) ? ' has-model' : '';
           const _nameTrim = (row.realName || '').trim();
           const _isDup = _nameTrim && _dupCounts[_nameTrim] > 1;
           const _dupCls = _isDup ? ' is-dup' : '';
-          const _title = _isDup ? '⚠ 중복 전산명 (기존 신제품과 이름이 같음)' : (row.memo ? '📝 ' + esc(row.memo) : esc(row.realName));
-          return `<input type="text" class="real-name ${row.memo?'has-memo':''}${_hasInfo}${_dupCls}" value="${esc(row.realName)}" title="${_title}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value); refreshDupHighlight();" oninput="refreshDupHighlight()" onmousedown="window.__rnRightClick=(event.button===2)" oncontextmenu="editMemo(event,'${row.id}')" onfocus="if(!window.__rnRightClick) showRealNameInfo(this,'${row.id}'); window.__rnRightClick=false;">`;
+          const _title = _isDup ? '⚠ 중복 전산명 (기존 신제품과 이름이 같음)' : (row.memo ? '📝 ' + esc(row.memo) + ' (우클릭: 메모 편집)' : (esc(row.realName) || '우클릭: 메모 추가'));
+          return `<input type="text" class="real-name${_hasInfo}${_dupCls}" value="${esc(row.realName)}" title="${_title}" placeholder="전산명" onchange="upd('${row.id}','realName',this.value); refreshDupHighlight();" oninput="refreshDupHighlight()" onmousedown="window.__rnRightClick=(event.button===2)" oncontextmenu="editMemo(event,'${row.id}')" onfocus="if(!window.__rnRightClick) showRealNameInfo(this,'${row.id}'); window.__rnRightClick=false;">`;
         })()}</td>
         <td>
           <div class="date-cell">
@@ -1523,7 +1516,11 @@ function syncCalTrigger(input) {
 
 function checkCell(row, key) {
   const item = row[key];
-  return `<td class="check-cell">
+  const memoKey = 'memo' + key.charAt(0).toUpperCase() + key.slice(1); // memoRocket, memoVenple, memoAd, memoWing
+  const memoVal = row[memoKey] || '';
+  const cellCls = 'check-cell' + (memoVal ? ' cell-has-memo' : '');
+  const cellTitle = memoVal ? '📝 ' + esc(memoVal) + ' (우클릭: 메모 편집)' : '우클릭: 메모 추가';
+  return `<td class="${cellCls}" oncontextmenu="editMemo(event,'${row.id}','${memoKey}')" title="${cellTitle}">
     <div class="chk-row">
       <input type="checkbox" ${item.done?'checked':''} onchange="updCheck('${row.id}','${key}',this.checked)">
       <label class="cal-trigger ${item.date?'has-date':''}" title="날짜 선택">${CAL_SVG}<span class="date-txt">${item.date||''}</span><input type="date" min="2026-01-01" value="${item.date||''}" onchange="updCheckDate('${row.id}','${key}',this.value); syncCalTrigger(this);"></label>
@@ -1635,7 +1632,7 @@ function openDetail(id) {
   window.open(url, '_blank');
 }
 let memoTargetId = null;
-let memoTargetKey = 'memo'; // 어떤 필드의 메모를 편집 중인지 — 'memo'(전산명), 'memoArrival'(입고예정일), 'memoDetail'(상세전달일자)
+let memoTargetKey = 'memo'; // 'memo'(전산명) | 'memoArrival'(입고예정일) | 'memoDetail'(상세전달일자) | 'memoRocket' | 'memoVenple' | 'memoAd' | 'memoWing'
 function editMemo(ev, id, key) {
   ev.preventDefault();
   hideRealNameInfo(); // 우클릭 메모 팝오버가 뜰 땐 SKU/모델 팝오버는 감춤
