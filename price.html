@@ -906,6 +906,8 @@ function render(state) {
   const history = (state && state.history) || {};
   const order = (state && state.order) || [];
   const skuMap = (state && state.skuMap) || {};  // vendorItemId → SKU_ID
+  const skuNameMap = (state && state.skuNameMap) || {};  // 상품명(normalized) → SKU_ID (viid 폴백)
+  const _normName = s => String(s||'').replace(/\s+/g,'').toLowerCase();
 
   const productKeys = Object.keys(history);
   const total = productKeys.length;
@@ -1118,22 +1120,29 @@ function render(state) {
 }
 
 async function fetchSkuMapFromMargin() {
-  // 마진테이블 state에서 {viid: sku} 매핑 생성 (VIID 기준 매칭)
+  /* 마진테이블 state에서 viid → sku 및 이름 → sku 두 맵을 만든다.
+     신제품은 viid/pid가 비어있는 경우가 많아 viid 매칭이 실패하므로,
+     상품명(공백 제거·소문자) 기준 폴백을 함께 반환. */
   try {
     const r = await fetch('/api/margin-state?t=' + Date.now(), { cache: 'no-store' });
-    if (!r.ok) return {};
+    if (!r.ok) return { viidMap: {}, nameMap: {} };
     const data = await r.json();
     const rows = Array.isArray(data) ? data : (data.rows || []);
-    const map = {};
+    const viidMap = {};
+    const nameMap = {};
+    const normName = s => String(s||'').replace(/\s+/g,'').toLowerCase();
     for (const row of rows) {
       const viid = String(row.viid || '').trim();
       const sku = String(row.sku || '').trim();
-      if (viid && sku) map[viid] = sku;
+      const name = normName(row.name);
+      if (!sku) continue;
+      if (viid) viidMap[viid] = sku;
+      if (name && !nameMap[name]) nameMap[name] = sku;
     }
-    return map;
+    return { viidMap, nameMap };
   } catch (e) {
     console.warn('margin-state fetch 실패:', e);
-    return {};
+    return { viidMap: {}, nameMap: {} };
   }
 }
 
@@ -1163,13 +1172,14 @@ async function load() {
   const st = document.getElementById('status');
   st.textContent = '로딩 중...';
   try {
-    const [priceRes, marginSkuMap, siteMap, memos] = await Promise.all([
+    const [priceRes, marginMaps, siteMap, memos] = await Promise.all([
       fetch(API + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json()),
       fetchSkuMapFromMargin(),
       fetchSiteMap(),
       fetchMemos(),
     ]);
-    priceRes.skuMap = Object.assign({}, priceRes.skuMap || {}, marginSkuMap);
+    priceRes.skuMap = Object.assign({}, priceRes.skuMap || {}, marginMaps.viidMap || {});
+    priceRes.skuNameMap = marginMaps.nameMap || {};
     priceRes.siteMap = siteMap;
     MEMOS = memos || {};
     buildSiteFilter(siteMap, priceRes);
@@ -1336,11 +1346,13 @@ function updateSiteText() {
 function buildSiteFilter(siteMap, priceRes) {
   // 실제 상품에 매칭되는 사이트 카운트만 노출
   const skuMap = priceRes.skuMap || {};
+  const skuNameMap = priceRes.skuNameMap || {};
+  const normName = s => String(s||'').replace(/\s+/g,'').toLowerCase();
   const history = priceRes.history || {};
   const counts = {};
   for (const key in history) {
     const viid = history[key].vendorItemId || '';
-    const sku = skuMap[viid];
+    const sku = skuMap[viid] || skuNameMap[normName(history[key].name)] || '';
     const site = sku && siteMap[sku];
     if (site) counts[site] = (counts[site] || 0) + 1;
   }
@@ -1813,6 +1825,8 @@ document.getElementById('btnDownload').addEventListener('click', () => {
   const history = CURRENT_STATE.history || {};
   const order = CURRENT_STATE.order || [];
   const skuMap = CURRENT_STATE.skuMap || {};
+  const skuNameMap = CURRENT_STATE.skuNameMap || {};
+  const normName = s => String(s||'').replace(/\s+/g,'').toLowerCase();
   const siteMap = CURRENT_STATE.siteMap || {};
   const filterActive = SITE_FILTER && SITE_FILTER.size > 0;
 
@@ -1828,7 +1842,7 @@ document.getElementById('btnDownload').addEventListener('click', () => {
   entries.forEach(e => {
     const viid = e.vendorItemId || '';
     const pid = e.productId || '';
-    const sku = skuMap[viid] || '';
+    const sku = skuMap[viid] || skuNameMap[normName(e.name)] || '';
     const site = (sku && siteMap[sku]) || '';
     if (filterActive && (!site || !SITE_FILTER.has(site))) return;
     const name = e.name || '';
