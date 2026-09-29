@@ -1266,7 +1266,11 @@ function runMatch(){
       orderName, orderSku,
       procode:procode||null,
       masterName:masterEntry?.name||(marginMatched?mgEntry.name:''),
-      stockName:stockEntry?.displayName||(marginMatched?mgEntry.name:''),
+      /* stockProcode 오버라이드가 걸린 경우엔 재고 이름(공유재고=2P)이 아니라
+         발주 원본 이름(4P 등) 을 우선 표기해서 실제 발주 제품과 헷갈리지 않도록 함. */
+      stockName:(masterEntry && masterEntry.stockProcode)
+                  ? (orderName || masterEntry.name || stockEntry?.displayName || '')
+                  : (stockEntry?.displayName||(marginMatched?mgEntry.name:'')),
       orderQty, stockQty, stockHalved, status,
       diff:stockQty!==null?stockQty-orderQty:null,
       noMaster:!masterEntry && !marginMatched && !procodeFromName,
