@@ -1091,11 +1091,20 @@ function runMatch(){
     { sku:'64778161', targetProcode:'A02799' },  // 오아베이직빗고데기-블루 → (FV)-블루 재고(A02799) 사용
     { sku:'77463489', targetProcode:'A03267' },
     { sku:'77463490', targetProcode:'A03268' },
-    { sku:'51989601', targetProcode:'A01495' },
-    { sku:'12434130', targetProcode:'E0186', halve:true },  // 리필칫솔모4P-블랙 → 2P-블랙 재고 / 반으로 표시
-    { sku:'11671480', targetProcode:'E0185', halve:true },  // 리필칫솔모4P-화이트 → 2P-화이트 재고 / 반으로 표시
-    { sku:'14134778', targetProcode:'E0235', halve:true },  // 미세모4P-블랙 → 2P-블랙 재고(E0235) 공유 / 반으로 표시
-    { sku:'14134779', targetProcode:'E0233', halve:true }   // 미세모4P-화이트 → 2P-화이트 재고(E0233) 공유 / 반으로 표시
+    { sku:'51989601', targetProcode:'E0203' },
+    { sku:'51623281', targetProcode:'E0202' },
+    { sku:'55609278', targetProcode:'A01124' },
+    { sku:'12775098', targetProcode:'M01149' },
+    { sku:'12775097', targetProcode:'M01150' },
+    { sku:'12775096', targetProcode:'M01151' },
+    { sku:'13151160', targetProcode:'M01152' },
+    { sku:'13151158', targetProcode:'M01153' },
+    { sku:'16981939', targetProcode:'M01154' },
+    { sku:'14473529', targetProcode:'M01155' },
+    { sku:'14134779', targetProcode:'M01148', stockProcode:'E0233' },  // 미세모4P-화이트: 옵션명은 M01148, 재고는 E0233 그대로 표시
+    { sku:'14134778', targetProcode:'M01147', stockProcode:'E0235' },  // 미세모4P-블랙: 옵션명은 M01147, 재고는 E0235 그대로 표시
+    { sku:'12434130', targetProcode:'M01145', stockProcode:'E0186' },  // 리필칫솔모4P-블랙: 옵션명은 M01145, 재고는 E0186 그대로 표시
+    { sku:'11671480', targetProcode:'M01146', stockProcode:'E0185' }   // 리필칫솔모4P-화이트: 옵션명은 M01146, 재고는 E0185 그대로 표시
   ];
   PROCODE_OVERRIDES.forEach(ov=>{
     const skuKey=norm(ov.sku);
@@ -1105,6 +1114,9 @@ function runMatch(){
       masterMap[skuKey].procode=ov.targetProcode;
     }
     if(ov.halve) masterMap[skuKey].halve=true;
+    /* stockProcode 가 별도로 지정되면 재고/운송중 조회는 그 값으로,
+       화면 표시(procode) 는 targetProcode 로 분리. 미지정 시 procode 와 동일. */
+    if(ov.stockProcode) masterMap[skuKey].stockProcode=ov.stockProcode;
   });
 
   /* ── Stock map ── 포항 창고 행만 취합, 동일 상품코드는 합산 */
@@ -1206,7 +1218,9 @@ function runMatch(){
       const hit2=productStatusNameMap[norm(orderName)];
       if(hit2){ procode=hit2; procodeFromName=true; }
     }
-    const stockEntry =procode?stockMap[norm(procode)]:null;
+    /* 재고 조회용 프로코드: 오버라이드의 stockProcode 가 있으면 그 값을, 없으면 procode 그대로 */
+    const stockLookupCode=(masterEntry && masterEntry.stockProcode) || procode;
+    const stockEntry =stockLookupCode?stockMap[norm(stockLookupCode)]:null;
     const stockHalved=!!(masterEntry && masterEntry.halve && stockEntry);
     const stockQty   =stockEntry?(stockHalved?Math.floor(stockEntry.qty/2):stockEntry.qty):null;
 
@@ -1235,8 +1249,8 @@ function runMatch(){
       else                   status='shortage';
     }
 
-    /* 운송 중: procode로 조회 */
-    const transitQty=procode?( transitMap[norm(procode)]||0 ):0;
+    /* 운송 중: 재고와 동일한 코드로 조회 (stockProcode 우선) */
+    const transitQty=stockLookupCode?( transitMap[norm(stockLookupCode)]||0 ):0;
 
     /* 마진테이블에 등록된 SKU 는 미매칭이 아님 — 이름/상태를 마진테이블 기준으로 보정. */
     const _mgKey=String(orderSku||'').trim().toLowerCase();
