@@ -1200,10 +1200,13 @@ function normLabel(s){ return String(s==null?'':s).replace(/\s+/g,'').replace(/\
 document.getElementById('btnDownload').addEventListener('click',()=>{
   const list=currentFilteredRows();
   const exportCols=COLS.filter(c=>c.k!=='_act' && c.k!=='diff');
-  const headers=exportCols.map(c=>c.label.replace(/\n/g,' '));
+  /* 제품 현황 조회 xlsx (window.__prodStatusMap: 제품명 → {model, code}) 을 참조해
+     맨 오른쪽에 모델명·프로코드 컬럼을 자동으로 붙여 내보낸다. */
+  const psMap = window.__prodStatusMap || {};
+  const headers=exportCols.map(c=>c.label.replace(/\n/g,' ')).concat(['모델명','프로코드']);
   const aoa=[headers];
   list.forEach(r=>{
-    aoa.push(exportCols.map(col=>{
+    const row=exportCols.map(col=>{
       const v=getCellValue(r,col);
       if(col.type==='num'||col.type==='num2'){
         if(v==null||!isFinite(v)) return '';
@@ -1219,7 +1222,11 @@ document.getElementById('btnDownload').addEventListener('click',()=>{
       }
       if(v==null||v==='') return '';
       return v;
-    }));
+    });
+    const info = psMap[String(r.name||'').trim()] || null;
+    row.push(info && info.model ? info.model : '');
+    row.push(info && info.code  ? info.code  : '');
+    aoa.push(row);
   });
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   const wb=XLSX.utils.book_new();
@@ -1425,6 +1432,97 @@ document.addEventListener('mousedown', ev=>{
 });
 window.addEventListener('scroll', _psHide, true);
 document.addEventListener('keydown', ev=>{ if(ev.key==='Escape') _psHide(); });
+
+/* ═══════════════════════ SKU# 좌클릭 팝오버 (마진테이블.xlsx 우측 시트 → 프로코드/모델명) ═══════════════════════ */
+const _MG_REPO = { owner: 'tolmjj10', repo: 'coupang-po', branch: 'main', dir: 'data', file: '마진테이블.xlsx' };
+window.__marginProMap = window.__marginProMap || {}; // { sku: {procode, model} }
+
+async function _fetchMarginPro(){
+  try {
+    const url = `https://api.github.com/repos/${_MG_REPO.owner}/${_MG_REPO.repo}/contents/${encodeURI(_MG_REPO.dir)}/${encodeURI(_MG_REPO.file)}?ref=${_MG_REPO.branch}`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/vnd.github+json' }});
+    if(!res.ok){ console.warn('[margin] 프로코드용 xlsx list HTTP', res.status); return; }
+    const meta = await res.json();
+    const abRes = await fetch(meta.download_url);
+    if(!abRes.ok) return;
+    const ab = await abRes.arrayBuffer();
+    const wb = XLSX.read(ab, { type: 'array' });
+    /* 시트 탐색: 프로코드/모델명 컬럼 + SKU 컬럼이 있는 시트를 뒤(오른쪽)에서부터 찾음 */
+    const map = {};
+    for(let si = wb.SheetNames.length - 1; si >= 0; si--){
+      const ws = wb.Sheets[wb.SheetNames[si]];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+      let hIdx = -1;
+      for(let i=0; i<Math.min(aoa.length,15); i++){
+        const row = (aoa[i]||[]).map(v=>String(v||'').trim());
+        if(row.some(c=>/^SKU/i.test(c))){ hIdx = i; break; }
+      }
+      if(hIdx < 0) continue;
+      const header = (aoa[hIdx]||[]).map(v=>String(v||'').trim());
+      const skuCol   = header.findIndex(h=>/^SKU\s*#?$/i.test(h)) >=0 ? header.findIndex(h=>/^SKU\s*#?$/i.test(h)) : header.findIndex(h=>/SKU/i.test(h) && !/명|NAME/i.test(h));
+      const proCol   = header.findIndex(h=>/^(프로\s*코드|procode|pro_?code)$/i.test(h));
+      const modelCol = header.findIndex(h=>/^모델(명|번호|no)?$/i.test(h));
+      if(skuCol < 0 || (proCol < 0 && modelCol < 0)) continue;
+      for(let r=hIdx+1; r<aoa.length; r++){
+        const row = aoa[r]||[];
+        const sku = String(row[skuCol]||'').trim();
+        if(!sku) continue;
+        const procode = proCol>=0   ? String(row[proCol]||'').trim()   : '';
+        const model   = modelCol>=0 ? String(row[modelCol]||'').trim() : '';
+        if(!map[sku] && (procode || model)) map[sku] = { procode, model };
+      }
+      if(Object.keys(map).length){
+        console.log('[margin] 프로코드 맵 로드', Object.keys(map).length, '건 (시트:', wb.SheetNames[si] + ')');
+        break;
+      }
+    }
+    window.__marginProMap = map;
+  } catch(e){ console.warn('[margin] 프로코드 로드 실패:', e.message); }
+}
+_fetchMarginPro();
+window.addEventListener('focus', _fetchMarginPro);
+
+function _psShowBySku(cellEl, sku){
+  const info = (window.__marginProMap||{})[String(sku||'').trim()];
+  if(!info || (!info.procode && !info.model)){ _psHide(); return; }
+  const pop = _psEnsure();
+  const line = (label,val) => `<div style="display:flex;gap:6px;align-items:center;margin:2px 0;"><span style="color:#8a7a3a;font-weight:600;min-width:56px;">${label}</span><span class="__psCopy" data-copy="${esc(val)}" style="cursor:pointer;padding:2px 6px;border-radius:4px;background:#fff;border:1px solid #e5c76b;font-weight:600;font-family:monospace;">${esc(val)}</span></div>`;
+  const rows2 = [];
+  if(info.procode) rows2.push(line('프로코드', info.procode));
+  if(info.model)   rows2.push(line('모델명',   info.model));
+  pop.innerHTML = rows2.join('') + `<div style="color:#a68a4a;font-size:10.5px;margin-top:4px;">클릭해서 복사</div>`;
+  const rect = cellEl.getBoundingClientRect();
+  const popW = 240;
+  let left = window.scrollX + rect.right + 6;
+  const top  = window.scrollY + rect.top;
+  if(left + popW > window.scrollX + window.innerWidth - 8) left = window.scrollX + rect.left - popW - 6;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  pop.style.display = 'block';
+  pop.querySelectorAll('.__psCopy').forEach(sp=>{
+    sp.onclick = async ()=>{
+      const v = sp.dataset.copy;
+      try{ await navigator.clipboard.writeText(v); }
+      catch(_){
+        const ta = document.createElement('textarea'); ta.value=v; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select();
+        try{ document.execCommand('copy'); } catch(_){}
+        ta.remove();
+      }
+      sp.style.background = '#e4d68a';
+      setTimeout(()=>{ sp.style.background='#fff'; }, 400);
+    };
+  });
+}
+document.getElementById('tbody').addEventListener('click', ev=>{
+  const cell = ev.target.closest('.editable[data-k="sku"]');
+  if(!cell) return;
+  const tr = cell.closest('tr'); if(!tr) return;
+  const r = rows.find(x=>x._id===tr.dataset.id); if(!r) return;
+  const sku = String(r.sku||'').trim();
+  if(!sku) return;
+  _psShowBySku(cell, sku);
+});
 
 /* ═══════════════════════ 공급가 변경 뷰 ═══════════════════════ */
 const PC_STORAGE_KEY = 'coupang_margin_price_change_v1';
