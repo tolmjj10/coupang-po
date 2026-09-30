@@ -186,6 +186,15 @@
   .plan-toggle:hover { background: var(--surface-alt); color: var(--text); }
   .exp-group.collapsed .plan-table-wrap,
   .exp-group.collapsed .exp-add-row { display: none; }
+  /* 전체 탭의 기획전 그룹 헤더 안에 접기 토글 */
+  tr.group-header .plan-toggle {
+    display: inline-block; vertical-align: middle;
+    padding: 2px 8px; margin-right: 8px;
+    background: var(--card); border: 1px solid var(--border-strong); border-radius: 4px;
+    font-size: 12px; font-weight: 700; color: var(--text); cursor: pointer; line-height: 1;
+  }
+  tr.group-header .plan-toggle:hover { background: var(--accent-soft); border-color: var(--accent); }
+  tr.group-header.collapsed td { border-bottom: 2px solid var(--border-strong); }
   th.sortable { cursor: pointer; user-select: none; }
   th.sortable:hover { background: var(--accent-soft); color: var(--text); }
   th .col-resizer {
@@ -312,6 +321,23 @@
     color: var(--text);
     letter-spacing: -0.01em;
   }
+  tbody tr.group-header.clickable td { cursor: pointer; }
+  tbody tr.group-header.clickable:hover td { background: var(--accent-soft); }
+  tbody tr.group-header .toggle-arrow {
+    display: inline-block; width: 18px; text-align: center;
+    margin-right: 8px; font-size: 13px; color: var(--accent-dark);
+    font-weight: 700;
+  }
+  /* 그룹 첫 데이터 행의 날짜 셀에 넣는 접기 배지 */
+  .row-plan-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 100%; min-height: 28px;
+    background: var(--warm-soft); color: #8a4a2a;
+    border: 1px solid #f5d9c2; border-radius: 6px;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    padding: 4px 8px;
+  }
+  .row-plan-toggle:hover { background: #f0dbc8; border-color: var(--warm); }
   tbody tr.group-header .group-count {
     display: inline-block;
     margin-left: 10px;
@@ -911,9 +937,9 @@ function render() {
 
 function buildMixedRows(rows) {
   // 전체 탭: 기획전 유형만 (date, endDate, title) 로 그룹핑, 그 외 유형은 개별 행 그대로
+  // 기획전 탭과 동일한 collapsedPlans 상태를 공유해 접힘 상태 유지
   const COLSPAN = 20;
   const planKey = r => `${r.date||''}~${r.endDate||''}|${r.title||''}`;
-  // 정렬된 rows 순회하며 기획전 그룹 헤더 삽입
   let html = '';
   const emittedPlanKeys = new Set();
   const planGroups = new Map();
@@ -932,8 +958,18 @@ function buildMixedRows(rows) {
         const range = `${r.date||''}~${r.endDate||''}`;
         const rangeText = range === '~' ? '(날짜 미지정)' : range.replace(/^~/, '(시작일 없음) ~ ').replace(/~$/, ' ~ (종료일 없음)');
         const titlePart = r.title ? ` · <b>${esc(r.title)}</b>` : '';
-        html += `<tr class="group-header"><td colspan="${COLSPAN}">기획전 · ${esc(rangeText)}${titlePart}<span class="group-count">${g.length}건</span></td></tr>`;
-        for (const gr of g) html += rowHtml(gr, { hideDate: true });
+        // renderPlan()에서 쓰는 그룹 key와 동일한 형식으로 맞춰 접힘 상태 공유
+        const planViewKey = `${r.date||''}|${r.endDate||''}|${r.title||''}`;
+        const collapsed = collapsedPlans.has(planViewKey);
+        const arrow = collapsed ? '▶' : '▼';
+        // 헤더 행 전체가 클릭 대상. td 자체에 data-plan-toggle 부여
+        html += `<tr class="group-header clickable${collapsed?' collapsed':''}"><td colspan="${COLSPAN}" data-plan-toggle="${esc(planViewKey)}" title="${collapsed?'펼치기':'숨기기'}"><span class="toggle-arrow">${arrow}</span>기획전 · ${esc(rangeText)}${titlePart}<span class="group-count">${g.length}건</span></td></tr>`;
+        if (!collapsed) {
+          // 그룹의 첫 데이터 행의 날짜 셀에도 토글 배지를 심어 시각적 앵커 제공
+          g.forEach((gr, idx) => {
+            html += rowHtml(gr, { hideDate: true, dateBadge: idx === 0 ? { key: planViewKey, arrow } : null });
+          });
+        }
       }
       continue;
     }
@@ -1451,8 +1487,12 @@ function rowHtml(r, opts) {
   const conflict = findConflict(r);
   const rowCls = r.type ? `row-${r.type}` : '';
   const hideDate = opts && opts.hideDate;
+  const dateBadge = opts && opts.dateBadge;
+  const dateCellInner = dateBadge
+    ? `<button class="row-plan-toggle" data-plan-toggle="${esc(dateBadge.key)}" title="접기/펼치기">${dateBadge.arrow}</button>`
+    : (hideDate ? '' : dateCellHtml(r));
   return `<tr data-id="${r.id}" class="${rowCls}">
-    <td class="date-cell">${hideDate ? '' : dateCellHtml(r)}</td>
+    <td class="date-cell">${dateCellInner}</td>
     <td>
       <select data-k="type">
         <option value="">-</option>
@@ -1514,6 +1554,17 @@ function wireRow() {
           scheduleRender();
         }
       });
+    });
+  });
+  // 전체 탭에서 기획전 그룹 헤더 접기/펼치기
+  $('tbody').querySelectorAll('[data-plan-toggle]').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const key = btn.dataset.planToggle;
+      if (collapsedPlans.has(key)) collapsedPlans.delete(key);
+      else collapsedPlans.add(key);
+      persistCollapsedPlans();
+      render();
     });
   });
 }
@@ -1750,8 +1801,15 @@ async function loadViidPid() {
 
 /* ═══════════════════════ 행 추가 ═══════════════════════ */
 $('addBtn').addEventListener('click', () => {
-  const today = new Date();
-  const ymd = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  // 활성 월 탭이 실제 월(YYYY-MM)이면 그 달 첫날을 기본 날짜로 → 해당 월 탭에 즉시 표시되고
+  // 날짜 피커도 그 달로 열림. '__ALL__'이거나 형식 벗어나면 오늘 날짜.
+  let ymd;
+  if (/^\d{4}-\d{2}$/.test(activeMonth)) {
+    ymd = `${activeMonth}-01`;
+  } else {
+    const today = new Date();
+    ymd = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  }
   const initialType = (activeTab && activeTab !== '전체') ? activeTab : '';
   data.push({ id: uid(), date: ymd, type: initialType, skuId: '', discountRate: '', qty: '' });
   save(); render();
