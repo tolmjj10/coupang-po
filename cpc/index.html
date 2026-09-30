@@ -52,6 +52,21 @@
   .delta-down { color: var(--bad); }
   .delta-flat { color: var(--text-sub); }
 
+  /* 제품 탭 */
+  .product-tabs-wrap { margin-bottom: 16px; }
+  .product-tabs { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+  .product-tab {
+    background: transparent; border: 1px solid transparent; border-bottom: none;
+    padding: 8px 16px; cursor: pointer; font-size: 13px; font-weight: 600;
+    color: var(--text-sub); border-radius: 8px 8px 0 0;
+    position: relative; top: 1px;
+  }
+  .product-tab:hover { color: var(--text); background: var(--card); }
+  .product-tab.active { background: var(--card); border-color: var(--border); color: var(--primary); }
+  .product-tab .roas-mini { display: inline-block; margin-left: 8px; padding: 2px 6px; border-radius: 4px;
+    font-size: 11px; font-weight: 500; background: var(--bg); color: var(--text-sub); }
+  .product-tab.active .roas-mini { background: var(--good-bg); color: var(--good); }
+
   /* 주간 선택 탭 */
   .week-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
   .week-tab { border: 1px solid var(--border); background: var(--card); padding: 6px 12px; border-radius: 999px;
@@ -148,6 +163,11 @@
   </div>
 </header>
 
+<!-- 제품 탭 -->
+<div class="product-tabs-wrap">
+  <div class="product-tabs" id="productTabs"></div>
+</div>
+
 <!-- 주간 탭 -->
 <div class="card">
   <h2>📅 주차 선택 <span class="badge" id="weekCount">0주차</span></h2>
@@ -213,15 +233,15 @@
   </div>
 
   <div class="analysis-block">
-    <h3>🔁 AI ↔ Manual 중복 검색어 <span class="mini-badge" id="overlapBadge"></span></h3>
+    <h3>🔁 AI ↔ 수동 중복 검색어 <span class="mini-badge" id="overlapBadge"></span></h3>
     <div class="chip-grid" id="overlapChips"></div>
   </div>
 </div>
 
 <!-- 이관 검토 후보 -->
 <div class="card" id="migrationCard" hidden>
-  <h2>🔄 이관 검토 후보 <span class="badge">AI → Manual</span></h2>
-  <p class="hint">AI는 CPC 조정 불가 → 우량 키워드를 Manual로 옮기면 CPC 통제 가능. AI 학습 시그널 유지를 위해 최대 지출 키워드 1개는 반드시 남김.</p>
+  <h2>🔄 이관 검토 후보 <span class="badge">AI → 수동</span></h2>
+  <p class="hint">AI는 CPC 조정 불가 → 우량 키워드를 수동으로 옮기면 CPC 통제 가능. AI 학습 시그널 유지를 위해 최대 지출 키워드 1개는 반드시 남김.</p>
 
   <div class="analysis-summary" id="migrationImpact"></div>
 
@@ -239,7 +259,7 @@
     <div class="diag-title">⚠ 이관 시 유의사항</div>
     <div class="diag-body">
       1. AI 캠페인에 해당 키워드를 <b>제외 키워드</b>로 반드시 등록 (내부 경매 방지)<br>
-      2. Manual에 해당 키워드를 <b>구문일치</b> 이상으로 등록, 제안 CPC로 시작<br>
+      2. 수동에 해당 키워드를 <b>구문일치</b> 이상으로 등록, 제안 CPC로 시작<br>
       3. 2주 관찰 후 클릭 수·ROAS 확인, 목표 미달 시 CPC 재조정 또는 AI로 원복<br>
       4. 표본 작은 후보(⭐)는 리스크 있으니 ⭐⭐⭐ · ⭐⭐부터 우선 시도
     </div>
@@ -263,11 +283,15 @@
 //  DATA — 매주 새 엑셀 올릴 때 이 부분 재생성
 // ============================================
 const DATA = {
-  product: "오아 올리미 (속눈썹 히팅뷰러)",
-  seller: "A00065399",
-  targetRoas: 7.00,        // 목표 ROAS 700%
-  breakevenRoas: 2.59,     // 손익분기
   lastUpdate: "2026-09-30",
+  activeProductId: "olimi",
+  products: [
+{
+  id: "olimi",
+  name: "오아 올리미 (속눈썹 히팅뷰러)",
+  seller: "A00065399",
+  targetRoas: 10.00,       // 목표 ROAS 1000%
+  breakevenRoas: 2.59,     // 손익분기 259% (캠페인명 기준)
   weeks: [
     {
       id: "baseline",
@@ -275,8 +299,8 @@ const DATA = {
       period: "2026-09-01 ~ 2026-09-29 (29일)",
       isBaseline: true,
       campaigns: {
-        ai:     { name: "AI (스마트타겟팅)", cost: 486352, revenue: 2198840, clicks: 1388, orders: 106, impressions: 370668 },
-        manual: { name: "Manual (수동)",     cost: 30731,  revenue: 79600,   clicks: 263,  orders: 4,   impressions: 208430 }
+        ai:     { name: "AI", cost: 486352, revenue: 2198840, clicks: 1388, orders: 106, impressions: 370668 },
+        manual: { name: "수동",     cost: 30731,  revenue: 79600,   clicks: 263,  orders: 4,   impressions: 208430 }
       },
       actionsBefore: [],
       keywordMovement: null,
@@ -348,11 +372,11 @@ const DATA = {
             { rank:3, kw:"속눈썹 고데기", clk:50, cpc:524, cost:26198, orders:8, rv:175000, roas:668,
               proposeCpc:450, reason:"표본 크고(50) ROAS 안정. 즉시 이관 강추", type:"일반" },
             { rank:2, kw:"오아 히팅뷰러", clk:21, cpc:622, cost:13060, orders:3, rv:59700, roas:457,
-              proposeCpc:520, reason:"브랜드어 · Manual 저CPC 확보 유리", type:"브랜드" },
+              proposeCpc:520, reason:"브랜드어 · 수동 저CPC 확보 유리", type:"브랜드" },
             { rank:2, kw:"속눈썹 뷰러 1위", clk:16, cpc:530, cost:8487, orders:2, rv:39800, roas:469,
               proposeCpc:450, reason:"표본 중간, ROAS 양호", type:"일반" },
             { rank:1, kw:"오아 뷰러", clk:8, cpc:1018, cost:8141, orders:3, rv:67600, roas:830,
-              proposeCpc:700, reason:"브랜드어인데 AI CPC 과열 (1,018원) · Manual로 대폭 절감 가능", type:"브랜드" },
+              proposeCpc:700, reason:"브랜드어인데 AI CPC 과열 (1,018원) · 수동으로 대폭 절감 가능", type:"브랜드" },
             { rank:1, kw:"온열 뷰러", clk:4, cpc:624, cost:2495, orders:1, rv:27800, roas:1114,
               proposeCpc:650, reason:"표본 작음(4), 조심스러운 테스트 권장", type:"일반" }
           ],
@@ -383,7 +407,102 @@ const DATA = {
     //   }
     // }
   ]
+},
+{
+  id: "pepper",
+  name: "보아르 다이닝 전동후추그라인더",
+  seller: "A00065399",
+  targetRoas: 10.00,       // 목표 ROAS 1000%
+  breakevenRoas: 3.45,     // 손익분기 345% (캠페인명 기준)
+  weeks: [
+    {
+      id: "baseline",
+      label: "베이스라인",
+      period: "2026-09-01 ~ 2026-09-28 (28일)",
+      isBaseline: true,
+      campaigns: {
+        ai:     { name: "AI", cost: 100327, revenue: 539350, clicks: 785,  orders: 15, impressions: 79513 },
+        manual: { name: "수동",     cost: 303439, revenue: 695000, clicks: 2004, orders: 19, impressions: 312489 }
+      },
+      actionsBefore: [],
+      keywordMovement: null,
+      analysis: {
+        totalKeywords: { ai: 43, manual: 288 },
+        overlap: ["후추 그라인더","소금 후추 전동 그라인더","보아르 다이닝 전동후추그라인더","보아르 그라인더","보아르 전동 그라인더","전동 그라인더","소금 그라인더","양념통","자동 후추갈이그라인더","키텐실 전동 그라인더","충전식 전동 후추 그라인더"],
+        topSpenders: [
+          {kw:"소금 그라인더 (수동)", clk:136, cost:29911, orders:0, rv:0, roas:0, cpc:220},
+          {kw:"후추 그라인더 (수동)", clk:128, cost:29426, orders:1, rv:36900, roas:125, cpc:230},
+          {kw:"양념통 (수동)", clk:104, cost:17522, orders:0, rv:0, roas:0, cpc:168},
+          {kw:"소금 후추 전동 그라인더 (수동)", clk:85, cost:13963, orders:1, rv:36900, roas:264, cpc:164},
+          {kw:"전동 후추 그라인더 (수동)", clk:44, cost:9752, orders:0, rv:0, roas:0, cpc:222},
+          {kw:"보아르 다이닝 전동후추그라인더 (AI)", clk:11, cost:6061, orders:1, rv:36900, roas:609, cpc:551},
+          {kw:"깨갈이 (수동)", clk:30, cost:4922, orders:0, rv:0, roas:0, cpc:164},
+          {kw:"전동 그라인더 (수동)", clk:29, cost:4654, orders:0, rv:0, roas:0, cpc:160},
+          {kw:"보아르 전동 그라인더 (AI)", clk:4, cost:3720, orders:1, rv:36900, roas:992, cpc:930},
+          {kw:"소금 후추 전동 그라인더 (AI)", clk:6, cost:3558, orders:0, rv:0, roas:0, cpc:593}
+        ],
+        zeroConv: [
+          {kw:"소금 그라인더 (수동)", clk:136, cost:29911, cpc:220},
+          {kw:"양념통 (수동)", clk:104, cost:17522, cpc:168},
+          {kw:"전동 후추 그라인더 (수동)", clk:44, cost:9752, cpc:222},
+          {kw:"깨갈이 (수동)", clk:30, cost:4922, cpc:164},
+          {kw:"전동 그라인더 (수동)", clk:29, cost:4654, cpc:160},
+          {kw:"후추그라인더 (수동)", clk:15, cost:3510, cpc:234},
+          {kw:"소금통 (수동)", clk:22, cost:3507, cpc:159},
+          {kw:"양념통 세트 (수동)", clk:22, cost:3436, cpc:156},
+          {kw:"조미료통 (수동)", clk:18, cost:2908, cpc:162},
+          {kw:"소금 후추 그라인더 (수동)", clk:11, cost:2653, cpc:241},
+          {kw:"통후추 그라인더 (수동)", clk:12, cost:2244, cpc:187}
+        ],
+        lowRoas: [
+          {kw:"후추 그라인더 (수동)", clk:128, cost:29426, orders:1, roas:125, cpc:230},
+          {kw:"소금 후추 전동 그라인더 (수동)", clk:85, cost:13963, orders:1, roas:264, cpc:164}
+        ],
+        winners: [
+          {kw:"키텐실 전동 그라인더 (AI)", cost:342, rv:42900, roas:12544, cpc:342},
+          {kw:"무선 충전식 전동 소금 후추 그라인더 (AI)", cost:375, rv:36900, roas:9840, cpc:375},
+          {kw:"보아르 전동 그라인더 (수동)", cost:741, rv:36900, roas:4980, cpc:106},
+          {kw:"보아르 다이닝 전동후추그라인더 (수동)", cost:2405, rv:110700, roas:4603, cpc:150},
+          {kw:"소금 그라인더 자동 (수동)", cost:1091, rv:36900, roas:3382, cpc:156},
+          {kw:"통깨 그라인더 자동 (AI)", cost:1833, rv:42900, roas:2340, cpc:916},
+          {kw:"보아르 그라인더 (수동)", cost:1685, rv:36900, roas:2190, cpc:120},
+          {kw:"전동 그라인더 (AI)", cost:2757, rv:36900, roas:1338, cpc:551},
+          {kw:"보아르 전동 그라인더 (AI)", cost:3720, rv:36900, roas:992, cpc:930},
+          {kw:"보아르 다이닝 전동후추그라인더 (AI)", cost:6061, rv:36900, roas:609, cpc:551},
+          {kw:"소금 후추 전동 그라인더 (수동)", cost:13963, rv:36900, roas:264, cpc:164}
+        ],
+        migration: {
+          keepInAi: {
+            kw: "비검색 영역 (수동 및 AI의 '-' 지면)",
+            reason: "비검색(디스플레이) 지출은 브랜드 노출 · 리마케팅용. AI 최대 지출인 비검색 영역은 유지."
+          },
+          candidates: [
+            { rank:3, kw:"소금 후추 전동 그라인더", clk:85, cpc:164, cost:13963, orders:1, rv:36900, roas:264,
+              proposeCpc:150, reason:"수동에 이미 있음. AI 중복 제외 + 수동 CPC 유지로 총 지출↓", type:"일반" },
+            { rank:2, kw:"보아르 다이닝 전동후추그라인더", clk:11, cpc:551, cost:6061, orders:1, rv:36900, roas:609,
+              proposeCpc:200, reason:"AI에서 CPC 551원 과열. 수동에 이미 있고 CPC 150원. AI 제외 필요", type:"브랜드" },
+            { rank:2, kw:"보아르 전동 그라인더", clk:4, cpc:930, cost:3720, orders:1, rv:36900, roas:992,
+              proposeCpc:150, reason:"AI CPC 930원 매우 높음. 수동 CPC 106원과 격차 큼. AI 제외 필수", type:"브랜드" }
+          ],
+          holdInAi: [
+            { kw:"보아르 다이닝 전동후추그라인더 (수동)", clk:16, roas:4603, reason:"수동에서 최고 효율. 현상 유지" },
+            { kw:"보아르 전동 그라인더 (수동)", clk:7, roas:4980, reason:"수동 CPC 106원 저렴. 유지" }
+          ]
+        }
+      }
+    }
+  ]
+}
+  ]
 };
+
+// ============================================
+//  ACTIVE PRODUCT STATE
+// ============================================
+let activeProductId = DATA.activeProductId || DATA.products[0].id;
+function P() {
+  return DATA.products.find(p => p.id === activeProductId) || DATA.products[0];
+}
 
 // ============================================
 //  RENDERING
@@ -409,8 +528,8 @@ function totals(w) {
 }
 
 function roasClass(roas) {
-  if (roas >= DATA.targetRoas) return 'roas-good';
-  if (roas >= DATA.breakevenRoas) return 'roas-warn';
+  if (roas >= P().targetRoas) return 'roas-good';
+  if (roas >= P().breakevenRoas) return 'roas-warn';
   return 'roas-bad';
 }
 
@@ -429,12 +548,12 @@ function deltaSpan(cur, prev, opts = {}) {
 
 function renderWeekTabs(selectedId) {
   const el = document.getElementById('weekTabs');
-  el.innerHTML = DATA.weeks.map(w =>
+  el.innerHTML = P().weeks.map(w =>
     `<button class="week-tab ${w.isBaseline ? 'baseline' : ''} ${w.id === selectedId ? 'active' : ''}" data-id="${w.id}">${w.label}</button>`
   ).join('');
   el.querySelectorAll('.week-tab').forEach(b => b.addEventListener('click', () => render(b.dataset.id)));
   document.getElementById('weekCount').textContent =
-    DATA.weeks.length === 1 ? '베이스라인만' : `총 ${DATA.weeks.length}개 시점`;
+    P().weeks.length === 1 ? '베이스라인만' : `총 ${P().weeks.length}개 시점`;
 }
 
 function renderKpi(cur, prev) {
@@ -524,12 +643,12 @@ function renderDiagnosis(cur, prev) {
   const diags = [];
   if (cur.isBaseline) {
     diags.push({
-      type: t.roas >= DATA.targetRoas ? 'good' : t.roas >= DATA.breakevenRoas ? 'warn' : 'bad',
-      title: `현재 ROAS ${pct(t.roas)} · 목표 ${pct(DATA.targetRoas)}`,
-      body: t.roas >= DATA.targetRoas
+      type: t.roas >= P().targetRoas ? 'good' : t.roas >= P().breakevenRoas ? 'warn' : 'bad',
+      title: `현재 ROAS ${pct(t.roas)} · 목표 ${pct(P().targetRoas)}`,
+      body: t.roas >= P().targetRoas
         ? '목표 달성 상태. 유지·확대 검토 가능.'
-        : t.roas >= DATA.breakevenRoas
-          ? `손익분기(${pct(DATA.breakevenRoas)})는 넘겼지만 목표까진 -${pctP(DATA.targetRoas - t.roas)}. 저효율 정리 필요.`
+        : t.roas >= P().breakevenRoas
+          ? `손익분기(${pct(P().breakevenRoas)})는 넘겼지만 목표까진 -${pctP(P().targetRoas - t.roas)}. 저효율 정리 필요.`
           : `손익분기 미달. 근본 재검토 필요.`
     });
     diags.push({
@@ -562,8 +681,8 @@ function renderDiagnosis(cur, prev) {
     }
 
     // 목표 근접도
-    if (t.roas >= DATA.targetRoas) {
-      diags.push({ type: 'good', title: `🎯 목표 ROAS ${pct(DATA.targetRoas)} 달성`, body: '예산 확대 검토 시점.' });
+    if (t.roas >= P().targetRoas) {
+      diags.push({ type: 'good', title: `🎯 목표 ROAS ${pct(P().targetRoas)} 달성`, body: '예산 확대 검토 시점.' });
     } else if (t.roas >= 6.5) {
       diags.push({ type: 'good', title: '목표 근접 (ROAS 650%+)', body: '이번 주 유지 후 다음 주 확대 여부 결정.' });
     }
@@ -578,7 +697,7 @@ function renderDiagnosis(cur, prev) {
 
 function renderTimeline(selectedIdx) {
   const events = [];
-  DATA.weeks.forEach((w, i) => {
+  P().weeks.forEach((w, i) => {
     if (w.actionsBefore && w.actionsBefore.length > 0) {
       events.push({
         date: w.period.split(' ~ ')[0], // 주차 시작일
@@ -627,16 +746,16 @@ function renderNextActions(cur, prev) {
   const actions = [];
   if (cur.isBaseline) {
     actions.push('베이스라인 상태. 1주차 데이터가 쌓이면 여기서 조치 추천이 나타납니다.');
-    actions.push('현재 계획: AI 24개 + Manual 33개 제외 후 1주 관찰 → 다음 엑셀 업로드');
+    actions.push('현재 계획: AI 24개 + 수동 33개 제외 후 1주 관찰 → 다음 엑셀 업로드');
   } else if (prev) {
     const pt = totals(prev);
     const dRoas = t.roas - pt.roas;
-    if (t.roas >= DATA.targetRoas) {
+    if (t.roas >= P().targetRoas) {
       actions.push('🎯 목표 달성 → 예산 캡 인상 고려 (일 50K → 70K)');
       actions.push('우량 키워드가 노출 상한에 걸리는지 확인 후 결정');
     } else if (t.roas >= 6.5) {
       actions.push('목표 근접. 이번 주 방향 유지하고 다음 주 재점검');
-      actions.push('신규 유입 검색어 중 ROAS 300%+ 키워드는 Manual로 이관 검토');
+      actions.push('신규 유입 검색어 중 ROAS 300%+ 키워드는 수동으로 이관 검토');
     } else if (dRoas >= 0.3) {
       actions.push('개선 중이지만 목표 미달 → 저효율 키워드 추가 정리');
       actions.push('AI 캠페인에서 이번 주 ROAS 259% 미만 키워드 신규 제외 검토');
@@ -668,10 +787,10 @@ function renderAnalysis(cur) {
   const zeroPct = t.cost ? (zeroSum / t.cost * 100).toFixed(1) : 0;
   document.getElementById('analysisSummary').innerHTML = `
     <div class="as-item">AI 검색 키워드 <strong>${a.totalKeywords.ai}개</strong></div>
-    <div class="as-item">Manual 검색 키워드 <strong>${a.totalKeywords.manual}개</strong></div>
+    <div class="as-item">수동 검색 키워드 <strong>${a.totalKeywords.manual}개</strong></div>
     <div class="as-item">즉시 제외 대상 <strong style="color:var(--bad)">${a.zeroConv.length}개</strong></div>
     <div class="as-item">우량 (700%+) <strong style="color:var(--good)">${a.winners.length}개</strong></div>
-    <div class="as-item">AI↔Manual 중복 <strong style="color:var(--warn)">${a.overlap.length}개</strong></div>
+    <div class="as-item">AI↔수동 중복 <strong style="color:var(--warn)">${a.overlap.length}개</strong></div>
     <div class="as-item">낭비 규모 <strong style="color:var(--bad)">${fmt(zeroSum)}원 (${zeroPct}%)</strong></div>
   `;
 
@@ -761,7 +880,7 @@ function renderMigration(cur) {
 
   document.getElementById('migrationImpact').innerHTML = `
     <div class="as-item">AI ROAS 변화<strong>${pct(aiRoas0)} → ${pct(aiRoasNew)}${deltaHTML(aiRoasNew*100, aiRoas0*100, true, '%p', 1)}</strong></div>
-    <div class="as-item">Manual ROAS 변화<strong style="color:var(--good)">${pct(mnRoas0)} → ${pct(mnRoasNew)}${deltaHTML(mnRoasNew*100, mnRoas0*100, true, '%p', 1)}</strong></div>
+    <div class="as-item">수동 ROAS 변화<strong style="color:var(--good)">${pct(mnRoas0)} → ${pct(mnRoasNew)}${deltaHTML(mnRoasNew*100, mnRoas0*100, true, '%p', 1)}</strong></div>
     <div class="as-item">전체 계정 ROAS<strong style="color:${totRoasNew>=totRoas0?'var(--good)':'var(--bad)'}">${pct(totRoas0)} → ${pct(totRoasNew)}${deltaHTML(totRoasNew*100, totRoas0*100, true, '%p', 1)}</strong></div>
     <div class="as-item">총 광고비 변화<strong style="color:${savings<0?'var(--good)':'var(--bad)'}">${savings<0?'-':'+'}${fmt(Math.abs(savings))}원</strong></div>
     <div class="as-item">이관 대상 <strong>${mig.candidates.length}개</strong></div>
@@ -802,9 +921,9 @@ function renderMigration(cur) {
 }
 
 function render(id) {
-  const cur = DATA.weeks.find(w => w.id === id) || DATA.weeks[DATA.weeks.length - 1];
-  const idx = DATA.weeks.indexOf(cur);
-  const prev = idx > 0 ? DATA.weeks[idx - 1] : null;
+  const cur = P().weeks.find(w => w.id === id) || P().weeks[P().weeks.length - 1];
+  const idx = P().weeks.indexOf(cur);
+  const prev = idx > 0 ? P().weeks[idx - 1] : null;
   renderWeekTabs(cur.id);
   renderKpi(cur, prev);
   renderCampTable(cur, prev);
@@ -816,13 +935,39 @@ function render(id) {
   renderNextActions(cur, prev);
 }
 
-// 초기 렌더
-document.getElementById('productTitle').textContent = DATA.product;
-document.getElementById('productSub').textContent = `판매자 ${DATA.seller} · ${DATA.weeks[0].period}`;
-document.getElementById('targetRoas').textContent = pct(DATA.targetRoas);
-document.getElementById('breakevenRoas').textContent = pct(DATA.breakevenRoas);
-document.getElementById('lastUpdate').textContent = DATA.lastUpdate;
-render(DATA.weeks[DATA.weeks.length - 1].id);
+// ============================================
+//  PRODUCT TABS
+// ============================================
+function renderProductTabs() {
+  const el = document.getElementById('productTabs');
+  el.innerHTML = DATA.products.map(p => {
+    const last = p.weeks[p.weeks.length - 1];
+    const t = last ? totals(last) : { roas: 0 };
+    const roasBadge = t.roas ? `<span class="roas-mini">ROAS ${(t.roas * 100).toFixed(0)}%</span>` : '';
+    return `<button class="product-tab ${p.id === activeProductId ? 'active' : ''}" data-pid="${p.id}">${p.name}${roasBadge}</button>`;
+  }).join('');
+  el.querySelectorAll('.product-tab').forEach(b => {
+    b.addEventListener('click', () => switchProduct(b.dataset.pid));
+  });
+}
+
+function switchProduct(pid) {
+  activeProductId = pid;
+  renderAll();
+}
+
+function renderAll() {
+  const p = P();
+  document.getElementById('productTitle').textContent = p.name;
+  document.getElementById('productSub').textContent = `판매자 ${p.seller} · ${p.weeks[0].period}`;
+  document.getElementById('targetRoas').textContent = pct(p.targetRoas);
+  document.getElementById('breakevenRoas').textContent = pct(p.breakevenRoas);
+  document.getElementById('lastUpdate').textContent = DATA.lastUpdate;
+  renderProductTabs();
+  render(p.weeks[p.weeks.length - 1].id);
+}
+
+renderAll();
 </script>
 </body>
 </html>
