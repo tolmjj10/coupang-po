@@ -328,16 +328,6 @@
     margin-right: 8px; font-size: 13px; color: var(--accent-dark);
     font-weight: 700;
   }
-  /* 그룹 첫 데이터 행의 날짜 셀에 넣는 접기 배지 */
-  .row-plan-toggle {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 100%; min-height: 28px;
-    background: var(--warm-soft); color: #8a4a2a;
-    border: 1px solid #f5d9c2; border-radius: 6px;
-    font-size: 14px; font-weight: 700; cursor: pointer;
-    padding: 4px 8px;
-  }
-  .row-plan-toggle:hover { background: #f0dbc8; border-color: var(--warm); }
   tbody tr.group-header .group-count {
     display: inline-block;
     margin-left: 10px;
@@ -965,10 +955,7 @@ function buildMixedRows(rows) {
         // 헤더 행 전체가 클릭 대상. td 자체에 data-plan-toggle 부여
         html += `<tr class="group-header clickable${collapsed?' collapsed':''}"><td colspan="${COLSPAN}" data-plan-toggle="${esc(planViewKey)}" title="${collapsed?'펼치기':'숨기기'}"><span class="toggle-arrow">${arrow}</span>기획전 · ${esc(rangeText)}${titlePart}<span class="group-count">${g.length}건</span></td></tr>`;
         if (!collapsed) {
-          // 그룹의 첫 데이터 행의 날짜 셀에도 토글 배지를 심어 시각적 앵커 제공
-          g.forEach((gr, idx) => {
-            html += rowHtml(gr, { hideDate: true, dateBadge: idx === 0 ? { key: planViewKey, arrow } : null });
-          });
+          for (const gr of g) html += rowHtml(gr, { hideDate: true });
         }
       }
       continue;
@@ -1487,12 +1474,8 @@ function rowHtml(r, opts) {
   const conflict = findConflict(r);
   const rowCls = r.type ? `row-${r.type}` : '';
   const hideDate = opts && opts.hideDate;
-  const dateBadge = opts && opts.dateBadge;
-  const dateCellInner = dateBadge
-    ? `<button class="row-plan-toggle" data-plan-toggle="${esc(dateBadge.key)}" title="접기/펼치기">${dateBadge.arrow}</button>`
-    : (hideDate ? '' : dateCellHtml(r));
   return `<tr data-id="${r.id}" class="${rowCls}">
-    <td class="date-cell">${dateCellInner}</td>
+    <td class="date-cell">${hideDate ? '' : dateCellHtml(r)}</td>
     <td>
       <select data-k="type">
         <option value="">-</option>
