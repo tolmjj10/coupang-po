@@ -1111,12 +1111,25 @@ function render(state) {
   });
 
   const q = document.getElementById('q');
-  q.oninput = () => {
-    const v = q.value.toLowerCase();
-    document.querySelectorAll('#t tbody tr').forEach(tr => {
-      tr.style.display = tr.innerText.toLowerCase().includes(v) ? '' : 'none';
-    });
+  const trList = Array.from(document.querySelectorAll('#t tbody tr'));
+  const haystack = trList.map(tr => (tr.textContent || '').toLowerCase());
+  let rafId = 0;
+  const applyFilter = () => {
+    rafId = 0;
+    const v = q.value.trim().toLowerCase();
+    for (let i = 0; i < trList.length; i++) {
+      const show = !v || haystack[i].includes(v);
+      const tr = trList[i];
+      const hidden = tr.style.display === 'none';
+      if (show && hidden) tr.style.display = '';
+      else if (!show && !hidden) tr.style.display = 'none';
+    }
   };
+  q.oninput = () => {
+    if (rafId) return;
+    rafId = requestAnimationFrame(applyFilter);
+  };
+  if (q.value) applyFilter();
 }
 
 async function fetchSkuMapFromMargin() {
