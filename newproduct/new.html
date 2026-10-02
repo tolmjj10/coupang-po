@@ -2044,7 +2044,6 @@ async function fetchProductStatus() {
     const brandCol = findIdx(h => h === '브랜드');
     const nameCol = findIdx(h => h === '제품명');
     const modelCol = findIdx(h => /^모델(명|번호|no)?$/i.test(h));
-    const typeCol = findIdx(h => h === '유형');
     const prodCol = findIdx(h => /^생산\s*중$/.test(h));
     const shipCol = findIdx(h => /^출하\s*중$/.test(h));
     const transCol = findIdx(h => /^운송\s*중$/.test(h));
@@ -2056,8 +2055,6 @@ async function fetchProductStatus() {
     const BRANDS_ALLOWED = ['오아', '보아르'];
     const picked = [];
     const seen = new Set();
-    /* 비-본품(사은품/소모품/수리용품/추가구성품 등) 이름 집합 — 기존 data 정리에 사용 */
-    const nonBonpumNames = new Set();
     /* 제품명 → 모델명 매핑도 함께 수집. 재고 없는 행이라도 모델명은 참고용이니 전부 담음. */
     const modelMap = {};
     for (let r = hIdx + 1; r < aoa.length; r++) {
@@ -2073,11 +2070,6 @@ async function fetchProductStatus() {
         const brand = String(row[brandCol] || '').trim();
         if (!BRANDS_ALLOWED.includes(brand)) continue;
       }
-      /* 신제품은 '본품' 만 — 사은품/부속품 등 제외 */
-      if (typeCol >= 0) {
-        const type = String(row[typeCol] || '').trim();
-        if (type !== '본품') { nonBonpumNames.add(name); continue; }
-      }
       const prodQty = _parseNum(row[prodCol]);
       const shipQty = _parseNum(row[shipCol]);
       const transQty = _parseNum(row[transCol]);
@@ -2089,17 +2081,6 @@ async function fetchProductStatus() {
     /* 모델맵을 전역·localStorage 에 저장하여 렌더에서 툴팁으로 활용 */
     window.__productModelMap = Object.assign(window.__productModelMap || {}, modelMap);
     try { localStorage.setItem('coupang_new_product_models', JSON.stringify(window.__productModelMap)); } catch(_){}
-
-    /* 기존 data 정리 — 유형이 '본품' 이 아닌 것으로 밝혀진 항목 제거 (과거에 필터 없이 추가된 항목) */
-    if (nonBonpumNames.size > 0 && Array.isArray(data) && data.length > 0) {
-      const before = data.length;
-      data = data.filter(d => !nonBonpumNames.has(String(d.realName || '').trim()));
-      const removed = before - data.length;
-      if (removed > 0) {
-        console.log('[new] 비-본품 ' + removed + '건 자동 제거 (유형=' + Array.from(nonBonpumNames).slice(0,3).join(',') + '...)');
-        save();
-      }
-    }
     render();
 
     /* 신규 판별 — 이전 엑셀 스냅샷(lastExcelProducts)에 없던 제품만 추가
