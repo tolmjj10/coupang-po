@@ -738,19 +738,33 @@ setInterval(loadProductStatus, 5 * 60000); // 5분 폴링
    이름이 아니라 SKU 로 매칭되므로 전산재고/제품현황 이름 폴백보다 신뢰도가 높다.
    매입가.xlsx 를 세션에 올리지 않아도 마진테이블에 등록된 신제품이 자동 매칭된다. */
 let marginSkuToProcodeMap = {}; // { normalizedSku: procode }
+let _mgProLastRunMs = 0;
+let _mgProLastSha = null;
 async function loadMarginProcodes() {
-  try {
-    const cached = localStorage.getItem('po_margin_procode_cache');
-    if (cached) {
-      const m = JSON.parse(cached);
-      if (m && typeof m === 'object') marginSkuToProcodeMap = m;
-    }
-  } catch (_) {}
+  /* 캐시 복구 (최초 1회) */
+  if (!_mgProLastSha) {
+    try {
+      const cached = localStorage.getItem('po_margin_procode_cache');
+      if (cached) {
+        const m = JSON.parse(cached);
+        if (m && typeof m === 'object') marginSkuToProcodeMap = m;
+      }
+      _mgProLastSha = localStorage.getItem('po_margin_procode_sha') || '';
+    } catch (_) {}
+  }
+  /* 쿨다운: 60초 안에 한 번이라도 돌았으면 재실행 안 함 (focus 폭주 방지) */
+  const now = Date.now();
+  if (now - _mgProLastRunMs < 60000) return;
+  _mgProLastRunMs = now;
   try {
     const metaUrl = 'https://api.github.com/repos/tolmjj10/coupang-po/contents/' + encodeURI('data/마진테이블.xlsx') + '?ref=main';
     const metaRes = await fetch(metaUrl, { headers: { 'Accept': 'application/vnd.github+json' } });
     if (!metaRes.ok) { console.warn('[po] 마진테이블 meta HTTP', metaRes.status); return; }
     const meta = await metaRes.json();
+    /* sha 비교: 바뀐 게 없으면 xlsx 다운로드/파싱 스킵 */
+    if (meta.sha && meta.sha === _mgProLastSha && Object.keys(marginSkuToProcodeMap).length) {
+      return;
+    }
     const abRes = await fetch(meta.download_url);
     if (!abRes.ok) return;
     const ab = await abRes.arrayBuffer();
@@ -783,7 +797,11 @@ async function loadMarginProcodes() {
     if (!Object.keys(map).length) { console.warn('[po] 마진테이블.xlsx 에서 SKU/프로코드 컬럼을 못 찾음'); return; }
     const prevCount = Object.keys(marginSkuToProcodeMap).length;
     marginSkuToProcodeMap = map;
-    try { localStorage.setItem('po_margin_procode_cache', JSON.stringify(map)); } catch(_) {}
+    _mgProLastSha = meta.sha || '';
+    try {
+      localStorage.setItem('po_margin_procode_cache', JSON.stringify(map));
+      if (_mgProLastSha) localStorage.setItem('po_margin_procode_sha', _mgProLastSha);
+    } catch(_) {}
     console.log('[po] 마진테이블 프로코드 로드', Object.keys(map).length, '건 (시트:', sheetUsed + ')');
     if (typeof matchedRows !== 'undefined' && matchedRows && matchedRows.length &&
         Object.keys(map).length !== prevCount && typeof runMatch === 'function') {
