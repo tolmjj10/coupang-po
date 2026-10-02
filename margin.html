@@ -667,9 +667,13 @@ function render(){
     return true;
   });
 
+  /* SKU 그룹 분리: SKU 있는 행 → 신제품(아직 SKU 미입력) 행 순서. 섞이지 않도록. */
+  const _isNew = r => String(r.sku||'').trim() === '신제품';
+  let _skuList = list.filter(r => !_isNew(r));
+  let _newList = list.filter(r =>  _isNew(r));
   if(sortKey){
     const col=COLS.find(c=>c.k===sortKey);
-    list.sort((a,b)=>{
+    const cmpFn=(a,b)=>{
       const va=getCellValue(a,col), vb=getCellValue(b,col);
       const na=Number(va), nb=Number(vb);
       const bothNum=isFinite(na)&&isFinite(nb);
@@ -677,8 +681,11 @@ function render(){
       if(bothNum) cmp=na-nb;
       else cmp=String(va==null?'':va).localeCompare(String(vb==null?'':vb),'ko');
       return cmp*sortDir;
-    });
+    };
+    _skuList.sort(cmpFn);
+    _newList.sort(cmpFn);
   }
+  list = _skuList.concat(_newList);
 
   const tbody=document.getElementById('tbody');
   if(list.length===0){
@@ -1180,9 +1187,13 @@ function currentFilteredRows(){
     }
     return true;
   });
+  /* SKU 그룹 분리: SKU 있는 행 → 신제품(아직 SKU 미입력) 행 순서. 섞이지 않도록. */
+  const _isNew = r => String(r.sku||'').trim() === '신제품';
+  let _skuList = list.filter(r => !_isNew(r));
+  let _newList = list.filter(r =>  _isNew(r));
   if(sortKey){
     const col=COLS.find(c=>c.k===sortKey);
-    list.sort((a,b)=>{
+    const cmpFn=(a,b)=>{
       const va=getCellValue(a,col), vb=getCellValue(b,col);
       const na=Number(va), nb=Number(vb);
       const bothNum=isFinite(na)&&isFinite(nb);
@@ -1190,8 +1201,11 @@ function currentFilteredRows(){
       if(bothNum) cmp=na-nb;
       else cmp=String(va==null?'':va).localeCompare(String(vb==null?'':vb),'ko');
       return cmp*sortDir;
-    });
+    };
+    _skuList.sort(cmpFn);
+    _newList.sort(cmpFn);
   }
+  list = _skuList.concat(_newList);
   return list;
 }
 
