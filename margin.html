@@ -361,7 +361,7 @@
           <span id="pcSaveInfo" class="save-info" style="margin-left:6px;font-size:11.5px;color:var(--hint);"></span>
         </div>
         <div class="search">
-          <span style="font-size:11.5px;color:var(--hint);">SKU# 입력 → 기존값 자동 채움 · 변경 판매가 입력 시 <b style="color:var(--text);">31% 마진</b>으로 공급가 자동 계산 · 완료 체크 시 마진테이블에 반영</span>
+          <span style="font-size:11.5px;color:var(--hint);">SKU# 입력 → 기존값 자동 채움 · 변경 판매가 입력 시 <b style="color:var(--text);">31% 마진</b>(신제품은 <b style="color:var(--text);">25% 마진</b>)으로 공급가 자동 계산 · 완료 체크 시 마진테이블에 반영</span>
         </div>
       </div>
       <div class="table-wrap">
@@ -788,10 +788,14 @@ function startEdit(el, id){
     const newVal=NUM_KEYS.has(k)?toNum(txt):txt;
     if((r[k]??'')!==(newVal??'')){
       setValue(r,k,newVal);
-      /* 소비자가가 바뀌면 매입가를 항상 마진율 31% 기준(=소비자가×0.69) 으로 자동 갱신.
+      /* 소비자가가 바뀌면 매입가를 자동 갱신.
+         - 기존 SKU: 마진율 31% (=소비자가×0.69)
+         - 신제품(sku='신제품'): 마진율 25% (=소비자가×0.75)
          매입가만 단독으로 수정한 경우엔 그 값이 그대로 저장됨. */
       if(k==='price' && typeof newVal==='number' && isFinite(newVal)){
-        r.cost=Math.round(newVal*0.69);
+        const isNewProduct = String(r.sku||'').trim() === '신제품';
+        const rate = isNewProduct ? 0.75 : 0.69;
+        r.cost=Math.round(newVal*rate);
       }
       markDirty();
       render();
