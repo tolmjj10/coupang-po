@@ -733,6 +733,69 @@ window.addEventListener('DOMContentLoaded', loadProductStatus);
 window.addEventListener('focus', loadProductStatus);
 setInterval(loadProductStatus, 5 * 60000); // 5분 폴링
 
+/* ═══════════════════════ 마진테이블.xlsx 직접 로드 (SKU → 프로코드) ═══════════════════════
+   `data/마진테이블.xlsx` 원본 파일을 GitHub 에서 바로 fetch 해, SKU 기준으로 프로코드를 끌어온다.
+   이름이 아니라 SKU 로 매칭되므로 전산재고/제품현황 이름 폴백보다 신뢰도가 높다.
+   매입가.xlsx 를 세션에 올리지 않아도 마진테이블에 등록된 신제품이 자동 매칭된다. */
+let marginSkuToProcodeMap = {}; // { normalizedSku: procode }
+async function loadMarginProcodes() {
+  try {
+    const cached = localStorage.getItem('po_margin_procode_cache');
+    if (cached) {
+      const m = JSON.parse(cached);
+      if (m && typeof m === 'object') marginSkuToProcodeMap = m;
+    }
+  } catch (_) {}
+  try {
+    const metaUrl = 'https://api.github.com/repos/tolmjj10/coupang-po/contents/' + encodeURI('data/마진테이블.xlsx') + '?ref=main';
+    const metaRes = await fetch(metaUrl, { headers: { 'Accept': 'application/vnd.github+json' } });
+    if (!metaRes.ok) { console.warn('[po] 마진테이블 meta HTTP', metaRes.status); return; }
+    const meta = await metaRes.json();
+    const abRes = await fetch(meta.download_url);
+    if (!abRes.ok) return;
+    const ab = await abRes.arrayBuffer();
+    const wb = XLSX.read(ab, { type: 'array' });
+    /* 시트 탐색: SKU + 프로코드 컬럼이 있는 시트를 오른쪽부터 찾음 (margin.html `_fetchMarginPro` 와 동일 패턴) */
+    const map = {};
+    let sheetUsed = '';
+    for (let si = wb.SheetNames.length - 1; si >= 0; si--) {
+      const ws = wb.Sheets[wb.SheetNames[si]];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+      let hIdx = -1;
+      for (let i = 0; i < Math.min(aoa.length, 15); i++) {
+        const row = (aoa[i]||[]).map(v => String(v||'').trim());
+        if (row.some(c => /^SKU\s*#?$/i.test(c))) { hIdx = i; break; }
+      }
+      if (hIdx < 0) continue;
+      const header = (aoa[hIdx]||[]).map(v => String(v||'').trim());
+      const skuCol = header.findIndex(h => /^SKU\s*#?$/i.test(h));
+      const proCol = header.findIndex(h => /^(프로\s*코드|procode|pro_?code)$/i.test(h));
+      if (skuCol < 0 || proCol < 0) continue;
+      for (let r = hIdx + 1; r < aoa.length; r++) {
+        const row = aoa[r] || [];
+        const sku = norm(row[skuCol]);
+        const procode = String(row[proCol]||'').trim();
+        if (!sku || !procode) continue;
+        if (!map[sku]) map[sku] = procode;
+      }
+      if (Object.keys(map).length) { sheetUsed = wb.SheetNames[si]; break; }
+    }
+    if (!Object.keys(map).length) { console.warn('[po] 마진테이블.xlsx 에서 SKU/프로코드 컬럼을 못 찾음'); return; }
+    const prevCount = Object.keys(marginSkuToProcodeMap).length;
+    marginSkuToProcodeMap = map;
+    try { localStorage.setItem('po_margin_procode_cache', JSON.stringify(map)); } catch(_) {}
+    console.log('[po] 마진테이블 프로코드 로드', Object.keys(map).length, '건 (시트:', sheetUsed + ')');
+    if (typeof matchedRows !== 'undefined' && matchedRows && matchedRows.length &&
+        Object.keys(map).length !== prevCount && typeof runMatch === 'function') {
+      console.log('[po] 마진테이블 프로코드 변경 감지 → 자동 재매칭');
+      try { runMatch(); } catch(_){}
+    }
+  } catch (e) { console.warn('[po] loadMarginProcodes 실패:', e.message); }
+}
+window.addEventListener('DOMContentLoaded', loadMarginProcodes);
+window.addEventListener('focus', loadMarginProcodes);
+setInterval(loadMarginProcodes, 5 * 60000);
+
 /* ═══════════════════════ EXCLUDED BRANDS ═══════════════════════ */
 const ALLOWED_BRAND_PREFIXES=['오아','보아르'];
 /* 허용 프리픽스가 아니라도 재고 매칭 등으로 이름이 뒤바뀔 수 있어, 명시적으로 차단할 브랜드를 별도 유지 */
@@ -1206,7 +1269,13 @@ function runMatch(){
       const frozen=frozenSkuProcodeMap[norm(orderSku)];
       if(frozen) procode=frozen;
     }
-    /* 마스터·프리즌에 없으면 상품명(전산명 완전 일치)으로 폴백 */
+    /* 마진테이블.xlsx 직접 로드 맵: SKU 기준이라 이름 폴백보다 신뢰도 높음.
+       매입가.xlsx 를 세션에 올리지 않아도 마진테이블에 등록된 신제품이 매칭된다. */
+    if(!procode){
+      const mgPro=marginSkuToProcodeMap[norm(orderSku)];
+      if(mgPro) procode=mgPro;
+    }
+    /* 마스터·프리즌·마진테이블에 없으면 상품명(전산명 완전 일치)으로 폴백 */
     let procodeFromName=false;
     if(!procode){
       const hit=stockNameToProcode[norm(orderName)];
