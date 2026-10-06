@@ -1652,6 +1652,13 @@ function pcRender(){
   const tbody = document.getElementById('pcTbody');
   if(!tbody) return;
   if(pcRows.length === 0) pcRows.push(pcBlankRow());
+  pcRows.sort((a,b)=>{
+    const da = a.date || '', db = b.date || '';
+    if(da === db) return 0;
+    if(!da) return 1;
+    if(!db) return -1;
+    return da < db ? -1 : 1;
+  });
   tbody.innerHTML = pcRows.map(r=>{
     const doneStyle = r.done ? 'opacity:0.55;background:#f2ede9;' : '';
     return `<tr data-id="${r._id}" style="${doneStyle}">
@@ -1758,6 +1765,8 @@ document.getElementById('pcTbody').addEventListener('input', ev=>{
   const k = inp.dataset.k;
   if(k === 'date'){
     r.date = inp.value;
+    pcMarkDirty(); pcRender();
+    return;
   } else if(k === 'sku'){
     r.sku = inp.value.trim();
   } else if(k === 'newPrice'){
