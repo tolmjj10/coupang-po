@@ -1771,11 +1771,10 @@ document.getElementById('pcTbody').addEventListener('input', ev=>{
     r.sku = inp.value.trim();
   } else if(k === 'newPrice'){
     r.newPrice = pcParseNum(inp.value);
-    if(!r.newSupplyManual){
-      r.newSupply = r.newPrice != null ? Math.round(r.newPrice * (1 - PC_MARGIN_RATE) * 1.1) : null;
-      const supplyInp = tr.querySelector('.pc-inp[data-k="newSupply"]');
-      if(supplyInp) supplyInp.value = r.newSupply == null ? '' : pcFmtInt(r.newSupply);
-    }
+    r.newSupplyManual = false;
+    r.newSupply = r.newPrice != null ? Math.round(r.newPrice * (1 - PC_MARGIN_RATE) * 1.1) : null;
+    const supplyInp = tr.querySelector('.pc-inp[data-k="newSupply"]');
+    if(supplyInp) supplyInp.value = r.newSupply == null ? '' : pcFmtInt(r.newSupply);
   } else if(k === 'newSupply'){
     r.newSupply = pcParseNum(inp.value);
     r.newSupplyManual = (r.newSupply != null);
