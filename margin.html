@@ -1772,7 +1772,7 @@ document.getElementById('pcTbody').addEventListener('input', ev=>{
   } else if(k === 'newPrice'){
     r.newPrice = pcParseNum(inp.value);
     r.newSupplyManual = false;
-    r.newSupply = r.newPrice != null ? Math.round(r.newPrice * (1 - PC_MARGIN_RATE) * 1.1) : null;
+    r.newSupply = r.newPrice != null ? Math.round(r.newPrice * (1 - PC_MARGIN_RATE)) : null;
     const supplyInp = tr.querySelector('.pc-inp[data-k="newSupply"]');
     if(supplyInp) supplyInp.value = r.newSupply == null ? '' : pcFmtInt(r.newSupply);
   } else if(k === 'newSupply'){
@@ -1795,7 +1795,7 @@ document.getElementById('pcTbody').addEventListener('change', ev=>{
       r.name = ''; r.oldPrice = null; r.oldSupply = null;
     }
     if(!r.newSupplyManual && r.newPrice != null){
-      r.newSupply = Math.round(r.newPrice * (1 - PC_MARGIN_RATE) * 1.1);
+      r.newSupply = Math.round(r.newPrice * (1 - PC_MARGIN_RATE));
     }
     pcMarkDirty(); pcRender();
     return;
