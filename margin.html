@@ -361,7 +361,7 @@
           <span id="pcSaveInfo" class="save-info" style="margin-left:6px;font-size:11.5px;color:var(--hint);"></span>
         </div>
         <div class="search">
-          <span style="font-size:11.5px;color:var(--hint);">SKU# 입력 → 기존값 자동 채움 · 변경 판매가 입력 시 <b style="color:var(--text);">31% 마진</b>(신제품은 <b style="color:var(--text);">25% 마진</b>)으로 공급가 자동 계산 · 완료 체크 시 마진테이블에 반영</span>
+          <span style="font-size:11.5px;color:var(--hint);">SKU# 입력 → 기존값 자동 채움 · 변경 판매가 입력 시 <b style="color:var(--text);">31% 마진</b>(신제품은 <b style="color:var(--text);">25% 마진</b>)으로 매입가 자동 계산 · 완료 체크 시 마진테이블에 반영</span>
         </div>
       </div>
       <div class="table-wrap">
@@ -384,7 +384,7 @@
       </div>
       <div style="padding:10px 4px 0;font-size:11.5px;color:var(--hint);display:flex;justify-content:space-between;align-items:center;">
         <span id="pcStatus">0건</span>
-        <span>💡 변경 매입가는 수기 편집 가능 · 완료 체크 시 마진테이블의 매입가(= 공급가 × 1.1)와 소비자가를 갱신함</span>
+        <span>💡 변경 매입가는 수기 편집 가능 · 완료 체크 시 마진테이블의 매입가와 소비자가를 갱신함</span>
       </div>
     </div>
   </main>
@@ -1701,7 +1701,7 @@ function pcApplyToMargin(r){
   if(!target){ showToast('SKU# 매칭 안됨: ' + r.sku, '#b04a3a'); return false; }
   const patch = {};
   if(r.newPrice != null)  patch.price = Number(r.newPrice);
-  if(r.newSupply != null) patch.cost  = Math.round(Number(r.newSupply) * 1.1);
+  if(r.newSupply != null) patch.cost  = Math.round(Number(r.newSupply));
   if(!Object.keys(patch).length) return false;
   pushHistory();
   Object.assign(target, patch);
@@ -1714,7 +1714,7 @@ function pcRevertOnMargin(r){
   if(!target) return false;
   const patch = {};
   if(r.oldPrice != null)  patch.price = Number(r.oldPrice);
-  if(r.oldSupply != null) patch.cost  = Math.round(Number(r.oldSupply) * 1.1);
+  if(r.oldSupply != null) patch.cost  = Math.round(Number(r.oldSupply));
   if(!Object.keys(patch).length) return false;
   pushHistory();
   Object.assign(target, patch);
@@ -1743,7 +1743,7 @@ document.getElementById('pcTbody').addEventListener('input', ev=>{
   } else if(k === 'newPrice'){
     r.newPrice = pcParseNum(inp.value);
     if(!r.newSupplyManual){
-      r.newSupply = r.newPrice != null ? Math.round(r.newPrice * (1 - PC_MARGIN_RATE)) : null;
+      r.newSupply = r.newPrice != null ? Math.round(r.newPrice * (1 - PC_MARGIN_RATE) * 1.1) : null;
       const supplyInp = tr.querySelector('.pc-inp[data-k="newSupply"]');
       if(supplyInp) supplyInp.value = r.newSupply == null ? '' : pcFmtInt(r.newSupply);
     }
@@ -1762,12 +1762,12 @@ document.getElementById('pcTbody').addEventListener('change', ev=>{
     if(found){
       r.name = found.name || '';
       r.oldPrice = found.price != null ? Number(found.price) : null;
-      r.oldSupply = found.cost != null ? Math.round(Number(found.cost)/1.1) : null;
+      r.oldSupply = found.cost != null ? Number(found.cost) : null;
     } else {
       r.name = ''; r.oldPrice = null; r.oldSupply = null;
     }
     if(!r.newSupplyManual && r.newPrice != null){
-      r.newSupply = Math.round(r.newPrice * (1 - PC_MARGIN_RATE));
+      r.newSupply = Math.round(r.newPrice * (1 - PC_MARGIN_RATE) * 1.1);
     }
     pcMarkDirty(); pcRender();
     return;
@@ -1779,7 +1779,7 @@ document.getElementById('pcTbody').addEventListener('change', ev=>{
     if(chk.checked){
       if(!r.sku || (r.newPrice == null && r.newSupply == null)){
         chk.checked = false;
-        showToast('SKU#와 변경 판매가/공급가를 먼저 입력하세요', '#b04a3a');
+        showToast('SKU#와 변경 판매가/매입가를 먼저 입력하세요', '#b04a3a');
         return;
       }
       const ok = pcApplyToMargin(r);
