@@ -1774,7 +1774,11 @@ document.getElementById('pcTbody').addEventListener('input', ev=>{
     r.newSupplyManual = false;
     r.newSupply = r.newPrice != null ? Math.round(r.newPrice * (1 - PC_MARGIN_RATE)) : null;
     const supplyInp = tr.querySelector('.pc-inp[data-k="newSupply"]');
-    if(supplyInp) supplyInp.value = r.newSupply == null ? '' : pcFmtInt(r.newSupply);
+    if(supplyInp){
+      supplyInp.value = r.newSupply == null ? '' : pcFmtInt(r.newSupply);
+      supplyInp.style.color = 'inherit';
+      supplyInp.title = '변경 판매가 × 0.69 자동';
+    }
   } else if(k === 'newSupply'){
     r.newSupply = pcParseNum(inp.value);
     r.newSupplyManual = (r.newSupply != null);
