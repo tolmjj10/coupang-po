@@ -1681,12 +1681,32 @@ function pcRender(){
   const doneCnt = pcRows.filter(r=>r.done).length;
   document.getElementById('pcStatus').textContent = `${pcRows.length}건${doneCnt?' · 완료 '+doneCnt+'건':''}`;
 }
+function pcRefreshOldValuesFromMargin(){
+  let changed = false;
+  pcRows.forEach(r=>{
+    if(r.done) return;
+    if(!r.sku) return;
+    const found = pcLookupBySku(r.sku);
+    if(!found) return;
+    const newName = found.name || '';
+    const newOldPrice = found.price != null ? Number(found.price) : null;
+    const newOldSupply = found.cost != null ? Number(found.cost) : null;
+    if(r.name !== newName || r.oldPrice !== newOldPrice || r.oldSupply !== newOldSupply){
+      r.name = newName;
+      r.oldPrice = newOldPrice;
+      r.oldSupply = newOldSupply;
+      changed = true;
+    }
+  });
+  if(changed) pcMarkDirty();
+}
 function pcOpen(){
   document.getElementById('marginView').style.display = 'none';
   document.getElementById('priceChangeView').style.display = 'block';
   document.getElementById('btnPriceChange').style.display = 'none';
   document.getElementById('btnBackToMargin').style.display = 'inline-flex';
   document.getElementById('pageTitle').textContent = '공급가 변경';
+  pcRefreshOldValuesFromMargin();
   pcRender();
 }
 function pcCloseFn(){
