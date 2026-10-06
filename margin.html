@@ -1705,15 +1705,24 @@ function pcRender(){
   document.getElementById('pcStatus').textContent = `${pcRows.length}건${doneCnt?' · 완료 '+doneCnt+'건':''}`;
 }
 function pcRefreshOldValuesFromMargin(){
+  /* 완료된 행도 포함해 기존 매입가를 마진테이블의 현재 매입가로 재조회.
+     완료된 행의 경우 margin.cost = 완료 당시 newSupply 이므로 oldSupply 와 같아짐 → 체크 해제 시 복구값 동일. */
   let changed = false;
   pcRows.forEach(r=>{
-    if(r.done) return;
     if(!r.sku) return;
     const found = pcLookupBySku(r.sku);
     if(!found) return;
     const newName = found.name || '';
     const newOldPrice = found.price != null ? Number(found.price) : null;
     const newOldSupply = found.cost != null ? Number(found.cost) : null;
+    if(r.done){
+      /* 완료 행은 마진테이블 매입가가 변경 매입가와 다를 때만 갱신(=완료 상태 뷰 유지) */
+      if(r.oldSupply !== newOldSupply && newOldSupply != null){
+        r.oldSupply = newOldSupply;
+        changed = true;
+      }
+      return;
+    }
     if(r.name !== newName || r.oldPrice !== newOldPrice || r.oldSupply !== newOldSupply){
       r.name = newName;
       r.oldPrice = newOldPrice;
