@@ -2409,7 +2409,17 @@ async function saveResult(mode){
 
       if (typeof runMatch === 'function' && fileState.order && fileState.stock) {
         runMatch();
-        document.body.classList.add('__fsapi-loaded__');
+        var resultsEl = document.getElementById('results');
+        var rendered = resultsEl && resultsEl.style.display !== 'none'
+                       && typeof matchedRows !== 'undefined' && matchedRows && matchedRows.length > 0;
+        if (rendered) {
+          document.body.classList.add('__fsapi-loaded__');
+        } else {
+          setBanner('error', '매칭 결과가 비어있음 — 발주/재고 파일을 확인하거나 수동 업로드');
+          console.error('[fsapi] runMatch produced no rows. orderData=',
+            (typeof orderData!=='undefined'&&orderData)?orderData.length:'(none)',
+            'stockData=', (typeof stockData!=='undefined'&&stockData)?stockData.length:'(none)');
+        }
       } else {
         setBanner('error', '데이터 처리 실패 — F12 콘솔 확인');
         console.error('[fsapi] state:', JSON.parse(JSON.stringify(fileState)));
