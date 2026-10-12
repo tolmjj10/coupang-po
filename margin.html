@@ -787,6 +787,7 @@ function startEdit(el, id){
     const txt=el.textContent.trim();
     const newVal=NUM_KEYS.has(k)?toNum(txt):txt;
     if((r[k]??'')!==(newVal??'')){
+      const wasNewProduct = String(r[k]||'').trim() === '신제품' && k==='sku';
       setValue(r,k,newVal);
       /* 소비자가가 바뀌면 매입가를 자동 갱신.
          - 기존 SKU: 마진율 31% (=소비자가×0.69)
@@ -796,6 +797,18 @@ function startEdit(el, id){
         const isNewProduct = String(r.sku||'').trim() === '신제품';
         const rate = isNewProduct ? 0.75 : 0.69;
         r.cost=Math.round(newVal*rate);
+      }
+      /* 신제품 행에 SKU#를 입력하면 데이터 배열에서 신제품 섹션 바로 위
+         (마지막 SKU 보유 행 다음)로 이동시킨다. 그래야 렌더링 시 맨 위가 아닌
+         "신제품이라고 적힌 행 바로 위"에 표시된다. */
+      if(wasNewProduct && String(newVal||'').trim() !== '신제품'){
+        const idx=rows.indexOf(r);
+        if(idx>=0){
+          rows.splice(idx,1);
+          const firstNewIdx=rows.findIndex(x=>String(x.sku||'').trim()==='신제품');
+          if(firstNewIdx<0) rows.push(r);
+          else rows.splice(firstNewIdx,0,r);
+        }
       }
       markDirty();
       render();
