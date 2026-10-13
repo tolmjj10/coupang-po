@@ -1558,7 +1558,7 @@ document.getElementById('tbody').addEventListener('click', ev=>{
 /* ═══════════════════════ 공급가 변경 뷰 ═══════════════════════ */
 const PC_STORAGE_KEY = 'coupang_margin_price_change_v1';
 const PC_API = '/api/price-change-state';
-const PC_MARGIN_RATE = 0.31; // 공급가 = 판매가 × (1 - 0.31)
+const PC_MARGIN_RATE = 0.25; // 변경 매입가 = 변경 판매가 × (1 - 0.25) = × 0.75  (25% 마진)
 const PC_AUTOSAVE_MS = 60 * 1000;
 let pcRows = [];
 let pcDirty = false;
@@ -1704,7 +1704,7 @@ function pcRender(){
         <input class="pc-inp" data-k="newPrice" value="${r.newPrice==null?'':pcFmtInt(r.newPrice)}" style="width:100%;padding:6px 8px;border:1px solid var(--hairline);border-radius:6px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;font-size:12px;background:${r.done?'#f8f5f2':'#fff'};" placeholder="0">
       </td>
       <td style="padding:6px 6px;border-bottom:1px solid var(--hairline);text-align:right;background:#fbf8f4;">
-        <input class="pc-inp" data-k="newSupply" value="${r.newSupply==null?'':pcFmtInt(r.newSupply)}" style="width:100%;padding:6px 8px;border:1px solid var(--hairline);border-radius:6px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;font-size:12px;background:${r.done?'#f8f5f2':'#fff'};color:${r.newSupplyManual?'#b04a3a':'inherit'};" placeholder="0" title="${r.newSupplyManual?'수기 입력됨':'변경 판매가 × 0.69 자동'}">
+        <input class="pc-inp" data-k="newSupply" value="${r.newSupply==null?'':pcFmtInt(r.newSupply)}" style="width:100%;padding:6px 8px;border:1px solid var(--hairline);border-radius:6px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;font-size:12px;background:${r.done?'#f8f5f2':'#fff'};color:${r.newSupplyManual?'#b04a3a':'inherit'};" placeholder="0" title="${r.newSupplyManual?'수기 입력됨':'변경 판매가 × 0.75 자동 (25% 마진)'}">
       </td>
       <td style="padding:6px 8px;border-bottom:1px solid var(--hairline);text-align:center;">
         <input type="checkbox" class="pc-done" ${r.done?'checked':''} style="width:16px;height:16px;cursor:pointer;">
