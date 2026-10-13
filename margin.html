@@ -1872,6 +1872,62 @@ document.getElementById('pcTbody').addEventListener('click', ev=>{
   if(!pcRows.length) pcRows.push(pcBlankRow());
   pcMarkDirty(); pcRender();
 });
+/* Tab 커스텀 순회: 변경 판매가 ↔ 변경 매입가 ↔ 다음 행 변경 판매가 만 돌림.
+   완료 체크박스 / 삭제 버튼 등 다른 요소는 건너뛰어 입력 플로우를 단축. */
+document.getElementById('pcTbody').addEventListener('keydown', ev=>{
+  if(ev.key !== 'Tab') return;
+  const inp = ev.target.closest('.pc-inp');
+  if(!inp) return;
+  const k = inp.dataset.k;
+  if(k !== 'newPrice' && k !== 'newSupply') return;
+  const tr = inp.closest('tr'); if(!tr) return;
+  let targetTr = tr, targetK;
+  if(ev.shiftKey){
+    if(k === 'newSupply'){ targetK = 'newPrice'; }
+    else { targetTr = tr.previousElementSibling; targetK = 'newSupply'; }
+  } else {
+    if(k === 'newPrice'){ targetK = 'newSupply'; }
+    else { targetTr = tr.nextElementSibling; targetK = 'newPrice'; }
+  }
+  if(!targetTr) return; // 테이블 끝/시작은 기본 Tab 허용
+  const target = targetTr.querySelector(`.pc-inp[data-k="${targetK}"]`);
+  if(!target) return;
+  ev.preventDefault();
+  target.focus();
+  try { target.select(); } catch(_) {}
+});
+
+/* 드래그-복사: input 셀 값까지 포함한 TSV 로 클립보드 반영.
+   브라우저 기본 selection 은 <input> 내부 값을 못 집어가므로, 선택 범위가
+   공급가 변경 테이블을 가로지르면 각 셀의 input.value / checkbox 상태 / td 텍스트를
+   순서대로 TSV 로 재구성한다. */
+document.addEventListener('copy', ev=>{
+  const sel = window.getSelection();
+  if(!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+  const tbl = document.getElementById('pcTbl');
+  if(!tbl) return;
+  const range = sel.getRangeAt(0);
+  const anchor = range.commonAncestorContainer;
+  const inPcTable = tbl.contains(anchor) || (anchor.nodeType===1 && anchor.contains && anchor.contains(tbl));
+  if(!inPcTable) return;
+  // 선택 범위에 걸치는 tr 수집
+  const trs = Array.from(tbl.querySelectorAll('tbody tr')).filter(tr=>range.intersectsNode(tr));
+  if(!trs.length) return;
+  const tsv = trs.map(tr=>{
+    return Array.from(tr.cells).map(td=>{
+      const cb = td.querySelector('input[type="checkbox"]');
+      if(cb) return cb.checked ? '완료' : '';
+      const inp = td.querySelector('input');
+      if(inp) return inp.value || '';
+      const btn = td.querySelector('button');
+      if(btn) return '';
+      return (td.textContent || '').trim();
+    }).join('\t');
+  }).join('\n');
+  ev.clipboardData.setData('text/plain', tsv);
+  ev.preventDefault();
+});
+
 document.addEventListener('keydown', ev=>{
   if(ev.key === 'Escape' && document.getElementById('priceChangeView').style.display === 'block'){
     pcCloseFn();
