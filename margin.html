@@ -1750,7 +1750,7 @@ function pcRefreshOldValuesFromMargin(){
 }
 function pcOpen(){
   document.getElementById('marginView').style.display = 'none';
-  document.getElementById('priceChangeView').style.display = 'block';
+  document.getElementById('priceChangeView').style.display = 'flex';
   document.getElementById('btnPriceChange').style.display = 'none';
   document.getElementById('btnBackToMargin').style.display = 'inline-flex';
   document.getElementById('pageTitle').textContent = '공급가 변경';
@@ -1932,14 +1932,14 @@ document.addEventListener('copy', ev=>{
 });
 
 document.addEventListener('keydown', ev=>{
-  if(ev.key === 'Escape' && document.getElementById('priceChangeView').style.display === 'block'){
+  if(ev.key === 'Escape' && document.getElementById('priceChangeView').style.display !== 'none'){
     pcCloseFn();
   }
 });
 pcLoadLocal();
-pcLoadRemote().then(hadRemote => { if(hadRemote){ pcUpdateSaveInfo(); if(document.getElementById('priceChangeView').style.display==='block') pcRender(); } });
+pcLoadRemote().then(hadRemote => { if(hadRemote){ pcUpdateSaveInfo(); if(document.getElementById('priceChangeView').style.display!=='none') pcRender(); } });
 pcStartAutosave();
-window.addEventListener('focus', ()=>{ if(!pcDirty) pcLoadRemote().then(had=>{ if(had && document.getElementById('priceChangeView').style.display==='block') pcRender(); }); });
+window.addEventListener('focus', ()=>{ if(!pcDirty) pcLoadRemote().then(had=>{ if(had && document.getElementById('priceChangeView').style.display!=='none') pcRender(); }); });
 document.getElementById('pcSave').addEventListener('click', pcSaveRemote);
 
 load();
