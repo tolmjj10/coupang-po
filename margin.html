@@ -1255,6 +1255,10 @@ document.getElementById('btnDownload').addEventListener('click',()=>{
         return {t:'n', v:Number(v), z:'0%'};
       }
       if(v==null||v==='') return '';
+      if(col.k==='sku'||col.k==='viid'||col.k==='pid'){
+        const s=String(v).trim();
+        if(/^\d+$/.test(s)) return {t:'n', v:Number(s), z:'0'};
+      }
       return v;
     });
     const info = psMap[String(r.name||'').trim()] || null;
