@@ -692,7 +692,6 @@
 <script>
 const API_URL = '/api/promotion-state';
 const MARGIN_URL = '/api/margin-state';
-const REPO_CFG = { owner:'tolmjj10', repo:'coupang-po', branch:'main', dir:'promotion/viid_pid' };
 const TYPES = ['골드박스','타임특가','기획전','즉시할인','체험단'];
 const RESTRICTED_TYPES = new Set(['골드박스','타임특가']);
 const RESTRICT_DAYS = 14;
@@ -700,14 +699,12 @@ const EXPERIENCE_BASE_COST = 125000;
 const TIMES = ['07','15','23'];
 const STORAGE_KEY = 'promotion_state_local';
 const MARGIN_CACHE_KEY = 'promotion_margin_cache';
-const VIID_CACHE_KEY = 'promotion_viid_cache';
 const TOMBSTONE_KEY = 'promotion_tombstones';
 const TOMBSTONE_TTL_MS = 120000; // 2분 — Cloudflare KV 전파 시간 여유
 let tombstones = {}; // { id: timestamp } — 최근 삭제된 행. loadRemote가 이걸 필터링해서 KV 지연으로 부활 방지
 
 let data = [];        // rows
-let marginMap = {};   // skuId → {name, cost, price, originN, supply, curMargin}
-let viidMap = {};     // skuId → {viid, pid}
+let marginMap = {};   // skuId → {name, cost, price, originN, supply, curMargin, viid, pid}
 let activeTab = '전체';
 // 기획전 그룹 접힘 상태 (key = 그룹 key). localStorage 로 새로고침 후에도 유지
 const collapsedPlans = new Set(
@@ -758,7 +755,6 @@ function findConflict(row) {
 /* ═══════════════════════ 파생 계산 ═══════════════════════ */
 function derive(r) {
   const m = marginMap[String(r.skuId||'').trim()] || null;
-  const vp = viidMap[String(r.skuId||'').trim()] || null;
   const skuName = m ? m.name : '';
   // 판매가: 행 생성 시점의 마진 소비자가를 priceBase에 스냅샷, 사용자가 수정하면 priceEdit
   const priceBase = (r.priceBase != null) ? parseN(r.priceBase) : (m ? m.price : null);
@@ -767,9 +763,9 @@ function derive(r) {
   const priceDelta = (priceEdit != null && priceBase != null) ? (priceBase - priceEdit) : null; // 양수면 추가할인
   const supply = m ? m.supply : null;
   const curMargin = m ? m.curMargin : null;
-  // VIID/PID: viid_pid확인.xlsx 우선, 없으면 마진테이블(margin-state)에서 폴백
-  const viid = (vp && vp.viid) || (m && m.viid) || '';
-  const pid  = (vp && vp.pid)  || (m && m.pid)  || '';
+  // VIID/PID: 마진테이블(margin-state)에서 조회
+  const viid = (m && m.viid) || '';
+  const pid  = (m && m.pid)  || '';
   // 할인율/금액: <100 이면 %(퍼센트), >=100 이면 원화 금액으로 해석
   const rate = parseN(r.discountRate);
   let discAmt = null;
@@ -1721,69 +1717,6 @@ async function loadMargin() {
   }
 }
 
-/* ═══════════════════════ VIID/PID 엑셀 ═══════════════════════ */
-let _xlsxLoading = null;
-function ensureXlsx() {
-  if (typeof XLSX !== 'undefined') return Promise.resolve();
-  if (_xlsxLoading) return _xlsxLoading;
-  _xlsxLoading = new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
-    s.onload = resolve;
-    s.onerror = () => reject(new Error('XLSX load failed'));
-    document.head.appendChild(s);
-  });
-  return _xlsxLoading;
-}
-async function loadViidPid() {
-  try {
-    const listUrl = '/api/repo-files?path=' + encodeURIComponent(REPO_CFG.dir) + '&ref=' + REPO_CFG.branch;
-    const listRes = await fetch(listUrl);
-    if (!listRes.ok) throw new Error('list HTTP '+listRes.status);
-    const files = await listRes.json();
-    const NAME_RE = /viid.*pid.*확인/i;
-    const target = (files||[]).find(f => f.type==='file' && NAME_RE.test(f.name) && /\.xlsx?$/i.test(f.name));
-    if (!target) { console.log('[promotion] viid_pid확인 파일 없음'); return; }
-    await ensureXlsx();
-    const abRes = await fetch(target.download_url);
-    if (!abRes.ok) throw new Error('file HTTP '+abRes.status);
-    const ab = await abRes.arrayBuffer();
-    const wb = XLSX.read(ab, { type: 'array' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-    if (aoa.length < 2) return;
-    // 헤더 행 자동 감지 (SKU / VIID / PID 헤더 포함하는 행)
-    let hIdx = -1;
-    for (let i=0; i<Math.min(aoa.length, 10); i++) {
-      const row = (aoa[i]||[]).map(v => String(v||'').toUpperCase().replace(/\s+/g,''));
-      const hasSku  = row.some(c => /SKU/.test(c));
-      const hasViid = row.some(c => /VIID|옵션ID|옵션아이디/.test(c));
-      const hasPid  = row.some(c => /(^|[^A-Z])PID|노출ID|상품ID/.test(c));
-      if (hasSku && (hasViid || hasPid)) { hIdx = i; break; }
-    }
-    if (hIdx < 0) { console.warn('[promotion] viid_pid 헤더 감지 실패'); return; }
-    const header = (aoa[hIdx]||[]).map(v => String(v||'').toUpperCase().replace(/\s+/g,''));
-    const skuCol  = header.findIndex(h => /SKU/.test(h) && !/명|NAME/.test(h));
-    const viidCol = header.findIndex(h => /VIID|옵션ID|옵션아이디/.test(h));
-    const pidCol  = header.findIndex(h => /(^|[^A-Z])PID|노출ID|상품ID/.test(h));
-    viidMap = {};
-    for (let r = hIdx+1; r < aoa.length; r++) {
-      const row = aoa[r]||[];
-      const sku = String(row[skuCol]||'').trim();
-      if (!sku) continue;
-      viidMap[sku] = {
-        viid: viidCol>=0 ? String(row[viidCol]||'').trim() : '',
-        pid:  pidCol>=0  ? String(row[pidCol] ||'').trim() : ''
-      };
-    }
-    try { localStorage.setItem(VIID_CACHE_KEY, JSON.stringify(viidMap)); } catch(_) {}
-    console.log('[promotion] VIID/PID 매핑 로드', Object.keys(viidMap).length,'건');
-    scheduleRender();
-  } catch (e) {
-    console.warn('[promotion] loadViidPid 실패:', e.message);
-  }
-}
-
 /* ═══════════════════════ 행 추가 ═══════════════════════ */
 $('addBtn').addEventListener('click', () => {
   // 활성 월 탭이 실제 월(YYYY-MM)이면 그 달 첫날을 기본 날짜로 → 해당 월 탭에 즉시 표시되고
@@ -1890,7 +1823,7 @@ function calEntriesForDate(d) {
 }
 $('reloadBtn').addEventListener('click', async () => {
   saveStatus('갱신 중…');
-  await Promise.all([loadMargin(), loadViidPid()]);
+  await loadMargin();
   render();
   saveStatus('갱신 완료');
 });
@@ -1980,15 +1913,13 @@ function initColResize() {
     }
     const mCache = localStorage.getItem(MARGIN_CACHE_KEY);
     if (mCache) { const m = JSON.parse(mCache); if (m && typeof m === 'object') marginMap = m; }
-    const vCache = localStorage.getItem(VIID_CACHE_KEY);
-    if (vCache) { const v = JSON.parse(vCache); if (v && typeof v === 'object') viidMap = v; }
     const tCache = localStorage.getItem(TOMBSTONE_KEY);
     if (tCache) { const t = JSON.parse(tCache); if (t && typeof t === 'object') tombstones = t; }
     pruneTombstones();
   } catch (_) {}
   render();
   initColResize();
-  await Promise.all([loadMargin(), loadViidPid()]);
+  await loadMargin();
   await loadRemote();
 })();
 setInterval(loadRemote, 30000);
