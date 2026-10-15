@@ -767,8 +767,9 @@ function derive(r) {
   const priceDelta = (priceEdit != null && priceBase != null) ? (priceBase - priceEdit) : null; // 양수면 추가할인
   const supply = m ? m.supply : null;
   const curMargin = m ? m.curMargin : null;
-  const viid = vp ? vp.viid : '';
-  const pid = vp ? vp.pid : '';
+  // VIID/PID: viid_pid확인.xlsx 우선, 없으면 마진테이블(margin-state)에서 폴백
+  const viid = (vp && vp.viid) || (m && m.viid) || '';
+  const pid  = (vp && vp.pid)  || (m && m.pid)  || '';
   // 할인율/금액: <100 이면 %(퍼센트), >=100 이면 원화 금액으로 해석
   const rate = parseN(r.discountRate);
   let discAmt = null;
@@ -1709,7 +1710,8 @@ async function loadMargin() {
       const originN = parseN(r.originN);
       const supply = cost!=null ? cost/1.1 : null;
       const curMargin = (supply!=null && originN!=null) ? supply - originN : null;
-      marginMap[sku] = { name: r.name||'', cost, price, originN, supply, curMargin };
+      marginMap[sku] = { name: r.name||'', cost, price, originN, supply, curMargin,
+                         viid: String(r.viid||'').trim(), pid: String(r.pid||'').trim() };
     });
     try { localStorage.setItem(MARGIN_CACHE_KEY, JSON.stringify(marginMap)); } catch(_) {}
     console.log('[promotion] margin 로드', Object.keys(marginMap).length,'건');
@@ -1801,12 +1803,6 @@ $('saveBtn').addEventListener('click', () => { clearTimeout(_saveTimer); saveRem
 
 /* 날짜 input 클릭/포커스 시 캘린더 즉시 열기 (기본 동작: 첫 클릭은 드래그 선택, 두 번째만 열림) */
 document.addEventListener('click', ev => {
-  const t = ev.target;
-  if (t && t.tagName === 'INPUT' && t.type === 'date') {
-    try { t.showPicker && t.showPicker(); } catch(_){}
-  }
-}, true);
-document.addEventListener('focus', ev => {
   const t = ev.target;
   if (t && t.tagName === 'INPUT' && t.type === 'date') {
     try { t.showPicker && t.showPicker(); } catch(_){}
