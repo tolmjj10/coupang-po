@@ -1725,30 +1725,19 @@ function pcRender(){
   document.getElementById('pcStatus').textContent = `${pcRows.length}건${doneCnt?' · 완료 '+doneCnt+'건':''}`;
 }
 function pcRefreshOldValuesFromMargin(){
-  /* 완료된 행도 포함해 기존 매입가를 마진테이블의 현재 매입가로 재조회.
-     완료된 행의 경우 margin.cost = 완료 당시 newSupply 이므로 oldSupply 와 같아짐 → 체크 해제 시 복구값 동일. */
+  /* 기존 판매가/매입가는 행 생성(SKU 최초 입력) 시점의 스냅샷을 그대로 보존.
+     재진입 시 마진테이블 값이 바뀌어 있어도 oldPrice/oldSupply 는 건드리지 않는다 —
+     그래야 변경 판매가/매입가와 비교 가능. 같은 SKU를 다시 변경하려면 새 행을 추가하면
+     해당 행 SKU 입력 시 그 시점(=이미 변경 반영된) 매입가/판매가가 기존값으로 캡처됨.
+     name 만 혹시 비어 있으면 보충. */
   let changed = false;
   pcRows.forEach(r=>{
     if(!r.sku) return;
     const found = pcLookupBySku(r.sku);
     if(!found) return;
-    const newName = found.name || '';
-    const newOldPrice = found.price != null ? Number(found.price) : null;
-    const newOldSupply = found.cost != null ? Number(found.cost) : null;
-    if(r.done){
-      /* 완료 행은 마진테이블 매입가가 변경 매입가와 다를 때만 갱신(=완료 상태 뷰 유지) */
-      if(r.oldSupply !== newOldSupply && newOldSupply != null){
-        r.oldSupply = newOldSupply;
-        changed = true;
-      }
-      return;
-    }
-    if(r.name !== newName || r.oldPrice !== newOldPrice || r.oldSupply !== newOldSupply){
-      r.name = newName;
-      r.oldPrice = newOldPrice;
-      r.oldSupply = newOldSupply;
-      changed = true;
-    }
+    if(!r.name && found.name){ r.name = found.name; changed = true; }
+    if(r.oldPrice == null && found.price != null){ r.oldPrice = Number(found.price); changed = true; }
+    if(r.oldSupply == null && found.cost != null){ r.oldSupply = Number(found.cost); changed = true; }
   });
   if(changed) pcMarkDirty();
 }
@@ -1763,7 +1752,7 @@ function pcOpen(){
 }
 function pcCloseFn(){
   document.getElementById('priceChangeView').style.display = 'none';
-  document.getElementById('marginView').style.display = 'block';
+  document.getElementById('marginView').style.display = '';
   document.getElementById('btnBackToMargin').style.display = 'none';
   document.getElementById('btnPriceChange').style.display = 'inline-flex';
   document.getElementById('pageTitle').textContent = '마진테이블';
