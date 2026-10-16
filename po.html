@@ -758,14 +758,14 @@ async function loadMarginProcodes() {
   _mgProLastRunMs = now;
   try {
     const metaUrl = 'https://api.github.com/repos/tolmjj10/coupang-po/contents/' + encodeURI('data/마진테이블.xlsx') + '?ref=main';
-    const metaRes = await fetch(metaUrl, { headers: { 'Accept': 'application/vnd.github+json' } });
+    const metaRes = await fetch(metaUrl, { cache: 'no-store', headers: { 'Accept': 'application/vnd.github+json' } });
     if (!metaRes.ok) { console.warn('[po] 마진테이블 meta HTTP', metaRes.status); return; }
     const meta = await metaRes.json();
     /* sha 비교: 바뀐 게 없으면 xlsx 다운로드/파싱 스킵 */
     if (meta.sha && meta.sha === _mgProLastSha && Object.keys(marginSkuToProcodeMap).length) {
       return;
     }
-    const abRes = await fetch(meta.download_url);
+    const abRes = await fetch(meta.download_url + (meta.download_url.includes('?') ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' });
     if (!abRes.ok) return;
     const ab = await abRes.arrayBuffer();
     const wb = XLSX.read(ab, { type: 'array' });
