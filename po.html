@@ -250,8 +250,8 @@ body { font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif
 table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 thead th { background: #f2f1ed; padding: 9px 11px; text-align: left; font-size: 10.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; }
 thead th.th-sales { background: #bbf7d0; color: #065f46; }
-thead th.th-stock-cur { background: #efece5; color: #6b5f47; text-align: center; font-weight: 800; }
-td.td-curstk { text-align: center; background: #faf9f7; }
+thead th.th-stock-cur { background: #e5e0d2; color: #6b5f47; text-align: center; font-weight: 900; letter-spacing: 0.6px; }
+td.td-curstk { text-align: center; background: #efece5; }
 thead th.th-stock-oaa { background: #f2f1ed; color: var(--text-muted); }
 thead th.th-avg { background: #fef08a; color: #854d0e; text-align: center; }
 thead th.th-doc { background: #efece5; color: #6b5f47; text-align: center; font-weight: 800; }
@@ -2458,9 +2458,13 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
     issue:  /^이슈제품/
   };
 
-  var hideStyle=document.createElement('style');
-  hideStyle.textContent='.upload-grid{display:none !important;}#mapping-section{display:none !important;}#run-btn{display:none !important;}#__fsapi-banner__{display:none !important;}#__fsapi-unsupported__{display:none !important;}';
-  document.head.appendChild(hideStyle);
+  /* ?local=1 쿼리로 열면 자동 로드 UI 숨김을 해제 → 로컬에서 수동 업로드로 레이아웃 확인용 */
+  var _bypassHide = /[?&]local=1\b/.test(location.search);
+  if(!_bypassHide){
+    var hideStyle=document.createElement('style');
+    hideStyle.textContent='.upload-grid{display:none !important;}#mapping-section{display:none !important;}#run-btn{display:none !important;}#__fsapi-banner__{display:none !important;}#__fsapi-unsupported__{display:none !important;}';
+    document.head.appendChild(hideStyle);
+  }
 
   function setStatus(msg, color){ console.log('[VOAR]', msg); }
 
