@@ -2072,8 +2072,42 @@ window.applySharedState=applySharedState;
 async function saveResult(mode){
   mode=mode||'export';
   const rowsWithGaps=[]; const rowsNoGaps=[];
-  let lastPO=null;
+
+  /* 화면 표시 순서와 동일하게 정렬:
+     1) 발주번호 그룹핑
+     2) 그룹 순서: 입고예정일 오름차순, 같은 날짜면 발주번호 내림차순 (po.html:1522~1535)
+     3) 그룹 내부: SKU 오름차순 (po.html:1513~1521) */
+  const _groups={}; const _groupKeys=[];
   matchedRows.forEach(function(r){
+    const k=r.poNum||'(발주번호 없음)';
+    if(!_groups[k]){ _groups[k]=[]; _groupKeys.push(k); }
+    _groups[k].push(r);
+  });
+  _groupKeys.forEach(function(k){
+    _groups[k].sort(function(a,b){
+      const na=Number(a.orderSku), nb=Number(b.orderSku);
+      if(!isNaN(na)&&!isNaN(nb)) return na-nb;
+      return String(a.orderSku||'').localeCompare(String(b.orderSku||''));
+    });
+  });
+  _groupKeys.sort(function(a,b){
+    const da=(_groups[a][0]&&_groups[a][0].orderDate)||'';
+    const db=(_groups[b][0]&&_groups[b][0].orderDate)||'';
+    if(da!==db){
+      if(!da) return 1;
+      if(!db) return -1;
+      return da<db?-1:1;
+    }
+    const pa=Number(a), pb=Number(b);
+    if(!isNaN(pa)&&!isNaN(pb)) return pb-pa;
+    return String(b).localeCompare(String(a));
+  });
+
+  const _sortedRows=[];
+  _groupKeys.forEach(function(k){ _groups[k].forEach(function(r){ _sortedRows.push(r); }); });
+
+  let lastPO=null;
+  _sortedRows.forEach(function(r){
     if(lastPO!==null && r.poNum!==lastPO){
       rowsWithGaps.push({'발주번호':'','SKU':'','제품명':'','발주수량':'','입고수량':''});
     }
