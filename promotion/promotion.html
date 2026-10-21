@@ -594,6 +594,14 @@
     cursor: help;
   }
 
+  /* 기획전 그룹 헤더 메모 인디케이터 */
+  .plan-group-head.has-memo { position: relative; }
+  .plan-group-head.has-memo::after {
+    content: ''; position: absolute; top: 6px; right: 6px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #e5c76b; box-shadow: 0 0 0 2px #fffdf5;
+    pointer-events: none;
+  }
   /* SKU 셀 메모: 우클릭으로 팝오버 열기, 메모 있는 셀 우측 상단 노란 점 */
   td.sku-has-memo { position: relative; }
   td.sku-has-memo::after {
@@ -1138,8 +1146,9 @@ function renderPlan() {
   sortedGroups.forEach(g => {
     const rowsHtml = g.rows.map(r => planRowHtml(r)).join('');
     const collapsed = collapsedPlans.has(g.key);
+    const hasMemo = g.rows.some(r => r.planMemo);
     html += `<div class="exp-group ${collapsed?'collapsed':''}" data-plan-key="${esc(g.key)}">
-      <div class="exp-group-head plan-group-head">
+      <div class="exp-group-head plan-group-head${hasMemo?' has-memo':''}" data-plan-key="${esc(g.key)}" title="${hasMemo?'📝 '+esc(g.rows.find(r=>r.planMemo).planMemo):''}">
         <button class="plan-toggle" data-plan-toggle="${esc(g.key)}" title="${collapsed?'펼치기':'숨기기'}">${collapsed?'▶':'▼'}</button>
         <div class="plan-range">
           <input type="date" class="plan-date-start" value="${esc(g.date)}" data-plan-key="${esc(g.key)}">
@@ -1987,11 +1996,24 @@ window.addEventListener('beforeunload', () => {
   const memoText = document.getElementById('memoText');
   let memoTargetId = null;
 
-  function open(rowId, x, y) {
-    memoTargetId = rowId;
-    const row = data.find(r => r.id === rowId);
-    memoText.value = (row && row.memo) || '';
-    document.getElementById('memoDelete').style.display = (row && row.memo) ? '' : 'none';
+  // target: 행 id 문자열, 또는 "plan:date|endDate|title" (기획전 그룹)
+  const planRowsOfKey = (key) => {
+    const [d0, d1, t] = key.split('|');
+    return data.filter(r => r.type === '기획전' && (r.date||'') === d0 && (r.endDate||'') === d1 && (r.title||'') === t);
+  };
+  const readMemo = (target) => {
+    if (target && target.startsWith('plan:')) {
+      const rows = planRowsOfKey(target.slice(5));
+      return (rows[0] && rows[0].planMemo) || '';
+    }
+    const row = data.find(r => r.id === target);
+    return (row && row.memo) || '';
+  };
+
+  function open(target, x, y) {
+    memoTargetId = target;
+    memoText.value = readMemo(target);
+    document.getElementById('memoDelete').style.display = memoText.value ? '' : 'none';
     const W = 280, H = 160;
     memoPop.style.left = Math.max(10, Math.min(x, window.innerWidth - W - 10)) + 'px';
     memoPop.style.top  = Math.max(10, Math.min(y, window.innerHeight - H - 10)) + 'px';
@@ -2002,22 +2024,32 @@ window.addEventListener('beforeunload', () => {
 
   function commitIfChanged() {
     if (!memoTargetId) return;
-    const row = data.find(r => r.id === memoTargetId);
-    if (!row) return;
     const t = (memoText.value || '').trim();
-    const cur = (row.memo || '').trim();
-    if (t === cur) return; // 변화 없으면 저장 스킵
+    const cur = (readMemo(memoTargetId) || '').trim();
+    if (t === cur) return;
     saveMemo(memoText.value);
   }
 
   function saveMemo(text) {
     if (!memoTargetId) return;
+    const t = (text || '').trim();
+    // 기획전 그룹 메모
+    if (memoTargetId.startsWith('plan:')) {
+      const key = memoTargetId.slice(5);
+      const rows = planRowsOfKey(key);
+      if (rows.length === 0) { close(); return; }
+      rows.forEach(r => { if (t) r.planMemo = t; else delete r.planMemo; });
+      save();
+      const head = document.querySelector(`.plan-group-head[data-plan-key="${CSS.escape(key)}"]`);
+      if (head) head.classList.toggle('has-memo', !!t);
+      close();
+      return;
+    }
+    // SKU 행 메모
     const row = data.find(r => r.id === memoTargetId);
     if (!row) { close(); return; }
-    const t = (text || '').trim();
     if (t) row.memo = t; else delete row.memo;
     save();
-    // 셀에 클래스만 갱신 (전체 렌더 없이)
     const tr = document.querySelector(`tr[data-id="${CSS.escape(memoTargetId)}"]`);
     if (tr) {
       const skuTd = tr.querySelector('td:has(> input[data-k="skuId"])')
@@ -2032,6 +2064,15 @@ window.addEventListener('beforeunload', () => {
   }
 
   document.addEventListener('contextmenu', (e) => {
+    // 기획전 그룹 헤더 우클릭 → 그룹 메모
+    const head = e.target.closest('.plan-group-head[data-plan-key]');
+    if (head) {
+      // 입력 요소(날짜/제목 input) 위에서는 기본 메뉴 유지
+      if (e.target.closest('input, textarea, button')) return;
+      e.preventDefault();
+      open('plan:' + head.dataset.planKey, e.clientX, e.clientY);
+      return;
+    }
     const inp = e.target.closest('input[data-k="skuId"]');
     if (!inp) return;
     const tr = inp.closest('tr[data-id]');
