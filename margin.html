@@ -1811,7 +1811,7 @@ document.getElementById('pcTbody').addEventListener('input', ev=>{
     if(supplyInp){
       supplyInp.value = r.newSupply == null ? '' : pcFmtInt(r.newSupply);
       supplyInp.style.color = 'inherit';
-      supplyInp.title = '변경 판매가 × 0.69 자동';
+      supplyInp.title = '변경 판매가 × 0.75 자동 (25% 마진)';
     }
   } else if(k === 'newSupply'){
     r.newSupply = pcParseNum(inp.value);
