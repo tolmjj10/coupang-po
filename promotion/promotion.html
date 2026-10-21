@@ -169,7 +169,12 @@
     line-height: 1.25;
     overflow: visible;
   }
-  /* 기획전 각 그룹 테이블의 헤더도 상단 고정 (뷰포트 기준) */
+  /* 기획전 탭: #planWrap을 전체 탭의 .table-wrap처럼 뷰포트 높이 안쪽에서 스크롤 */
+  #planWrap {
+    overflow: auto;
+    max-height: calc(100vh - 220px);
+  }
+  /* 각 그룹 테이블의 헤더는 #planWrap 기준으로 상단 고정 */
   .plan-table-wrap { overflow: visible; }
   .plan-table-wrap thead th { position: sticky; top: 0; z-index: 3; background: var(--surface-alt); }
   /* 즉시할인 탭: 수량(15번째), 판매율(17번째) 컬럼 숨김 */
@@ -417,8 +422,17 @@
     outline: none;
   }
   .plan-title-input:focus { border-color: var(--accent); }
-  .plan-table-wrap { overflow-x: auto; }
+  .plan-table-wrap { overflow: visible; }
   .plan-table-wrap table { min-width: 100%; }
+  /* 기획전 그룹 전체 삭제 버튼 (헤더 오른쪽 끝) */
+  .plan-del-group {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    width: 24px; height: 24px; border-radius: 6px; cursor: pointer;
+    font-size: 12px; line-height: 1; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-left: 8px;
+  }
+  .plan-del-group:hover { background: #fef1ee; border-color: #b04a3a; color: #b04a3a; }
   .exp-group table { width: 100%; border-collapse: collapse; }
   .exp-add-row {
     padding: 8px 14px;
@@ -1128,6 +1142,7 @@ function renderPlan() {
         </div>
         <input type="text" class="plan-title-input" value="${esc(g.title)}" placeholder="기획전명" data-plan-key="${esc(g.key)}">
         <span class="exp-group-total"><span class="label">SKU</span>${g.rows.length}건</span>
+        <button class="plan-del-group" title="이 기획전 전체 삭제" data-plan-del="${esc(g.key)}">✕</button>
       </div>
       <div class="plan-table-wrap">
         <table>
@@ -1308,6 +1323,24 @@ function wirePlan() {
       else collapsedPlans.add(key);
       persistCollapsedPlans();
       render();
+    });
+  });
+  // 기획전 그룹 전체 삭제
+  $('planWrap').querySelectorAll('[data-plan-del]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.planDel;
+      const [d0, d1, t] = key.split('|');
+      const targets = data.filter(r => r.type === '기획전' && (r.date||'') === d0 && (r.endDate||'') === d1 && (r.title||'') === t);
+      if (targets.length === 0) return;
+      if (!confirm(`"${t || '(제목없음)'}" 기획전의 ${targets.length}개 SKU를 모두 삭제할까요?`)) return;
+      const ids = new Set(targets.map(r => r.id));
+      targets.forEach(r => { if (r.id) addTombstone(String(r.id)); });
+      for (let i = data.length - 1; i >= 0; i--) {
+        if (ids.has(data[i].id)) data.splice(i, 1);
+      }
+      collapsedPlans.delete(key);
+      persistCollapsedPlans();
+      save(); render();
     });
   });
   // 이 기획전에 SKU 추가
