@@ -971,6 +971,13 @@ async function loadRemote() {
     if (Date.now() < _suppressRemoteLoadUntil) return;
     const p = _parsePayload(remote);
     if (p.rows.length > 0) {
+      const newSnap = JSON.stringify(p.rows);
+      // 로컬과 동일하면 render 생략 → 체크 중 튕김 방지
+      if (newSnap === _prevSnapshot) {
+        if (p.imported) Object.keys(p.imported).forEach(k => { importedNames[k] = true; });
+        if (p.lastExcelProducts) lastExcelProducts = p.lastExcelProducts;
+        return;
+      }
       data = p.rows;
       if (p.imported) {
         Object.keys(p.imported).forEach(k => { importedNames[k] = true; });
@@ -1767,15 +1774,26 @@ async function confirmRegistered(ev, id) {
 }
 function updCheck(id, key, val) {
   const row = data.find(r => r.id === id);
-  if (row) {
-    row[key].done = val;
-    if (val && !row[key].date) {
-      row[key].date = new Date().toISOString().slice(0,10);
-    } else if (!val) {
-      row[key].date = '';
-    }
-    save(); setTimeout(render, 0);
+  if (!row) return;
+  row[key].done = val;
+  if (val && !row[key].date) {
+    row[key].date = new Date().toISOString().slice(0,10);
+  } else if (!val) {
+    row[key].date = '';
   }
+  save();
+  // 전체 render()는 포커스/스크롤 튕김 유발 → 해당 셀의 날짜 UI만 직접 갱신
+  const tr = document.querySelector(`tr[data-id="${id}"]`);
+  if (!tr) return;
+  const chk = tr.querySelector(`input[type="checkbox"][onchange*="'${key}'"]`);
+  const cell = chk ? chk.closest('td.check-cell') : null;
+  if (!cell) return;
+  const label = cell.querySelector('.cal-trigger');
+  const dateInput = cell.querySelector('input[type="date"]');
+  const txt = cell.querySelector('.date-txt');
+  if (dateInput) dateInput.value = row[key].date || '';
+  if (txt) txt.textContent = row[key].date || '';
+  if (label) label.classList.toggle('has-date', !!row[key].date);
 }
 function updCheckDate(id, key, val) {
   const row = data.find(r => r.id === id);
