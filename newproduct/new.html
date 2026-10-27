@@ -2407,7 +2407,7 @@ function renderExperience(){
         <td style="text-align:center;"><button class="danger-icon" onclick="expDelRow('${r._id}')" title="삭제">✕</button></td>
       </tr>`;
     }).join('') : '';
-    const emptyRow = inGroup.length ? '' : `<tr><td colspan="8" style="text-align:center; padding:16px; color:var(--muted); font-size:12px;">${gDate===''?'체크한 신제품이 여기에 자동 추가돼요':'하단 ＋ 버튼으로 SKU를 추가하거나, 미지정에서 이 날짜로 이동해주세요'}</td></tr>`;
+    const emptyRow = inGroup.length ? '' : `<tr><td colspan="8" style="text-align:center; padding:16px; color:var(--muted); font-size:12px;">${gDate===''?'체크한 신제품이 여기에 자동 추가돼요':'하단 ＋ 버튼으로 SKU를 추가하거나, 신제품 탭에서 체험단 체크박스를 선택해주세요.'}</td></tr>`;
     const rowsFinal = rowsHtml + emptyRow;
 
     const delGroupBtn = `<button class="btn ghost" style="margin-left:auto; color:#b04a3a; border-color:#f0b6b1;" onclick="expDeleteDateGroup('${gDate}')" title="이 그룹 삭제 (행도 모두 삭제)">그룹 삭제</button>`;
