@@ -767,6 +767,7 @@
       <button class="btn ghost" onclick="toggleExperienceView()" title="신제품 리스트로 돌아가기">← 신제품 목록</button>
       <div class="divider"></div>
       <button class="btn primary" onclick="expAddDateGroup()">＋ 새 날짜 추가</button>
+      <input type="date" id="expDateGroupPicker" style="position:absolute; opacity:0; pointer-events:none; width:1px; height:1px;" onchange="expOnDateGroupPicked(this.value)">
       <button class="btn" onclick="expSaveNow()">저장</button>
       <span id="expSaveStatus" style="font-size:11.5px;color:var(--muted);"></span>
       <span style="margin-left:auto; font-size:11.5px; color:var(--muted);">
@@ -2390,7 +2391,20 @@ function renderExperience(){
         </td>
         <td style="text-align:center;"><button class="danger-icon" onclick="expDelRow('${r._id}')" title="삭제">✕</button></td>
       </tr>`;
-    }).join('') : `<tr><td colspan="8" style="text-align:center; padding:16px; color:var(--muted); font-size:12px;">${gDate===''?'체크한 신제품이 여기에 자동 추가돼요':'행이 없습니다. 미지정에서 이 날짜로 이동해주세요'}</td></tr>`;
+    }).join('') : '';
+    const emptyRow = inGroup.length ? '' : `<tr><td colspan="8" style="text-align:center; padding:16px; color:var(--muted); font-size:12px;">${gDate===''?'체크한 신제품이 여기에 자동 추가돼요 · 아래 입력창에서 SKU 수동 추가도 가능':'아래 입력창에 SKU를 입력해 추가하거나, 미지정에서 이 날짜로 이동해주세요'}</td></tr>`;
+    const addRow = `<tr style="background:#faf7f3;">
+      <td colspan="8" style="padding:8px 10px; border-top:1px solid var(--border);">
+        <div style="display:flex; gap:6px; align-items:center;">
+          <span style="font-size:11.5px; color:var(--muted); min-width:44px;">＋ 추가</span>
+          <input type="text" placeholder="SKU# 입력 후 Enter" style="width:160px; padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-family:monospace; font-size:12px;"
+            onkeydown="if(event.key==='Enter'){event.preventDefault(); expAddRowBySku('${gDate}', this);}">
+          <button class="btn ghost" style="padding:4px 10px; font-size:11.5px;" onclick="expAddRowBySku('${gDate}', this.previousElementSibling)">추가</button>
+          <span style="font-size:11px; color:var(--muted); margin-left:4px;">SKU 입력 → 상품명/공급가 마진테이블에서 자동 채움</span>
+        </div>
+      </td>
+    </tr>`;
+    const rowsFinal = rowsHtml + emptyRow + addRow;
 
     const delGroupBtn = gDate === '' ? '' :
       `<button class="btn ghost" style="margin-left:auto; color:#b04a3a; border-color:#f0b6b1;" onclick="expDeleteDateGroup('${gDate}')" title="이 날짜 그룹 삭제 (행도 모두 삭제)">그룹 삭제</button>`;
@@ -2415,7 +2429,7 @@ function renderExperience(){
             <th style="width:40px; padding:8px; border-bottom:1px solid var(--border);"></th>
           </tr>
         </thead>
-        <tbody>${rowsHtml}</tbody>
+        <tbody>${rowsFinal}</tbody>
       </table>
     </div>`;
   }).join('');
@@ -2449,13 +2463,39 @@ function expDelRow(id){
   render(); // 신제품 완료탭 체크박스 동기화
 }
 function expAddDateGroup(){
-  const today = new Date().toISOString().slice(0,10);
-  const d = prompt('새 날짜 그룹 (YYYY-MM-DD)', today);
+  const picker = document.getElementById('expDateGroupPicker');
+  if (!picker) return;
+  picker.value = new Date().toISOString().slice(0,10);
+  // 달력 즉시 표시 (지원 브라우저). showPicker 미지원이면 input focus로 대체
+  try { picker.showPicker(); } catch(_) { picker.focus(); picker.click(); }
+}
+function expOnDateGroupPicked(d){
   if (!d) return;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)){ alert('날짜 형식: YYYY-MM-DD'); return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
   if (!expState.dateGroups.includes(d)) expState.dateGroups.push(d);
   expMarkDirty();
   renderExperience();
+}
+
+function expAddRowBySku(groupDate, skuInputEl){
+  const sku = String(skuInputEl.value||'').trim();
+  if (!sku) return;
+  if (expState.rows.some(r => String(r.sku).trim() === sku && (r.date||'') === (groupDate||''))){
+    alert(`이미 ${groupDate===''?'미지정':groupDate} 그룹에 SKU ${sku}가 있습니다.`);
+    return;
+  }
+  expState.rows.push({
+    _id: expUid(),
+    date: groupDate || '',
+    sku,
+    name: __marginNameMap[sku] || '',
+    qty: 1,
+    _ts: Date.now()
+  });
+  skuInputEl.value = '';
+  expMarkDirty();
+  renderExperience();
+  render(); // 신제품 완료탭 체크박스 동기화
 }
 function expDeleteDateGroup(d){
   if (!d) return;
