@@ -2315,6 +2315,7 @@ function toggleExperienceView(){
   if (btn){
     btn.textContent = expViewOpen ? '← 신제품 목록' : '체험단';
     btn.title = expViewOpen ? '신제품 목록으로 돌아가기' : '체험단 뷰로 이동';
+    btn.classList.toggle('ghost', expViewOpen);
   }
   if (expViewOpen) renderExperience();
 }
