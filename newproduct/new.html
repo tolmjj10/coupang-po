@@ -768,7 +768,7 @@
   </div>
 
   <!-- ═══ 체험단 뷰 ═══ -->
-  <div id="experienceView" style="display:none; flex:1; min-height:0; overflow:auto; padding:4px 2px 20px;">
+  <div id="experienceView" style="display:none; flex:1 1 0; min-height:0; overflow-y:auto; overflow-x:hidden; padding:4px 2px 20px;">
     <div style="font-size:12.5px; color:var(--muted); margin-bottom:12px;">
       총비용 = (125,000 + 공급가(-VAT)) × 수량 · 공급가는 마진테이블에서 자동
     </div>
@@ -2309,8 +2309,7 @@ function toggleExperienceView(){
   if (alerts) alerts.style.display = expViewOpen ? 'none' : '';
   if (search) search.style.visibility = expViewOpen ? 'hidden' : '';
   const expView = document.getElementById('experienceView');
-  expView.style.display = expViewOpen ? 'flex' : 'none';
-  expView.style.flexDirection = 'column';
+  expView.style.display = expViewOpen ? 'block' : 'none';
   const btn = document.getElementById('btnExperience');
   if (btn){
     btn.textContent = expViewOpen ? '← 신제품 목록' : '체험단';
