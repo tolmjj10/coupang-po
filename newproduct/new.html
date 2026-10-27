@@ -2469,8 +2469,8 @@ function expDelRow(id){
 function expAddDateGroup(){
   const picker = document.getElementById('expDateGroupPicker');
   if (!picker) return;
-  picker.value = new Date().toISOString().slice(0,10);
-  // 달력 즉시 표시 (지원 브라우저). showPicker 미지원이면 input focus로 대체
+  // 값 비워두기 — 오늘 날짜 선택해도 onchange 트리거되도록
+  picker.value = '';
   try { picker.showPicker(); } catch(_) { picker.focus(); picker.click(); }
 }
 function expOnDateGroupPicked(d){
