@@ -2405,7 +2405,7 @@ function renderExperience(){
 
     const titleEl = gDate === ''
       ? `<span style="font-size:14px; font-weight:700; color:${headerColor};">📅 ${esc(title)}</span>`
-      : `<span style="font-size:14px; font-weight:700; color:${headerColor};">📅</span><input type="date" value="${esc(gDate)}" style="font-size:14px; font-weight:700; padding:3px 6px; border:1px solid var(--border); border-radius:4px; cursor:pointer; background:#fff;" onchange="expRenameDateGroup('${gDate}', this.value)" title="날짜 변경">`;
+      : `<span style="font-size:14px; font-weight:700; color:${headerColor};">📅</span><input type="date" value="${esc(gDate)}" style="font-size:14px; font-weight:700; padding:3px 6px; border:1px solid var(--border); border-radius:4px; cursor:pointer; background:#fff; width:140px; box-sizing:border-box;" onchange="expRenameDateGroup('${gDate}', this.value)" title="날짜 변경">`;
     return `<div class="exp-group" style="background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:14px;">
       <div class="exp-group-head" style="display:flex; gap:12px; align-items:center; margin-bottom:10px;">
         ${titleEl}
