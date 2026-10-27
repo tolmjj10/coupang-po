@@ -2336,16 +2336,18 @@ function onExpCheckClick(ev, newProductId){
     row.expChecked = true;
     save();
     if (!expHasSku(sku)){
+      const targetDate = expLatestDate();
       expState.rows.push({
         _id: expUid(),
-        date: '',
+        date: targetDate,
         sku,
         name: __marginNameMap[sku] || row.realName || '',
         qty: 1,
         _ts: Date.now()
       });
       expMarkDirty();
-      if (typeof _showToast === 'function') _showToast(`체험단 미지정 그룹에 추가됨 (SKU ${sku})`);
+      const label = targetDate || '미지정';
+      if (typeof _showToast === 'function') _showToast(`체험단 "${label}" 그룹에 추가됨 (SKU ${sku})`);
     }
     // 리스트에 이미 있으면 조용히 체크만 유지
   } else {
@@ -2408,8 +2410,7 @@ function renderExperience(){
     const emptyRow = inGroup.length ? '' : `<tr><td colspan="8" style="text-align:center; padding:16px; color:var(--muted); font-size:12px;">${gDate===''?'체크한 신제품이 여기에 자동 추가돼요':'하단 ＋ 버튼으로 SKU를 추가하거나, 미지정에서 이 날짜로 이동해주세요'}</td></tr>`;
     const rowsFinal = rowsHtml + emptyRow;
 
-    const delGroupBtn = gDate === '' ? '' :
-      `<button class="btn ghost" style="margin-left:auto; color:#b04a3a; border-color:#f0b6b1;" onclick="expDeleteDateGroup('${gDate}')" title="이 날짜 그룹 삭제 (행도 모두 삭제)">그룹 삭제</button>`;
+    const delGroupBtn = `<button class="btn ghost" style="margin-left:auto; color:#b04a3a; border-color:#f0b6b1;" onclick="expDeleteDateGroup('${gDate}')" title="이 그룹 삭제 (행도 모두 삭제)">그룹 삭제</button>`;
 
     return `<div class="exp-group" style="background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:14px;">
       <div class="exp-group-head" style="display:flex; gap:12px; align-items:center; margin-bottom:10px;">
@@ -2513,14 +2514,23 @@ function expUpdSku(id, val){
   render();
 }
 function expDeleteDateGroup(d){
-  if (!d) return;
-  const n = expState.rows.filter(r => r.date === d).length;
-  if (!confirm(`${d} 그룹 삭제?\n포함된 행 ${n}건도 모두 삭제됩니다.`)) return;
-  expState.rows = expState.rows.filter(r => r.date !== d);
-  expState.dateGroups = expState.dateGroups.filter(x => x !== d);
+  const label = d === '' ? '미지정' : d;
+  const n = expState.rows.filter(r => (r.date||'') === (d||'')).length;
+  if (!confirm(`${label} 그룹 삭제?\n포함된 행 ${n}건도 모두 삭제됩니다.`)) return;
+  expState.rows = expState.rows.filter(r => (r.date||'') !== (d||''));
+  if (d !== '') expState.dateGroups = expState.dateGroups.filter(x => x !== d);
   expMarkDirty();
   renderExperience();
   render();
+}
+
+/* 체크박스 추가 시 들어갈 그룹 날짜 결정: 가장 최신(=가장 큰) 날짜. 날짜 없으면 '' */
+function expLatestDate(){
+  const dates = new Set();
+  expState.dateGroups.forEach(d => d && dates.add(d));
+  expState.rows.forEach(r => { if (r.date) dates.add(r.date); });
+  const arr = Array.from(dates).sort();
+  return arr.length ? arr[arr.length - 1] : '';
 }
 
 /* 초기화 */
