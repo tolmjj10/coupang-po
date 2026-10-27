@@ -1520,7 +1520,7 @@ function render() {
         <td>${st.label ? `<span class="status-badge ${st.cls}">${st.label}</span>` : ''}</td>
         <td><div class="detail-url-wrap"><input type="text" size="1" class="detail-url-input" value="${esc(row.detailUrl||'')}" placeholder="URL" oninput="this.nextElementSibling.disabled=!this.value.trim()" onchange="upd('${row.id}','detailUrl',this.value)"><button class="detail-open-btn" onclick="openDetail('${row.id}')" ${row.detailUrl?'':'disabled'}>보기</button></div></td>
         <td class="check-cell"><input type="checkbox" ${row.registered?'checked':''} onclick="confirmRegistered(event,'${row.id}')" title="등록완료 시 '완료' 탭으로 이동"></td>
-        ${activeBrand==='done' ? `<td class="check-cell"><input type="checkbox" ${expHasSku(getSkuForName(row.realName))?'checked':''} onclick="onExpCheckClick(event,'${row.id}')" title="체험단 미지정 그룹에 자동 추가 · 해제는 체험단 탭에서"></td>` : ''}
+        ${activeBrand==='done' ? `<td class="check-cell"><input type="checkbox" ${row.expChecked?'checked':''} onclick="onExpCheckClick(event,'${row.id}')" title="체크 시 체험단 미지정 그룹에 추가 (리스트에 이미 있으면 체크만)"></td>` : ''}
         <td><button class="danger-icon" onclick="delRow('${row.id}')" title="삭제">✕</button></td>
       </tr>
     `;
@@ -2303,6 +2303,8 @@ function toggleExperienceView(){
   const tabsRow = document.querySelector('.tabs-row');
   const alerts = document.getElementById('alerts');
   const search = document.getElementById('search');
+  const toolbarBtns = document.querySelectorAll('.stats-row .toolbar-inline > *');
+  toolbarBtns.forEach(el => { if (el.id !== 'btnExperience') el.style.display = expViewOpen ? 'none' : ''; });
   if (tabsRow) tabsRow.style.display = expViewOpen ? 'none' : '';
   if (alerts) alerts.style.display = expViewOpen ? 'none' : '';
   if (search) search.style.visibility = expViewOpen ? 'hidden' : '';
@@ -2314,36 +2316,43 @@ function toggleExperienceView(){
   if (expViewOpen) renderExperience();
 }
 
-/* 완료탭 체험단 체크박스 클릭 */
+/* 완료탭 체험단 체크박스 클릭
+ * - 체크(off→on): 리스트에 SKU 없으면 추가. 있으면 체크만 토글(추가 안 함).
+ * - 해제(on→off): 체크만 해제. 리스트는 그대로.
+ * - 체크 상태(row.expChecked)는 리스트 멤버십과 독립적으로 유지.
+ */
 function onExpCheckClick(ev, newProductId){
-  ev.preventDefault();
   const chk = ev.currentTarget;
+  const willBeChecked = chk.checked; // 브라우저 기본 토글 후 상태
   const row = data.find(r => r.id === newProductId);
   if (!row) return;
-  const sku = getSkuForName(row.realName);
-  if (!sku){
-    alert('이 제품의 SKU를 마진테이블에서 찾을 수 없어 체험단에 추가할 수 없어요.\n(전산명이 마진테이블에 등록되어 있는지 확인해주세요)');
-    chk.checked = false;
-    return;
+  if (willBeChecked){
+    const sku = getSkuForName(row.realName);
+    if (!sku){
+      alert('이 제품의 SKU를 마진테이블에서 찾을 수 없어 체험단에 추가할 수 없어요.\n(전산명이 마진테이블에 등록되어 있는지 확인해주세요)');
+      chk.checked = false;
+      return;
+    }
+    row.expChecked = true;
+    save();
+    if (!expHasSku(sku)){
+      expState.rows.push({
+        _id: expUid(),
+        date: '',
+        sku,
+        name: __marginNameMap[sku] || row.realName || '',
+        qty: 1,
+        _ts: Date.now()
+      });
+      expMarkDirty();
+      if (typeof _showToast === 'function') _showToast(`체험단 미지정 그룹에 추가됨 (SKU ${sku})`);
+    }
+    // 리스트에 이미 있으면 조용히 체크만 유지
+  } else {
+    row.expChecked = false;
+    save();
+    // 리스트는 건드리지 않음
   }
-  if (expHasSku(sku)){
-    // 이미 등록됨 → 해제 시도. 삭제 금지.
-    chk.checked = true;
-    alert('체험단에서 삭제하려면 체험단 탭에서 직접 해당 행을 삭제해주세요.');
-    return;
-  }
-  // 미지정(date='') 그룹에 추가
-  expState.rows.push({
-    _id: expUid(),
-    date: '',
-    sku,
-    name: __marginNameMap[sku] || row.realName || '',
-    qty: 1,
-    _ts: Date.now()
-  });
-  chk.checked = true;
-  expMarkDirty();
-  if (typeof _showToast === 'function') _showToast(`체험단 미지정 그룹에 추가됨 (SKU ${sku})`);
 }
 
 /* 체험단 뷰 렌더링 */
@@ -2379,9 +2388,13 @@ function renderExperience(){
       // 다른 날짜로 이동 셀렉트
       const moveOpts = ['', ...dateOpts.filter(d => d !== gDate)]
         .map(d => `<option value="${d}" ${d===''?'disabled':''}>${d===''?'다른 날짜로 이동...':d}</option>`).join('');
+      const nameAuto = __marginNameMap[r.sku] || r.name || '';
+      const skuCell = r.sku
+        ? `<span style="font-family:monospace;">${esc(r.sku)}</span>`
+        : `<input type="text" placeholder="SKU#" style="width:92px; padding:3px 6px; border:1px solid var(--border); border-radius:4px; text-align:center; font-family:monospace; font-size:12px;" onkeydown="if(event.key==='Enter'){event.preventDefault(); expUpdSku('${r._id}', this.value);}" onblur="expUpdSku('${r._id}', this.value)">`;
       return `<tr data-exp-id="${r._id}">
-        <td style="text-align:center; font-family:monospace;">${esc(r.sku)}</td>
-        <td style="text-align:left; padding-left:10px;">${esc(r.name || __marginNameMap[r.sku] || '')}</td>
+        <td style="text-align:center;">${skuCell}</td>
+        <td style="text-align:left; padding-left:10px;">${esc(nameAuto)}</td>
         <td style="text-align:right; color:#8a7a3a;">${expFmtN(EXP_BASE_PRICE)}원</td>
         <td style="text-align:right;">${supTxt}</td>
         <td style="text-align:center;"><input type="number" min="0" step="1" value="${r.qty||0}" style="width:72px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; text-align:right;" onchange="expUpdQty('${r._id}', this.value)"></td>
@@ -2392,19 +2405,8 @@ function renderExperience(){
         <td style="text-align:center;"><button class="danger-icon" onclick="expDelRow('${r._id}')" title="삭제">✕</button></td>
       </tr>`;
     }).join('') : '';
-    const emptyRow = inGroup.length ? '' : `<tr><td colspan="8" style="text-align:center; padding:16px; color:var(--muted); font-size:12px;">${gDate===''?'체크한 신제품이 여기에 자동 추가돼요 · 아래 입력창에서 SKU 수동 추가도 가능':'아래 입력창에 SKU를 입력해 추가하거나, 미지정에서 이 날짜로 이동해주세요'}</td></tr>`;
-    const addRow = `<tr style="background:#faf7f3;">
-      <td colspan="8" style="padding:8px 10px; border-top:1px solid var(--border);">
-        <div style="display:flex; gap:6px; align-items:center;">
-          <span style="font-size:11.5px; color:var(--muted); min-width:44px;">＋ 추가</span>
-          <input type="text" placeholder="SKU# 입력 후 Enter" style="width:160px; padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-family:monospace; font-size:12px;"
-            onkeydown="if(event.key==='Enter'){event.preventDefault(); expAddRowBySku('${gDate}', this);}">
-          <button class="btn ghost" style="padding:4px 10px; font-size:11.5px;" onclick="expAddRowBySku('${gDate}', this.previousElementSibling)">추가</button>
-          <span style="font-size:11px; color:var(--muted); margin-left:4px;">SKU 입력 → 상품명/공급가 마진테이블에서 자동 채움</span>
-        </div>
-      </td>
-    </tr>`;
-    const rowsFinal = rowsHtml + emptyRow + addRow;
+    const emptyRow = inGroup.length ? '' : `<tr><td colspan="8" style="text-align:center; padding:16px; color:var(--muted); font-size:12px;">${gDate===''?'체크한 신제품이 여기에 자동 추가돼요':'하단 ＋ 버튼으로 SKU를 추가하거나, 미지정에서 이 날짜로 이동해주세요'}</td></tr>`;
+    const rowsFinal = rowsHtml + emptyRow;
 
     const delGroupBtn = gDate === '' ? '' :
       `<button class="btn ghost" style="margin-left:auto; color:#b04a3a; border-color:#f0b6b1;" onclick="expDeleteDateGroup('${gDate}')" title="이 날짜 그룹 삭제 (행도 모두 삭제)">그룹 삭제</button>`;
@@ -2431,6 +2433,9 @@ function renderExperience(){
         </thead>
         <tbody>${rowsFinal}</tbody>
       </table>
+      <div style="margin-top:10px;">
+        <button class="btn" onclick="expAddEmptyRow('${gDate}')" style="padding:6px 12px; font-size:12px;">＋ 이 ${gDate===''?'미지정':'날짜'}에 SKU 추가</button>
+      </div>
     </div>`;
   }).join('');
 
@@ -2477,25 +2482,35 @@ function expOnDateGroupPicked(d){
   renderExperience();
 }
 
-function expAddRowBySku(groupDate, skuInputEl){
-  const sku = String(skuInputEl.value||'').trim();
-  if (!sku) return;
-  if (expState.rows.some(r => String(r.sku).trim() === sku && (r.date||'') === (groupDate||''))){
-    alert(`이미 ${groupDate===''?'미지정':groupDate} 그룹에 SKU ${sku}가 있습니다.`);
-    return;
-  }
+function expAddEmptyRow(groupDate){
   expState.rows.push({
     _id: expUid(),
     date: groupDate || '',
-    sku,
-    name: __marginNameMap[sku] || '',
+    sku: '',
+    name: '',
     qty: 1,
     _ts: Date.now()
   });
-  skuInputEl.value = '';
   expMarkDirty();
   renderExperience();
-  render(); // 신제품 완료탭 체크박스 동기화
+  // 새로 추가된 행의 SKU input에 포커스
+  setTimeout(() => {
+    const trs = document.querySelectorAll('#expContainer tr[data-exp-id]');
+    const last = trs[trs.length - 1];
+    const inp = last && last.querySelector('input[type="text"]');
+    if (inp) inp.focus();
+  }, 0);
+}
+function expUpdSku(id, val){
+  const r = expState.rows.find(x => x._id === id);
+  if (!r) return;
+  const sku = String(val||'').trim();
+  if (sku === (r.sku||'')) return;
+  r.sku = sku;
+  if (sku && !r.name) r.name = __marginNameMap[sku] || '';
+  expMarkDirty();
+  renderExperience();
+  render();
 }
 function expDeleteDateGroup(d){
   if (!d) return;
