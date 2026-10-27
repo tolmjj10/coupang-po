@@ -713,7 +713,7 @@
   </div>
 
   <div class="stats-row">
-    <div class="toolbar-inline">
+    <div class="toolbar-inline" id="mainToolbar">
       <button class="btn primary" onclick="addRow()">＋ 신제품 추가</button>
       <button class="btn" onclick="saveNow()" title="지금 바로 공유 저장">저장</button>
       <div class="divider"></div>
@@ -723,6 +723,12 @@
       <button class="btn ghost" id="btnRedo" onclick="doRedo()" title="다시하기 (Ctrl+Y)" disabled>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/></svg>
       </button>
+    </div>
+    <div class="toolbar-inline" id="expToolbar" style="display:none;">
+      <button class="btn primary" onclick="expAddDateGroup()">＋ 새 날짜 추가</button>
+      <input type="date" id="expDateGroupPicker" style="position:absolute; opacity:0; pointer-events:none; width:1px; height:1px;" onchange="expOnDateGroupPicked(this.value)">
+      <button class="btn" onclick="expSaveNow()" title="지금 바로 공유 저장">저장</button>
+      <span id="expSaveStatus" style="font-size:12.5px;color:var(--muted);margin-left:4px;"></span>
     </div>
     <div class="stats" id="stats" style="display:none"></div>
     <input class="search" id="search" style="margin-left:auto" placeholder="🔍 담당자 · 상품명 검색" oninput="render()">
@@ -763,16 +769,8 @@
 
   <!-- ═══ 체험단 뷰 ═══ -->
   <div id="experienceView" style="display:none; flex:1; min-height:0; overflow:auto; padding:4px 2px 20px;">
-    <div style="display:flex; gap:8px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
-      <button class="btn ghost" onclick="toggleExperienceView()" title="신제품 리스트로 돌아가기">← 신제품 목록</button>
-      <div class="divider"></div>
-      <button class="btn primary" onclick="expAddDateGroup()">＋ 새 날짜 추가</button>
-      <input type="date" id="expDateGroupPicker" style="position:absolute; opacity:0; pointer-events:none; width:1px; height:1px;" onchange="expOnDateGroupPicked(this.value)">
-      <button class="btn" onclick="expSaveNow()">저장</button>
-      <span id="expSaveStatus" style="font-size:12.5px;color:var(--muted);"></span>
-      <span style="margin-left:auto; font-size:12.5px; color:var(--muted);">
-        총비용 = (125,000 + 공급가(-VAT)) × 수량 · 공급가는 마진테이블에서 자동
-      </span>
+    <div style="font-size:12.5px; color:var(--muted); margin-bottom:12px;">
+      총비용 = (125,000 + 공급가(-VAT)) × 수량 · 공급가는 마진테이블에서 자동
     </div>
     <div id="expContainer"></div>
   </div>
@@ -2303,8 +2301,10 @@ function toggleExperienceView(){
   const tabsRow = document.querySelector('.tabs-row');
   const alerts = document.getElementById('alerts');
   const search = document.getElementById('search');
-  const toolbarBtns = document.querySelectorAll('.stats-row .toolbar-inline > *');
-  toolbarBtns.forEach(el => { if (el.id !== 'btnExperience') el.style.display = expViewOpen ? 'none' : ''; });
+  const mainToolbar = document.getElementById('mainToolbar');
+  const expToolbar = document.getElementById('expToolbar');
+  if (mainToolbar) mainToolbar.style.display = expViewOpen ? 'none' : '';
+  if (expToolbar) expToolbar.style.display = expViewOpen ? '' : 'none';
   if (tabsRow) tabsRow.style.display = expViewOpen ? 'none' : '';
   if (alerts) alerts.style.display = expViewOpen ? 'none' : '';
   if (search) search.style.visibility = expViewOpen ? 'hidden' : '';
@@ -2312,7 +2312,10 @@ function toggleExperienceView(){
   expView.style.display = expViewOpen ? 'flex' : 'none';
   expView.style.flexDirection = 'column';
   const btn = document.getElementById('btnExperience');
-  if (btn) btn.classList.toggle('primary', expViewOpen);
+  if (btn){
+    btn.textContent = expViewOpen ? '← 신제품 목록' : '체험단';
+    btn.title = expViewOpen ? '신제품 목록으로 돌아가기' : '체험단 뷰로 이동';
+  }
   if (expViewOpen) renderExperience();
 }
 
