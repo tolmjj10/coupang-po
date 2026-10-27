@@ -726,6 +726,7 @@
     </div>
     <div class="stats" id="stats" style="display:none"></div>
     <input class="search" id="search" style="margin-left:auto" placeholder="🔍 담당자 · 상품명 검색" oninput="render()">
+    <button class="btn" id="btnExperience" onclick="toggleExperienceView()" title="체험단 뷰로 이동" style="margin-left:8px;">체험단</button>
   </div>
   <div class="alerts" id="alerts"></div>
 
@@ -734,7 +735,7 @@
     <button class="btn ghost" id="btnPinUrgent" onclick="togglePinUrgent()" title="진행중(빨간 배경) 제품을 상단에 모아 보기">🔺 진행중인 상품</button>
   </div>
 
-  <div class="table-wrap">
+  <div class="table-wrap" id="mainTableWrap">
     <table>
       <thead>
         <tr>
@@ -752,11 +753,27 @@
           <th style="width:100px;">상태</th>
           <th style="width:200px;">상세페이지</th>
           <th class="check-cell" style="width:80px;">✅ 등록완료</th>
+          <th class="check-cell" id="thExpHeader" style="width:80px; display:none;">체험단</th>
           <th style="width:50px;"></th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
     </table>
+  </div>
+
+  <!-- ═══ 체험단 뷰 ═══ -->
+  <div id="experienceView" style="display:none; flex:1; min-height:0; overflow:auto; padding:4px 2px 20px;">
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
+      <button class="btn ghost" onclick="toggleExperienceView()" title="신제품 리스트로 돌아가기">← 신제품 목록</button>
+      <div class="divider"></div>
+      <button class="btn primary" onclick="expAddDateGroup()">＋ 새 날짜 추가</button>
+      <button class="btn" onclick="expSaveNow()">저장</button>
+      <span id="expSaveStatus" style="font-size:11.5px;color:var(--muted);"></span>
+      <span style="margin-left:auto; font-size:11.5px; color:var(--muted);">
+        총비용 = (125,000 + 공급가(-VAT)) × 수량 · 공급가는 마진테이블에서 자동
+      </span>
+    </div>
+    <div id="expContainer"></div>
   </div>
 
 </div>
@@ -1393,6 +1410,8 @@ function refreshDupHighlight() {
 }
 
 function render() {
+  const thExp = document.getElementById('thExpHeader');
+  if (thExp) thExp.style.display = (activeBrand === 'done') ? '' : 'none';
   const q = document.getElementById('search').value.trim().toLowerCase();
   let filtered = data;
   if (activeBrand === 'urgent') filtered = filtered.filter(r => !r.registered && isUrgentRow(r));
@@ -1500,6 +1519,7 @@ function render() {
         <td>${st.label ? `<span class="status-badge ${st.cls}">${st.label}</span>` : ''}</td>
         <td><div class="detail-url-wrap"><input type="text" size="1" class="detail-url-input" value="${esc(row.detailUrl||'')}" placeholder="URL" oninput="this.nextElementSibling.disabled=!this.value.trim()" onchange="upd('${row.id}','detailUrl',this.value)"><button class="detail-open-btn" onclick="openDetail('${row.id}')" ${row.detailUrl?'':'disabled'}>보기</button></div></td>
         <td class="check-cell"><input type="checkbox" ${row.registered?'checked':''} onclick="confirmRegistered(event,'${row.id}')" title="등록완료 시 '완료' 탭으로 이동"></td>
+        ${activeBrand==='done' ? `<td class="check-cell"><input type="checkbox" ${expHasSku(getSkuForName(row.realName))?'checked':''} onclick="onExpCheckClick(event,'${row.id}')" title="체험단 미지정 그룹에 자동 추가 · 해제는 체험단 탭에서"></td>` : ''}
         <td><button class="danger-icon" onclick="delRow('${row.id}')" title="삭제">✕</button></td>
       </tr>
     `;
@@ -2170,6 +2190,290 @@ async function fetchProductStatus() {
     console.warn('[new] fetchProductStatus 실패:', e.message);
   }
 }
+
+/* ═══════════════════════ 체험단 뷰 ═══════════════════════ */
+const EXP_API = '/api/experience-state';
+const EXP_STORAGE_KEY = 'coupang_new_experience_v1';
+const EXP_BASE_PRICE = 125000;        // 기본 진행가 (VAT 포함, 고정)
+const EXP_SAVE_DEBOUNCE_MS = 1500;
+
+/* 상태: { rows:[{_id,date,sku,name,qty,_ts}], dateGroups:[YYYY-MM-DD,...] } */
+let expState = { rows: [], dateGroups: [] };
+let expViewOpen = false;
+let expDirty = false;
+let expSaveTimer = null;
+let __marginSupplyMap = {};  // sku -> cost (매입가). 공급가(-VAT) = cost / 1.1
+let __marginNameMap = {};    // sku -> name
+
+function expUid(){ return 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+
+function expHasSku(sku){
+  const s = String(sku||'').trim();
+  if (!s) return false;
+  return expState.rows.some(r => String(r.sku||'').trim() === s);
+}
+
+function expLoadLocal(){
+  try {
+    const raw = localStorage.getItem(EXP_STORAGE_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && Array.isArray(p.rows)) {
+        expState.rows = p.rows;
+        expState.dateGroups = Array.isArray(p.dateGroups) ? p.dateGroups : [];
+      }
+    }
+  } catch(_){}
+}
+async function expLoadRemote(){
+  if (expDirty) return;
+  try {
+    const res = await fetch(EXP_API, { cache: 'no-store' });
+    if (!res.ok) return;
+    const p = await res.json();
+    if (!p || !Array.isArray(p.rows)) return;
+    if (expDirty) return;
+    const next = { rows: p.rows, dateGroups: Array.isArray(p.dateGroups) ? p.dateGroups : [] };
+    if (JSON.stringify(next) === JSON.stringify(expState)) return;
+    expState = next;
+    try { localStorage.setItem(EXP_STORAGE_KEY, JSON.stringify(expState)); } catch(_){}
+    if (expViewOpen) renderExperience();
+    else render(); // 완료탭 체크박스 상태 갱신
+  } catch(e){ console.warn('[exp] remote load fail:', e.message); }
+}
+async function expSaveNow(){
+  try { localStorage.setItem(EXP_STORAGE_KEY, JSON.stringify(expState)); } catch(_){}
+  const el = document.getElementById('expSaveStatus');
+  if (el) el.textContent = '저장 중...';
+  try {
+    const res = await fetch(EXP_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(expState) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    expDirty = false;
+    if (el) el.textContent = '✓ 저장됨 (' + new Date().toLocaleTimeString('ko-KR') + ')';
+  } catch(e){
+    if (el) el.textContent = '✗ 저장 실패: ' + e.message;
+    console.warn('[exp] save fail:', e.message);
+  }
+}
+function expMarkDirty(){
+  expDirty = true;
+  try { localStorage.setItem(EXP_STORAGE_KEY, JSON.stringify(expState)); } catch(_){}
+  const el = document.getElementById('expSaveStatus');
+  if (el) el.textContent = '변경됨 (자동 저장 대기)';
+  clearTimeout(expSaveTimer);
+  expSaveTimer = setTimeout(expSaveNow, EXP_SAVE_DEBOUNCE_MS);
+}
+
+/* 마진테이블에서 SKU → 매입가/상품명 맵 로드 */
+async function expLoadMarginSupplyMap(){
+  try {
+    const res = await fetch('/api/margin-state', { cache: 'no-store' });
+    if (!res.ok) return;
+    const parsed = await res.json();
+    const rows = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.rows) ? parsed.rows : []);
+    const supMap = {}, nmMap = {};
+    rows.forEach(r => {
+      const sku = String(r.sku||'').trim();
+      if (!sku) return;
+      if (r.cost != null && !isNaN(r.cost)) supMap[sku] = Number(r.cost);
+      if (r.name) nmMap[sku] = String(r.name);
+    });
+    __marginSupplyMap = supMap;
+    __marginNameMap = nmMap;
+  } catch(e){ console.warn('[exp] margin map fail:', e.message); }
+}
+
+function expSupplyVat(sku){
+  const cost = __marginSupplyMap[String(sku||'').trim()];
+  if (cost == null) return null;
+  return Math.round(cost / 1.1); // 공급가(-VAT)
+}
+function expRowTotal(r){
+  const sup = expSupplyVat(r.sku);
+  if (sup == null) return null;
+  const qty = Number(r.qty||0);
+  return (EXP_BASE_PRICE + sup) * qty;
+}
+function expFmtN(n){ return (n==null||isNaN(n)) ? '-' : Number(n).toLocaleString('ko-KR'); }
+
+function toggleExperienceView(){
+  expViewOpen = !expViewOpen;
+  document.getElementById('mainTableWrap').style.display = expViewOpen ? 'none' : '';
+  const tabsRow = document.querySelector('.tabs-row');
+  const alerts = document.getElementById('alerts');
+  const search = document.getElementById('search');
+  if (tabsRow) tabsRow.style.display = expViewOpen ? 'none' : '';
+  if (alerts) alerts.style.display = expViewOpen ? 'none' : '';
+  if (search) search.style.visibility = expViewOpen ? 'hidden' : '';
+  const expView = document.getElementById('experienceView');
+  expView.style.display = expViewOpen ? 'flex' : 'none';
+  expView.style.flexDirection = 'column';
+  const btn = document.getElementById('btnExperience');
+  if (btn) btn.classList.toggle('primary', expViewOpen);
+  if (expViewOpen) renderExperience();
+}
+
+/* 완료탭 체험단 체크박스 클릭 */
+function onExpCheckClick(ev, newProductId){
+  ev.preventDefault();
+  const chk = ev.currentTarget;
+  const row = data.find(r => r.id === newProductId);
+  if (!row) return;
+  const sku = getSkuForName(row.realName);
+  if (!sku){
+    alert('이 제품의 SKU를 마진테이블에서 찾을 수 없어 체험단에 추가할 수 없어요.\n(전산명이 마진테이블에 등록되어 있는지 확인해주세요)');
+    chk.checked = false;
+    return;
+  }
+  if (expHasSku(sku)){
+    // 이미 등록됨 → 해제 시도. 삭제 금지.
+    chk.checked = true;
+    alert('체험단에서 삭제하려면 체험단 탭에서 직접 해당 행을 삭제해주세요.');
+    return;
+  }
+  // 미지정(date='') 그룹에 추가
+  expState.rows.push({
+    _id: expUid(),
+    date: '',
+    sku,
+    name: __marginNameMap[sku] || row.realName || '',
+    qty: 1,
+    _ts: Date.now()
+  });
+  chk.checked = true;
+  expMarkDirty();
+  if (typeof _showToast === 'function') _showToast(`체험단 미지정 그룹에 추가됨 (SKU ${sku})`);
+}
+
+/* 체험단 뷰 렌더링 */
+function renderExperience(){
+  const container = document.getElementById('expContainer');
+  if (!container) return;
+  // 그룹 집합: 미지정('') + 수동 dateGroups + rows에 있는 날짜들
+  const groupSet = new Set(['']);
+  expState.dateGroups.forEach(d => d && groupSet.add(d));
+  expState.rows.forEach(r => { if (r.date) groupSet.add(r.date); });
+  const groups = Array.from(groupSet);
+  // 정렬: 미지정 최상단, 나머지 날짜 오름차순
+  groups.sort((a,b) => {
+    if (a === '' && b !== '') return -1;
+    if (b === '' && a !== '') return 1;
+    return a.localeCompare(b);
+  });
+
+  // 모든 그룹에 대해 날짜 입력 옵션 (현존 날짜만)
+  const dateOpts = groups.filter(d => d !== '');
+
+  const html = groups.map(gDate => {
+    const inGroup = expState.rows.filter(r => (r.date||'') === gDate);
+    const groupTotal = inGroup.reduce((s,r) => s + (expRowTotal(r) || 0), 0);
+    const title = gDate === '' ? '미지정' : gDate;
+    const headerColor = gDate === '' ? '#b04a3a' : 'var(--text)';
+
+    const rowsHtml = inGroup.length ? inGroup.map(r => {
+      const sup = expSupplyVat(r.sku);
+      const tot = expRowTotal(r);
+      const supTxt = sup == null ? '<span style="color:#b04a3a;">매칭 없음</span>' : expFmtN(sup) + '원';
+      const totTxt = tot == null ? '-' : expFmtN(tot) + '원';
+      // 다른 날짜로 이동 셀렉트
+      const moveOpts = ['', ...dateOpts.filter(d => d !== gDate)]
+        .map(d => `<option value="${d}" ${d===''?'disabled':''}>${d===''?'다른 날짜로 이동...':d}</option>`).join('');
+      return `<tr data-exp-id="${r._id}">
+        <td style="text-align:center; font-family:monospace;">${esc(r.sku)}</td>
+        <td style="text-align:left; padding-left:10px;">${esc(r.name || __marginNameMap[r.sku] || '')}</td>
+        <td style="text-align:right; color:#8a7a3a;">${expFmtN(EXP_BASE_PRICE)}원</td>
+        <td style="text-align:right;">${supTxt}</td>
+        <td style="text-align:center;"><input type="number" min="0" step="1" value="${r.qty||0}" style="width:72px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; text-align:right;" onchange="expUpdQty('${r._id}', this.value)"></td>
+        <td style="text-align:right; font-weight:600;">${totTxt}</td>
+        <td style="text-align:center;">
+          <select onchange="expMoveRow('${r._id}', this.value)" style="padding:3px 6px; border:1px solid var(--border); border-radius:4px; font-size:11.5px; background:#fff;">${moveOpts}</select>
+        </td>
+        <td style="text-align:center;"><button class="danger-icon" onclick="expDelRow('${r._id}')" title="삭제">✕</button></td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="8" style="text-align:center; padding:16px; color:var(--muted); font-size:12px;">${gDate===''?'체크한 신제품이 여기에 자동 추가돼요':'행이 없습니다. 미지정에서 이 날짜로 이동해주세요'}</td></tr>`;
+
+    const delGroupBtn = gDate === '' ? '' :
+      `<button class="btn ghost" style="margin-left:auto; color:#b04a3a; border-color:#f0b6b1;" onclick="expDeleteDateGroup('${gDate}')" title="이 날짜 그룹 삭제 (행도 모두 삭제)">그룹 삭제</button>`;
+
+    return `<div class="exp-group" style="background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:14px;">
+      <div class="exp-group-head" style="display:flex; gap:12px; align-items:center; margin-bottom:10px;">
+        <span style="font-size:14px; font-weight:700; color:${headerColor};">📅 ${esc(title)}</span>
+        <span style="font-size:12px; color:var(--muted);">${inGroup.length}건</span>
+        <span style="margin-left:16px; font-size:12px;"><span style="color:var(--muted); margin-right:6px;">총 비용</span><b>${expFmtN(groupTotal)}원</b></span>
+        ${delGroupBtn}
+      </div>
+      <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <thead>
+          <tr style="background:#faf7f3;">
+            <th style="width:96px; padding:8px; border-bottom:1px solid var(--border); text-align:center;">SKU#</th>
+            <th style="padding:8px; border-bottom:1px solid var(--border); text-align:left; padding-left:10px;">상품명</th>
+            <th style="width:110px; padding:8px; border-bottom:1px solid var(--border); text-align:right;">기본 진행가</th>
+            <th style="width:120px; padding:8px; border-bottom:1px solid var(--border); text-align:right;">공급가 (-VAT)</th>
+            <th style="width:96px; padding:8px; border-bottom:1px solid var(--border); text-align:center;">수량</th>
+            <th style="width:120px; padding:8px; border-bottom:1px solid var(--border); text-align:right;">총 비용</th>
+            <th style="width:140px; padding:8px; border-bottom:1px solid var(--border); text-align:center;">날짜 이동</th>
+            <th style="width:40px; padding:8px; border-bottom:1px solid var(--border);"></th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+
+  container.innerHTML = html || '<div style="text-align:center; padding:40px; color:var(--muted);">체험단 데이터가 없습니다. 신제품 완료탭에서 체크하거나 "+ 새 날짜 추가"로 시작하세요.</div>';
+}
+
+function expUpdQty(id, val){
+  const r = expState.rows.find(x => x._id === id);
+  if (!r) return;
+  r.qty = Math.max(0, parseInt(val,10) || 0);
+  expMarkDirty();
+  // 총비용/그룹 합계 재계산을 위해 전체 뷰 재렌더
+  renderExperience();
+}
+function expMoveRow(id, newDate){
+  if (!newDate) return;
+  const r = expState.rows.find(x => x._id === id);
+  if (!r) return;
+  r.date = newDate;
+  expMarkDirty();
+  renderExperience();
+}
+function expDelRow(id){
+  const r = expState.rows.find(x => x._id === id);
+  if (!r) return;
+  if (!confirm(`삭제하시겠습니까?\nSKU ${r.sku} ${r.name||''}`.trim())) return;
+  expState.rows = expState.rows.filter(x => x._id !== id);
+  expMarkDirty();
+  renderExperience();
+  render(); // 신제품 완료탭 체크박스 동기화
+}
+function expAddDateGroup(){
+  const today = new Date().toISOString().slice(0,10);
+  const d = prompt('새 날짜 그룹 (YYYY-MM-DD)', today);
+  if (!d) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)){ alert('날짜 형식: YYYY-MM-DD'); return; }
+  if (!expState.dateGroups.includes(d)) expState.dateGroups.push(d);
+  expMarkDirty();
+  renderExperience();
+}
+function expDeleteDateGroup(d){
+  if (!d) return;
+  const n = expState.rows.filter(r => r.date === d).length;
+  if (!confirm(`${d} 그룹 삭제?\n포함된 행 ${n}건도 모두 삭제됩니다.`)) return;
+  expState.rows = expState.rows.filter(r => r.date !== d);
+  expState.dateGroups = expState.dateGroups.filter(x => x !== d);
+  expMarkDirty();
+  renderExperience();
+  render();
+}
+
+/* 초기화 */
+expLoadLocal();
+expLoadMarginSupplyMap().then(() => { if (expViewOpen) renderExperience(); });
+expLoadRemote();
+setInterval(() => { expLoadMarginSupplyMap(); expLoadRemote(); }, 60000);
+window.addEventListener('focus', () => { expLoadMarginSupplyMap(); expLoadRemote(); });
 </script>
 
 </body>
