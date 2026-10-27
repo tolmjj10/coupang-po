@@ -2361,10 +2361,10 @@ function onExpCheckClick(ev, newProductId){
 function renderExperience(){
   const container = document.getElementById('expContainer');
   if (!container) return;
-  // 그룹 집합: 미지정('') + 수동 dateGroups + rows에 있는 날짜들
-  const groupSet = new Set(['']);
+  // 그룹 집합: 수동 dateGroups + rows의 날짜들 + 미지정은 rows에 빈 날짜 행이 있을 때만
+  const groupSet = new Set();
   expState.dateGroups.forEach(d => d && groupSet.add(d));
-  expState.rows.forEach(r => { if (r.date) groupSet.add(r.date); });
+  expState.rows.forEach(r => groupSet.add(r.date || ''));
   const groups = Array.from(groupSet);
   // 정렬: 미지정 최상단, 나머지 날짜 오름차순
   groups.sort((a,b) => {
