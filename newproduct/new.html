@@ -2373,9 +2373,6 @@ function renderExperience(){
     return a.localeCompare(b);
   });
 
-  // 모든 그룹에 대해 날짜 입력 옵션 (현존 날짜만)
-  const dateOpts = groups.filter(d => d !== '');
-
   const html = groups.map(gDate => {
     const inGroup = expState.rows.filter(r => (r.date||'') === gDate);
     const groupTotal = inGroup.reduce((s,r) => s + (expRowTotal(r) || 0), 0);
@@ -2387,9 +2384,6 @@ function renderExperience(){
       const tot = expRowTotal(r);
       const supTxt = sup == null ? '<span style="color:#b04a3a;">매칭 없음</span>' : expFmtN(sup) + '원';
       const totTxt = tot == null ? '-' : expFmtN(tot) + '원';
-      // 다른 날짜로 이동 셀렉트
-      const moveOpts = ['', ...dateOpts.filter(d => d !== gDate)]
-        .map(d => `<option value="${d}" ${d===''?'disabled':''}>${d===''?'다른 날짜로 이동...':d}</option>`).join('');
       const nameAuto = __marginNameMap[r.sku] || r.name || '';
       const skuCell = r.sku
         ? `<span style="font-family:monospace;">${esc(r.sku)}</span>`
@@ -2401,20 +2395,20 @@ function renderExperience(){
         <td style="text-align:right;">${supTxt}</td>
         <td style="text-align:center;"><input type="number" min="0" step="1" value="${r.qty||0}" style="width:72px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; text-align:right;" onchange="expUpdQty('${r._id}', this.value)"></td>
         <td style="text-align:right; font-weight:600;">${totTxt}</td>
-        <td style="text-align:center;">
-          <select onchange="expMoveRow('${r._id}', this.value)" style="padding:3px 6px; border:1px solid var(--border); border-radius:4px; font-size:11.5px; background:#fff;">${moveOpts}</select>
-        </td>
         <td style="text-align:center;"><button class="danger-icon" onclick="expDelRow('${r._id}')" title="삭제">✕</button></td>
       </tr>`;
     }).join('') : '';
-    const emptyRow = inGroup.length ? '' : `<tr><td colspan="8" style="text-align:center; padding:16px; color:var(--muted); font-size:12px;">${gDate===''?'체크한 신제품이 여기에 자동 추가돼요':'하단 ＋ 버튼으로 SKU를 추가하거나, 신제품 탭에서 체험단 체크박스를 선택해주세요.'}</td></tr>`;
+    const emptyRow = inGroup.length ? '' : `<tr><td colspan="7" style="text-align:center; padding:16px; color:var(--muted); font-size:12px;">${gDate===''?'체크한 신제품이 여기에 자동 추가돼요':'하단 ＋ 버튼으로 SKU를 추가하거나, 신제품 탭에서 체험단 체크박스를 선택해주세요.'}</td></tr>`;
     const rowsFinal = rowsHtml + emptyRow;
 
     const delGroupBtn = `<button class="btn ghost" style="margin-left:auto; color:#b04a3a; border-color:#f0b6b1;" onclick="expDeleteDateGroup('${gDate}')" title="이 그룹 삭제 (행도 모두 삭제)">그룹 삭제</button>`;
 
+    const titleEl = gDate === ''
+      ? `<span style="font-size:14px; font-weight:700; color:${headerColor};">📅 ${esc(title)}</span>`
+      : `<span style="font-size:14px; font-weight:700; color:${headerColor};">📅</span><input type="date" value="${esc(gDate)}" style="font-size:14px; font-weight:700; padding:3px 6px; border:1px solid var(--border); border-radius:4px; cursor:pointer; background:#fff;" onchange="expRenameDateGroup('${gDate}', this.value)" title="날짜 변경">`;
     return `<div class="exp-group" style="background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:14px;">
       <div class="exp-group-head" style="display:flex; gap:12px; align-items:center; margin-bottom:10px;">
-        <span style="font-size:14px; font-weight:700; color:${headerColor};">📅 ${esc(title)}</span>
+        ${titleEl}
         <span style="font-size:12px; color:var(--muted);">${inGroup.length}건</span>
         <span style="margin-left:16px; font-size:12px;"><span style="color:var(--muted); margin-right:6px;">총 비용</span><b>${expFmtN(groupTotal)}원</b></span>
         ${delGroupBtn}
@@ -2428,7 +2422,6 @@ function renderExperience(){
             <th style="width:120px; padding:8px; border-bottom:1px solid var(--border); text-align:right;">공급가 (-VAT)</th>
             <th style="width:96px; padding:8px; border-bottom:1px solid var(--border); text-align:center;">수량</th>
             <th style="width:120px; padding:8px; border-bottom:1px solid var(--border); text-align:right;">총 비용</th>
-            <th style="width:140px; padding:8px; border-bottom:1px solid var(--border); text-align:center;">날짜 이동</th>
             <th style="width:40px; padding:8px; border-bottom:1px solid var(--border);"></th>
           </tr>
         </thead>
@@ -2451,11 +2444,13 @@ function expUpdQty(id, val){
   // 총비용/그룹 합계 재계산을 위해 전체 뷰 재렌더
   renderExperience();
 }
-function expMoveRow(id, newDate){
-  if (!newDate) return;
-  const r = expState.rows.find(x => x._id === id);
-  if (!r) return;
-  r.date = newDate;
+function expRenameDateGroup(oldDate, newDate){
+  if (!newDate || !/^\d{4}-\d{2}-\d{2}$/.test(newDate)) return;
+  if (oldDate === newDate) return;
+  // 새 날짜가 이미 다른 그룹이면 병합. 아니면 단순 변경.
+  expState.dateGroups = expState.dateGroups.filter(x => x !== oldDate);
+  if (!expState.dateGroups.includes(newDate)) expState.dateGroups.push(newDate);
+  expState.rows.forEach(r => { if ((r.date||'') === oldDate) r.date = newDate; });
   expMarkDirty();
   renderExperience();
 }
