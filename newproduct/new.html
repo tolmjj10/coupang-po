@@ -794,7 +794,9 @@ const BRANDS = [
 let activeBrand = 'all';
 let sortKey = 'prod'; // 초기 정렬: 생산완료일 오름차순(빠른 순)
 let sortAsc = true;
-let pinUrgent = false; // 긴급(빨간 배경) 행을 상단에 고정
+/* 긴급(빨간 배경) 행 상단 고정. 기본 ON. 사용자가 토글 시 localStorage에 저장. */
+const PIN_URGENT_KEY = 'coupang_new_pin_urgent_v1';
+let pinUrgent = (localStorage.getItem(PIN_URGENT_KEY) ?? '1') === '1';
 const URGENT_DISMISS_KEY = 'coupang_new_urgent_dismiss_v1';
 let urgentDismissedIds = new Set();
 try {
@@ -1370,6 +1372,7 @@ function setBrand(key) { activeBrand = key; render(); }
 
 function togglePinUrgent() {
   pinUrgent = !pinUrgent;
+  try { localStorage.setItem(PIN_URGENT_KEY, pinUrgent ? '1' : '0'); } catch(_){}
   const btn = document.getElementById('btnPinUrgent');
   if (btn) btn.classList.toggle('active', pinUrgent);
   render();
