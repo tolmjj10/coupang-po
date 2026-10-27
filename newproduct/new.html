@@ -878,15 +878,23 @@ function showRealNameInfo(inputEl, id){
   if (sku)   rows.push(`<div style="display:flex;gap:6px;align-items:center;margin:2px 0;"><span style="color:#8a7a3a;font-weight:600;min-width:44px;">SKU</span><span class="__copy" data-copy="${esc(sku)}" style="cursor:pointer;padding:2px 6px;border-radius:4px;background:#fff;border:1px solid #e5c76b;font-weight:600;font-family:monospace;">${esc(sku)}</span></div>`);
   if (model) rows.push(`<div style="display:flex;gap:6px;align-items:center;margin:2px 0;"><span style="color:#8a7a3a;font-weight:600;min-width:44px;">모델명</span><span class="__copy" data-copy="${esc(model)}" style="cursor:pointer;padding:2px 6px;border-radius:4px;background:#fff;border:1px solid #e5c76b;font-weight:600;font-family:monospace;">${esc(model)}</span></div>`);
   pop.innerHTML = rows.join('') + `<div style="color:#a68a4a;font-size:10.5px;margin-top:4px;">클릭해서 복사</div>`;
-  // 위치: 셀 아래로 붙임
+  // 위치: 셀 오른쪽에 붙임 (잘림 방지). 오른쪽 공간 없으면 왼쪽.
+  pop.style.display = 'block';
   const rect = inputEl.getBoundingClientRect();
-  const popW = 220;
-  let left = window.scrollX + rect.left;
-  const top = window.scrollY + rect.bottom + 4;
-  if (left + popW > window.scrollX + window.innerWidth - 8) left = window.scrollX + window.innerWidth - popW - 8;
+  const popW = pop.offsetWidth || 220;
+  const popH = pop.offsetHeight || 80;
+  const gap = 6;
+  let left = window.scrollX + rect.right + gap;
+  if (rect.right + gap + popW > window.innerWidth - 8){
+    // 왼쪽에 공간 있으면 왼쪽으로. 아니면 셀 끝에 맞춤
+    left = window.scrollX + Math.max(8, rect.left - popW - gap);
+  }
+  // 입력창과 세로 정렬 (팝오버가 더 크면 아래로 넘치지 않게 조정)
+  let top = window.scrollY + rect.top;
+  const maxTop = window.scrollY + window.innerHeight - popH - 8;
+  if (top > maxTop) top = Math.max(window.scrollY + 8, maxTop);
   pop.style.left = left + 'px';
   pop.style.top = top + 'px';
-  pop.style.display = 'block';
   // 클릭-복사
   pop.querySelectorAll('.__copy').forEach(sp => {
     sp.onclick = async () => {
