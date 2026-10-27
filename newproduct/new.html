@@ -1805,6 +1805,7 @@ async function confirmRegistered(ev, id) {
 function updCheck(id, key, val) {
   const row = data.find(r => r.id === id);
   if (!row) return;
+  const wasCompleted = isCompleted(row);
   row[key].done = val;
   if (val && !row[key].date) {
     row[key].date = new Date().toISOString().slice(0,10);
@@ -1812,6 +1813,9 @@ function updCheck(id, key, val) {
     row[key].date = '';
   }
   save();
+  const nowCompleted = isCompleted(row);
+  // 완료 상태 전환(초록 배경 ↔ 일반) 시 전체 render 로 뱃지·행 색상 반영
+  if (wasCompleted !== nowCompleted) { render(); return; }
   // 전체 render()는 포커스/스크롤 튕김 유발 → 해당 셀의 날짜 UI만 직접 갱신
   const tr = document.querySelector(`tr[data-id="${id}"]`);
   if (!tr) return;
