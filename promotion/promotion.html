@@ -397,13 +397,28 @@
     color: var(--text);
   }
   .exp-group-title { font-size: 13px; font-weight: 700; color: var(--text); }
-  .exp-group-total {
+  .exp-ship {
     margin-left: auto;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--hint); font-weight: 500;
+  }
+  .exp-ship input[type="date"] {
+    height: 28px;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: inherit; font-size: 12.5px; font-weight: 600;
+    background: #fff;
+    color: var(--text);
+  }
+  .exp-group-total {
     font-size: 13px; font-weight: 700;
     color: var(--accent-dark);
     font-variant-numeric: tabular-nums;
   }
   .exp-group-total .label { font-size: 11px; color: var(--hint); font-weight: 500; margin-right: 6px; letter-spacing: 0.02em; }
+  td.exp-name { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  td.exp-name.missing { color: #b89968; }
 
   /* 기획전 뷰 */
   .plan-group-head { gap: 12px; flex-wrap: wrap; }
@@ -1075,7 +1090,7 @@ function renderExperience() {
       const reviewChecked = !!r.reviewChecked;
       return `<tr data-id="${r.id}" class="row-체험단">
         <td><input type="text" data-k="skuId" value="${esc(r.skuId||'')}" placeholder="SKU"></td>
-        <td class="left calc ${missingSku?'missing':''}" title="${esc(m?m.name:'')}">${esc(m?m.name:'') || (missingSku?'매칭 SKU 없음':'')}</td>
+        <td class="left exp-name ${missingSku?'missing':''}" title="${esc(m?m.name:'')}">${esc(m?m.name:'') || (missingSku?'매칭 SKU 없음':'')}</td>
         <td class="right calc num">${fmtN(EXPERIENCE_BASE_COST)}</td>
         <td class="right calc num">${fmtN(supply)}</td>
         <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="qty" value="${esc(r.qty??'')}"></td>
@@ -1089,10 +1104,12 @@ function renderExperience() {
         <td><button class="row-del" title="삭제" data-row-id="${esc(r.id)}" onmousedown="event.preventDefault()" onclick="window.deleteExpRow(this.dataset.rowId)">✕</button></td>
       </tr>`;
     }).join('');
+    const groupShipDate = (items.find(x => x.shipDate)?.shipDate) || '';
     html += `<div class="exp-group" data-date="${esc(dk)}">
       <div class="exp-group-head">
         <input type="date" class="exp-date-input" value="${esc(dk==='(날짜 없음)'?'':dk)}" data-group-date="${esc(dk)}">
         <span class="exp-group-title">체험단</span>
+        <span class="exp-ship"><span>실제 출고날짜</span><input type="date" class="exp-ship-input" value="${esc(groupShipDate)}" data-group-date="${esc(dk)}"></span>
         <span class="exp-group-total"><span class="label">총 비용</span>${fmtN(groupTotal)}원</span>
       </div>
       <table>
@@ -1436,6 +1453,17 @@ function wireExperience() {
         }
         save(); render();
       });
+    });
+  });
+  // 그룹 실제 출고날짜 변경 → 그룹에 속한 모든 행에 shipDate 저장
+  $('expWrap').querySelectorAll('.exp-ship-input').forEach(el => {
+    el.addEventListener('change', () => {
+      const dk = el.dataset.groupDate;
+      const v = el.value || '';
+      data.forEach(r => {
+        if (r.type === '체험단' && (r.date||'(날짜 없음)') === dk) r.shipDate = v;
+      });
+      save();
     });
   });
   // 그룹 날짜 변경 → 그룹에 속한 모든 행의 날짜 일괄 수정
