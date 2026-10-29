@@ -143,6 +143,8 @@
     border-collapse: separate; border-spacing: 0;
     font-size: 12.5px;
     font-variant-numeric: tabular-nums;
+    width: 100%;
+    table-layout: auto;
   }
   table.pivot th, table.pivot td {
     padding: 7px 10px;
@@ -167,14 +169,20 @@
   .col-sku { left: 110px; min-width: 160px; max-width: 160px; font-weight: 600; border-right: 1px solid var(--border); }
   .col-name { left: 270px; min-width: 220px; max-width: 220px; border-right: 2px solid var(--border-strong); }
 
-  /* Sticky right total column */
-  .col-total {
+  /* Sticky right columns: 수량 합계 + 매출 합계 */
+  .col-amt {
     position: sticky; right: 0; z-index: 1;
     background: var(--surface);
-    text-align: right; min-width: 90px; font-weight: 700;
+    text-align: right; min-width: 100px; font-weight: 700;
     border-left: 2px solid var(--border-strong);
   }
-  thead .col-total { background: #faf7f4; z-index: 3; }
+  .col-total {
+    position: sticky; right: 100px; z-index: 1;
+    background: var(--surface);
+    text-align: right; min-width: 80px; font-weight: 700;
+    border-left: 1px solid var(--border);
+  }
+  thead .col-total, thead .col-amt { background: #faf7f4; z-index: 3; }
 
   .col-date { text-align: right; min-width: 56px; }
   .col-date.wk { background: #faf7f4; }
@@ -185,7 +193,8 @@
   tbody tr:hover td.col-cat,
   tbody tr:hover td.col-sku,
   tbody tr:hover td.col-name,
-  tbody tr:hover td.col-total { background: var(--accent-light); }
+  tbody tr:hover td.col-total,
+  tbody tr:hover td.col-amt { background: var(--accent-light); }
 
   .empty, .loading {
     padding: 40px 20px; text-align: center;
@@ -299,9 +308,12 @@
     for (const s of skus) {
       const m = marginMap[s.id];
       if (!m) continue; // 마진테이블에 없는 SKU(=오아/보아르 外) 제외
+      const cost = Number(m.cost) || 0; // 쿠팡 공급가(=우리 매출단가)
       out.push(Object.assign({}, s, {
         cat: m.cat || s.cat || '',
-        sn:  m.name || s.sn || ''
+        sn:  m.name || s.sn || '',
+        unitCost: cost,
+        revenue: s.total * cost
       }));
     }
     return out;
@@ -377,7 +389,8 @@
       const wkCls = isWeekend(d) ? ' wk' : '';
       parts.push(`<th class="col-date${wkCls}" title="${d} (${DOW[dowOf(d)]})">${day}</th>`);
     }
-    parts.push('<th class="col-total">월합계</th>');
+    parts.push('<th class="col-total" title="월 ' + (currentMetric==='out'?'출고':'입고') + ' 합계">수량</th>');
+    parts.push('<th class="col-amt" title="월 매출 (수량 × 공급가)">매출</th>');
     parts.push('</tr></thead><tbody>');
 
     for (const s of skus) {
@@ -392,6 +405,7 @@
         else parts.push(`<td class="col-date${wkCls}">${fmtInt(v)}</td>`);
       }
       parts.push(`<td class="col-total">${fmtInt(s.total)}</td>`);
+      parts.push(`<td class="col-amt" title="단가 ${fmtInt(s.unitCost)}원">${s.revenue ? fmtWon(s.revenue) : '—'}</td>`);
       parts.push('</tr>');
     }
     parts.push('</tbody></table>');
@@ -469,7 +483,7 @@
     for (const r of rows) {
       const sku = String(r.sku || '').trim();
       if (!sku || !/^\d+$/.test(sku)) continue;
-      marginMap[sku] = { cat: r.cat || '', name: r.name || '', owner: r.owner || '' };
+      marginMap[sku] = { cat: r.cat || '', name: r.name || '', owner: r.owner || '', cost: r.cost || 0 };
     }
     const mcount = Object.keys(marginMap).length;
     metaEl.textContent = `업데이트: ${m.updated_at} · 마진테이블 매칭 ${mcount} SKU (오아/보아르)`;
