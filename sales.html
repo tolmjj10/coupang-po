@@ -373,8 +373,10 @@
       parts.push(`<td class="col-sku">${s.id||'—'}</td>`);
       parts.push(`<td class="col-name" title="${s.sn||''}">${s.sn||'—'}</td>`);
       parts.push(`<td class="col-note" title="${s.note||''}">${s.note||''}</td>`);
-      const stockCls = (s.stock > 0 && s.stock < 5) ? ' low' : '';
-      parts.push(`<td class="col-stock${stockCls}">${fmtInt(s.stock)}</td>`);
+      const stockStyle = (s.stock < 5)
+        ? ' style="background:#f8d9d6;color:#b05858;font-weight:700;"'
+        : '';
+      parts.push(`<td class="col-stock"${stockStyle}>${fmtInt(s.stock)}</td>`);
       parts.push(`<td class="col-days ${daysCls}">${daysLabel}</td>`);
       parts.push(`<td class="col-pm">${ex.prevTotal ? fmtInt(ex.prevTotal) : '—'}</td>`);
       parts.push(`<td class="col-pma">${ex.prevAvg > 0 ? fmtNum1(ex.prevAvg) : '—'}</td>`);
