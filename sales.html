@@ -119,6 +119,11 @@
   thead .col-date.wk { background: #f0ebe4; }
   td.col-date.zero { color: #cfc6bf; }
   td.col-days.danger { color: var(--neg); font-weight: 700; }
+  td.col-stock.low { background: #f8d9d6 !important; color: var(--neg); font-weight: 700; }
+  tbody tr:hover td.col-stock.low { background: #f3c4c0 !important; }
+
+  /* 참고 컬럼(전월·14일·7일)은 헤더를 약간 더 진하게 */
+  thead .col-pm, thead .col-pma, thead .col-a14, thead .col-a7 { background: #ede6dc; color: var(--accent-dark); }
 
   tbody tr:hover td { background: var(--accent-light); }
   tbody tr:hover .col-cat, tbody tr:hover .col-sku, tbody tr:hover .col-name,
@@ -365,7 +370,8 @@
       parts.push(`<td class="col-sku">${s.id||'—'}</td>`);
       parts.push(`<td class="col-name" title="${s.sn||''}">${s.sn||'—'}</td>`);
       parts.push(`<td class="col-note" title="${s.note||''}">${s.note||''}</td>`);
-      parts.push(`<td class="col-stock">${fmtInt(s.stock)}</td>`);
+      const stockCls = (s.stock > 0 && s.stock < 5) ? ' low' : '';
+      parts.push(`<td class="col-stock${stockCls}">${fmtInt(s.stock)}</td>`);
       parts.push(`<td class="col-days ${daysCls}">${daysLabel}</td>`);
       parts.push(`<td class="col-pm">${ex.prevTotal ? fmtInt(ex.prevTotal) : '—'}</td>`);
       parts.push(`<td class="col-pma">${ex.prevAvg > 0 ? fmtNum1(ex.prevAvg) : '—'}</td>`);
