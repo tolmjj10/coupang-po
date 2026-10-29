@@ -19,135 +19,70 @@
     --accent: #aa9791;
     --accent-dark: #8b756c;
     --accent-light: #f2ede9;
-    --sage: #b1c0b2;
     --neg: #b05858;
     --in: #7a8a9a;
   }
-  html, body {
-    margin: 0; padding: 0;
+  html, body { height: 100%; overflow: hidden; margin: 0; padding: 0; }
+  body {
     font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',-apple-system, BlinkMacSystemFont, sans-serif;
     background: var(--bg);
     color: var(--text);
     -webkit-font-smoothing: antialiased;
     letter-spacing: -0.01em;
   }
-  html, body { height: 100%; overflow: hidden; }
-  .wrap { padding: 20px 24px 24px; height: 100vh; display: flex; flex-direction: column; }
+  .wrap { padding: 16px 20px 16px; height: 100vh; display: flex; flex-direction: column; }
 
-  header.page {
-    display: flex; align-items: baseline; justify-content: space-between;
-    margin-bottom: 20px;
-  }
-  h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; margin: 0; }
-  .meta { font-size: 12px; color: var(--text-hint); }
+  header.page { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+  h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.03em; margin: 0; }
+  .meta { font-size: 11.5px; color: var(--text-hint); }
 
-  .toolbar {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    margin-bottom: 20px;
-  }
+  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
   .month-nav {
     display: inline-flex; align-items: center;
     background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; padding: 4px;
-    user-select: none;
+    border-radius: 10px; padding: 3px; user-select: none;
   }
-  .month-btn {
-    width: 32px; height: 32px;
-    display: flex; align-items: center; justify-content: center;
-    border-radius: 7px; cursor: pointer; color: var(--text-hint);
-    transition: background .12s, color .12s;
-  }
+  .month-btn { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; color: var(--text-hint); }
   .month-btn:hover { background: var(--accent-light); color: var(--text); }
   .month-btn.disabled { opacity: 0.3; pointer-events: none; }
-  .month-btn svg { width: 16px; height: 16px; stroke-width: 2; }
-  .month-label {
-    position: relative;
-    font-size: 14px; font-weight: 700; letter-spacing: -0.01em;
-    padding: 0 16px; min-width: 120px; text-align: center;
-    cursor: pointer;
-  }
+  .month-btn svg { width: 14px; height: 14px; stroke-width: 2; }
+  .month-label { position: relative; font-size: 13px; font-weight: 700; padding: 0 14px; min-width: 110px; text-align: center; cursor: pointer; }
   .month-label:hover { color: var(--accent-dark); }
-  .month-input {
-    position: absolute; inset: 0; opacity: 0; cursor: pointer; font: inherit;
-  }
-  .search input {
-    font: inherit; font-size: 12.5px;
-    padding: 7px 12px; min-width: 200px;
-    border: 1px solid var(--border); border-radius: 8px;
-    background: var(--surface); color: var(--text);
-  }
+  .month-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; font: inherit; }
+  .search input { font: inherit; font-size: 12.5px; padding: 6px 10px; min-width: 180px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
 
-  .kpi-grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
-    margin-bottom: 20px; max-width: 900px;
-  }
-  .kpi {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 12px; padding: 14px 18px;
-    transition: border-color .12s, box-shadow .12s;
-  }
-  .kpi.active-out { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(170,151,145,0.12); }
-  .kpi.active-in  { border-color: var(--in); box-shadow: 0 0 0 3px rgba(122,138,154,0.14); }
-  .kpi-label {
-    font-size: 11px; font-weight: 600; color: var(--text-hint);
-    letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 8px;
-  }
-  .kpi-value {
-    font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums;
-  }
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; max-width: 820px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; transition: border-color .12s, box-shadow .12s; }
+  .kpi.active-out { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(170,151,145,0.14); }
+  .kpi.active-in  { border-color: var(--in); box-shadow: 0 0 0 2px rgba(122,138,154,0.16); }
+  .kpi-label { font-size: 10.5px; font-weight: 600; color: var(--text-hint); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 4px; }
+  .kpi-value { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 
-  .tabs-row {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 12px; flex-wrap: wrap; gap: 10px;
-  }
-  .metric-tabs {
-    display: inline-flex; background: var(--surface);
-    border: 1px solid var(--border); border-radius: 10px; padding: 3px;
-    user-select: none;
-  }
-  .metric-tab {
-    font-size: 12.5px; font-weight: 600; padding: 7px 18px;
-    border-radius: 7px; cursor: pointer; color: var(--text-hint);
-    transition: background .12s, color .12s;
-    display: inline-flex; align-items: center; gap: 7px;
-  }
-  .metric-tab .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .tabs-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
+  .metric-tabs { display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 3px; user-select: none; }
+  .metric-tab { font-size: 12px; font-weight: 600; padding: 6px 16px; border-radius: 7px; cursor: pointer; color: var(--text-hint); display: inline-flex; align-items: center; gap: 6px; }
+  .metric-tab .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
   .metric-tab:hover { color: var(--text); }
   .metric-tab.active[data-metric="out"] { background: var(--accent); color: #fff; }
   .metric-tab.active[data-metric="in"]  { background: var(--in); color: #fff; }
 
-  .expand-ctl {
-    display: inline-flex; gap: 8px; align-items: center;
-    font-size: 12px; color: var(--text-hint);
-  }
-  .expand-ctl button {
-    font: inherit; font-size: 12px; font-weight: 600;
-    padding: 6px 12px; border: 1px solid var(--border);
-    border-radius: 8px; background: var(--surface); color: var(--text);
-    cursor: pointer;
-  }
+  .expand-ctl { display: inline-flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--text-hint); }
+  .expand-ctl button { font: inherit; font-size: 11.5px; font-weight: 600; padding: 5px 11px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); cursor: pointer; }
   .expand-ctl button:hover { background: var(--accent-light); }
   .expand-ctl button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-  .card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 12px; overflow: hidden;
-    flex: 1; min-height: 0;
-    display: flex; flex-direction: column;
-  }
-  .pivot-wrap {
-    flex: 1; min-height: 0; overflow: auto;
-  }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .pivot-wrap { flex: 1; min-height: 0; overflow: auto; }
+
   table.pivot {
     border-collapse: separate; border-spacing: 0;
-    font-size: 12.5px;
+    font-size: 12px;
     font-variant-numeric: tabular-nums;
     width: 100%;
     table-layout: auto;
   }
   table.pivot th, table.pivot td {
-    padding: 7px 10px;
+    padding: 6px 8px;
     border-right: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
     white-space: nowrap;
@@ -155,64 +90,45 @@
   table.pivot thead th {
     background: #faf7f4;
     position: sticky; top: 0; z-index: 2;
-    font-size: 11px; font-weight: 600; color: var(--text-hint);
+    font-size: 10.5px; font-weight: 600; color: var(--text-hint);
     letter-spacing: 0.03em;
   }
-  /* Sticky left columns */
-  .col-cat, .col-sku, .col-name {
-    position: sticky; background: var(--surface); z-index: 1;
-    text-align: left;
-    overflow: hidden; text-overflow: ellipsis;
-  }
-  thead .col-cat, thead .col-sku, thead .col-name { background: #faf7f4; z-index: 3; }
-  .col-cat { left: 0; min-width: 110px; max-width: 110px; font-size: 11.5px; color: var(--text-hint); }
-  .col-sku { left: 110px; min-width: 160px; max-width: 160px; font-weight: 600; border-right: 1px solid var(--border); }
-  .col-name { left: 270px; min-width: 220px; max-width: 220px; border-right: 2px solid var(--border-strong); }
 
-  /* Sticky right columns: 수량 합계 + 매출 합계 */
-  .col-amt {
-    position: sticky; right: 0; z-index: 1;
-    background: var(--surface);
-    text-align: right; min-width: 100px; font-weight: 700;
-    border-left: 2px solid var(--border-strong);
-  }
-  .col-total {
-    position: sticky; right: 100px; z-index: 1;
-    background: var(--surface);
-    text-align: right; min-width: 80px; font-weight: 700;
-    border-left: 1px solid var(--border);
-  }
-  thead .col-total, thead .col-amt { background: #faf7f4; z-index: 3; }
+  /* Sticky left columns: cumulative offsets */
+  .col-cat   { position: sticky; left: 0;   background: var(--surface); z-index: 1; text-align: left; min-width: 86px; max-width: 86px; font-size: 11px; color: var(--text-hint); overflow: hidden; text-overflow: ellipsis; }
+  .col-sku   { position: sticky; left: 86;  background: var(--surface); z-index: 1; text-align: left; min-width: 80px; max-width: 80px; font-size: 11px; color: var(--text-hint); }
+  .col-name  { position: sticky; left: 166; background: var(--surface); z-index: 1; text-align: left; min-width: 180px; max-width: 180px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+  .col-note  { position: sticky; left: 346; background: var(--surface); z-index: 1; text-align: left; min-width: 110px; max-width: 110px; color: var(--neg); font-size: 11px; overflow: hidden; text-overflow: ellipsis; border-right: 2px solid var(--border-strong); }
+  .col-stock { position: sticky; left: 456; background: var(--surface); z-index: 1; text-align: right; min-width: 62px; font-weight: 600; }
+  .col-days  { position: sticky; left: 518; background: var(--surface); z-index: 1; text-align: right; min-width: 62px; color: var(--text-hint); }
+  .col-pm    { position: sticky; left: 580; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; }
+  .col-pma   { position: sticky; left: 640; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; color: var(--text-hint); }
+  .col-a14   { position: sticky; left: 700; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; color: var(--text-hint); }
+  .col-a7    { position: sticky; left: 760; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; color: var(--text-hint); border-right: 2px solid var(--border-strong); }
+  thead .col-cat, thead .col-sku, thead .col-name, thead .col-note,
+  thead .col-stock, thead .col-days, thead .col-pm, thead .col-pma,
+  thead .col-a14, thead .col-a7 { background: #faf7f4; z-index: 3; }
 
-  .col-date { text-align: right; min-width: 56px; }
+  /* Sticky right */
+  .col-amt   { position: sticky; right: 0;   background: var(--surface); z-index: 1; text-align: right; min-width: 110px; font-weight: 700; border-left: 2px solid var(--border-strong); }
+  .col-total { position: sticky; right: 110; background: var(--surface); z-index: 1; text-align: right; min-width: 72px; font-weight: 700; border-left: 1px solid var(--border); }
+  thead .col-amt, thead .col-total { background: #faf7f4; z-index: 3; }
+
+  .col-date { text-align: right; min-width: 54px; }
   .col-date.wk { background: #faf7f4; }
   thead .col-date.wk { background: #f0ebe4; }
   td.col-date.zero { color: #cfc6bf; }
+  td.col-days.danger { color: var(--neg); font-weight: 700; }
 
   tbody tr:hover td { background: var(--accent-light); }
-  tbody tr:hover td.col-cat,
-  tbody tr:hover td.col-sku,
-  tbody tr:hover td.col-name,
-  tbody tr:hover td.col-total,
-  tbody tr:hover td.col-amt { background: var(--accent-light); }
-
-  .empty, .loading {
-    padding: 40px 20px; text-align: center;
-    color: var(--text-hint); font-size: 13px;
+  tbody tr:hover .col-cat, tbody tr:hover .col-sku, tbody tr:hover .col-name,
+  tbody tr:hover .col-note, tbody tr:hover .col-stock, tbody tr:hover .col-days,
+  tbody tr:hover .col-pm, tbody tr:hover .col-pma, tbody tr:hover .col-a14,
+  tbody tr:hover .col-a7, tbody tr:hover .col-amt, tbody tr:hover .col-total {
+    background: var(--accent-light);
   }
 
-  @media (max-width: 900px) {
-    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-    .kpi-value { font-size: 18px; }
-    .col-cat { display: none; }
-    .col-sku { left: 0; min-width: 120px; max-width: 120px; }
-    .col-name { left: 120px; min-width: 150px; max-width: 150px; }
-  }
-  @media (max-width: 600px) {
-    .wrap { padding: 16px; }
-    .col-sku { display: none; }
-    .col-name { left: 0; min-width: 140px; max-width: 140px; }
-  }
+  .empty, .loading { padding: 40px 20px; text-align: center; color: var(--text-hint); font-size: 13px; }
 </style>
 </head>
 <body>
@@ -225,20 +141,11 @@
 
   <div class="toolbar">
     <div class="month-nav">
-      <div class="month-btn" id="prev" title="이전 달">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-      </div>
-      <div class="month-label" id="month-label">
-        <span id="month-text">—</span>
-        <input type="month" class="month-input" id="month-input">
-      </div>
-      <div class="month-btn" id="next" title="다음 달">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-      </div>
+      <div class="month-btn" id="prev" title="이전 달"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></div>
+      <div class="month-label" id="month-label"><span id="month-text">—</span><input type="month" class="month-input" id="month-input"></div>
+      <div class="month-btn" id="next" title="다음 달"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
     </div>
-    <div class="search">
-      <input type="search" id="search" placeholder="상품명/SKU/카테고리/코드 검색">
-    </div>
+    <div class="search"><input type="search" id="search" placeholder="상품명/SKU/카테고리 검색"></div>
   </div>
 
   <div class="kpi-grid">
@@ -272,10 +179,13 @@
 <script>
 (function () {
   const fmtInt = n => n.toLocaleString('ko-KR');
+  const fmtNum1 = n => (Math.round(n*10)/10).toLocaleString('ko-KR');
   const fmtWon = n => Math.round(n).toLocaleString('ko-KR') + '원';
   const DOW = ['일','월','화','수','목','금','토'];
   const dowOf = iso => new Date(iso + 'T00:00:00').getDay();
   const isWeekend = iso => { const d = dowOf(iso); return d === 0 || d === 6; };
+  const daysInMonth = ym => { const [y,m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); };
+  const prevMonthOf = ym => { const [y,m] = ym.split('-').map(Number); const d = new Date(y, m-2, 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; };
 
   const metaEl = document.getElementById('meta');
   const prevBtn = document.getElementById('prev');
@@ -294,27 +204,10 @@
   let availableMonths = [];
   let currentMonth = null;
   let currentMetric = 'out';
-  let visibleDays = 7; // 0 = all
-  const cache = {}; // month -> data
-  let marginMap = {}; // sku_id -> {cat, name, owner}
-
-  function filterAndOverlay(skus, metric) {
-    // 출고 매출 = 수량 × 상시가(margin.price), 입고 매출 = 수량 × 공급가(margin.cost)
-    const unitKey = metric === 'in' ? 'cost' : 'price';
-    const out = [];
-    for (const s of skus) {
-      const m = marginMap[s.id];
-      if (!m) continue; // 마진테이블에 없는 SKU(=오아/보아르 外) 제외
-      const unit = Number(m[unitKey]) || 0;
-      out.push(Object.assign({}, s, {
-        cat: m.cat || s.cat || '',
-        sn:  m.name || s.sn || '',
-        unitPrice: unit,
-        revenue: s.total * unit
-      }));
-    }
-    return out;
-  }
+  let visibleDays = 7;
+  const cache = {};
+  let marginMap = {};  // sku_id -> {cat, name, cost, price}
+  let masterMap = {};  // sku_id -> {stock, note, sn, brand, sp}
 
   function loadMonth(ym) {
     if (cache[ym]) return Promise.resolve(cache[ym]);
@@ -323,12 +216,86 @@
       .then(d => { cache[ym] = d; return d; });
   }
 
+  function filterAndOverlay(skus, metric) {
+    const unitKey = metric === 'in' ? 'cost' : 'price';
+    const out = [];
+    for (const s of skus) {
+      const m = marginMap[s.id];
+      if (!m) continue;
+      const mm = masterMap[s.id] || {};
+      const unit = Number(m[unitKey]) || 0;
+      out.push(Object.assign({}, s, {
+        cat: m.cat || s.cat || '',
+        sn:  m.name || s.sn || mm.sn || '',
+        note: mm.note || '',
+        stock: mm.stock || 0,
+        unitPrice: unit,
+        revenue: s.total * unit
+      }));
+    }
+    return out;
+  }
+
+  function lastDataIndex(data, metric) {
+    const dates = data.dates;
+    const skus = data.metrics[metric] || [];
+    for (let i = dates.length - 1; i >= 0; i--) {
+      for (const s of skus) if ((s.qty[i] || 0) !== 0) return i;
+    }
+    return dates.length - 1;
+  }
+
+  function getVisibleDateIndices(data) {
+    const dates = data.dates;
+    const end = lastDataIndex(data, currentMetric);
+    if (visibleDays === 0) return dates.map((_, i) => i).slice(0, end + 1);
+    const start = Math.max(0, end - visibleDays + 1);
+    const r = [];
+    for (let i = start; i <= end; i++) r.push(i);
+    return r;
+  }
+
+  function sumQty(sku, fromIdx, toIdx) {
+    let s = 0;
+    for (let i = fromIdx; i <= toIdx; i++) s += sku.qty[i] || 0;
+    return s;
+  }
+
+  function computeExtras(sku, data) {
+    const lastIdx = lastDataIndex(data, 'out');
+    const outArr = data.metrics.out || [];
+    // find same sku in out metric for averages
+    const outSku = outArr.find(x => x.id === sku.id);
+    let avg7 = 0, avg14 = 0;
+    if (outSku) {
+      const start14 = Math.max(0, lastIdx - 13);
+      const start7  = Math.max(0, lastIdx - 6);
+      const n14 = lastIdx - start14 + 1;
+      const n7  = lastIdx - start7 + 1;
+      avg14 = n14 > 0 ? sumQty(outSku, start14, lastIdx) / n14 : 0;
+      avg7  = n7  > 0 ? sumQty(outSku, start7,  lastIdx) / n7  : 0;
+    }
+    // prev month total
+    const pm = cache[prevMonthOf(data.month)];
+    let prevTotal = 0;
+    if (pm) {
+      const pmOut = (pm.metrics.out || []).find(x => x.id === sku.id);
+      if (pmOut) prevTotal = pmOut.total;
+    }
+    const pmLabel = Number(data.month.split('-')[1]) - 1;
+    return {
+      avg7, avg14,
+      prevTotal,
+      prevAvg: prevTotal / daysInMonth(prevMonthOf(data.month)),
+      prevMonth: pmLabel > 0 ? pmLabel : 12,
+      sellableDays: avg7 > 0 ? sku.stock / avg7 : null
+    };
+  }
+
   function renderKpi(ym) {
     const t = manifest.monthly_totals[ym] || {};
-    // 매출/마진: mart_sales_daily 쿠팡 파트너 = 오아+보아르와 동일한 값이라 그대로 사용
     document.getElementById('k-amt').textContent = t.amt != null ? fmtWon(t.amt) : '—';
     document.getElementById('k-mgn').textContent = t.mgn != null ? fmtWon(t.mgn) : '—';
-    // 출고/입고: 마진테이블 매칭 SKU만 합산 (오아/보아르)
     const d = cache[ym];
     if (d) {
       const fo = filterAndOverlay(d.metrics.out || [], 'out');
@@ -345,76 +312,65 @@
     kpiIn.classList.remove('active-out');
   }
 
-  function lastDataIndex(data) {
-    // 모든 metric 중 가장 늦은 날짜 index (SKU qty 합이 0 초과인 마지막 날)
-    const dates = data.dates;
-    let last = -1;
-    for (const metric of ['out','in']) {
-      const skus = data.metrics[metric] || [];
-      for (let i = dates.length - 1; i > last; i--) {
-        let sum = 0;
-        for (const s of skus) { sum += s.qty[i] || 0; if (sum) break; }
-        if (sum) { last = i; break; }
-      }
-    }
-    return last >= 0 ? last : dates.length - 1;
-  }
-
-  function getVisibleDateIndices(data) {
-    const allDates = data.dates;
-    const end = lastDataIndex(data); // 0-based inclusive
-    if (visibleDays === 0) {
-      return allDates.map((_, i) => i).slice(0, end + 1);
-    }
-    const start = Math.max(0, end - visibleDays + 1);
-    const out = [];
-    for (let i = start; i <= end; i++) out.push(i);
-    return out;
-  }
-
   function renderPivot(data) {
     const q = searchEl.value.trim().toLowerCase();
     let skus = filterAndOverlay(data.metrics[currentMetric] || [], currentMetric);
     if (q) {
       skus = skus.filter(s =>
         (s.sn || '').toLowerCase().includes(q) ||
-        (s.c  || '').toLowerCase().includes(q) ||
         (s.cat|| '').toLowerCase().includes(q) ||
-        (s.id || '').toLowerCase().includes(q)
+        (s.id || '').toLowerCase().includes(q) ||
+        (s.note|| '').toLowerCase().includes(q)
       );
     }
-    if (skus.length === 0) {
-      pivotWrap.innerHTML = '';
-      emptyEl.style.display = '';
-      return;
-    }
+    if (skus.length === 0) { pivotWrap.innerHTML = ''; emptyEl.style.display = ''; return; }
     emptyEl.style.display = 'none';
 
     const dates = data.dates;
     const idxList = getVisibleDateIndices(data);
-    const lastIdx = lastDataIndex(data);
-    // 최신 날짜 판매량 내림차순, 동률이면 월합계 보조정렬
-    skus.sort((a, b) => ((b.qty[lastIdx]||0) - (a.qty[lastIdx]||0)) || (b.total - a.total));
+    const lastIdx = lastDataIndex(data, currentMetric);
+    skus.sort((a,b) => ((b.qty[lastIdx]||0) - (a.qty[lastIdx]||0)) || (b.total - a.total));
+
+    const pmLabel = Number(data.month.split('-')[1]) - 1;
+    const pmHeader = (pmLabel > 0 ? pmLabel : 12) + '월';
+
     const parts = [];
     parts.push('<table class="pivot"><thead><tr>');
     parts.push('<th class="col-cat">카테고리</th>');
     parts.push('<th class="col-sku">SKU #</th>');
     parts.push('<th class="col-name">상품명</th>');
+    parts.push('<th class="col-note">이슈사항</th>');
+    parts.push('<th class="col-stock">현재고</th>');
+    parts.push('<th class="col-days">판매가능<br>일수</th>');
+    parts.push(`<th class="col-pm">${pmHeader}<br>판매량</th>`);
+    parts.push(`<th class="col-pma">${pmHeader}<br>평균</th>`);
+    parts.push('<th class="col-a14">14일<br>평균</th>');
+    parts.push('<th class="col-a7">7일<br>평균</th>');
     for (const i of idxList) {
       const d = dates[i];
       const day = Number(d.slice(-2));
       const wkCls = isWeekend(d) ? ' wk' : '';
       parts.push(`<th class="col-date${wkCls}" title="${d} (${DOW[dowOf(d)]})">${day}</th>`);
     }
-    parts.push('<th class="col-total" title="월 ' + (currentMetric==='out'?'출고':'입고') + ' 합계">수량</th>');
-    parts.push('<th class="col-amt" title="월 매출 (수량 × 공급가)">매출</th>');
+    parts.push('<th class="col-total">월합계</th>');
+    parts.push('<th class="col-amt">매출</th>');
     parts.push('</tr></thead><tbody>');
 
     for (const s of skus) {
+      const ex = computeExtras(s, data);
+      const daysLabel = ex.sellableDays === null ? '—' : (ex.sellableDays < 7 ? fmtNum1(ex.sellableDays) : fmtNum1(ex.sellableDays));
+      const daysCls = (ex.sellableDays !== null && ex.sellableDays < 7) ? 'danger' : '';
       parts.push('<tr>');
       parts.push(`<td class="col-cat" title="${s.cat||''}">${s.cat||'—'}</td>`);
-      parts.push(`<td class="col-sku" title="${s.id||''}">${s.id||'—'}</td>`);
+      parts.push(`<td class="col-sku">${s.id||'—'}</td>`);
       parts.push(`<td class="col-name" title="${s.sn||''}">${s.sn||'—'}</td>`);
+      parts.push(`<td class="col-note" title="${s.note||''}">${s.note||''}</td>`);
+      parts.push(`<td class="col-stock">${fmtInt(s.stock)}</td>`);
+      parts.push(`<td class="col-days ${daysCls}">${daysLabel}</td>`);
+      parts.push(`<td class="col-pm">${ex.prevTotal ? fmtInt(ex.prevTotal) : '—'}</td>`);
+      parts.push(`<td class="col-pma">${ex.prevAvg > 0 ? fmtNum1(ex.prevAvg) : '—'}</td>`);
+      parts.push(`<td class="col-a14">${ex.avg14 > 0 ? fmtNum1(ex.avg14) : '—'}</td>`);
+      parts.push(`<td class="col-a7">${ex.avg7 > 0 ? fmtNum1(ex.avg7) : '—'}</td>`);
       for (const i of idxList) {
         const v = s.qty[i] || 0;
         const wkCls = isWeekend(dates[i]) ? ' wk' : '';
@@ -422,7 +378,7 @@
         else parts.push(`<td class="col-date${wkCls}">${fmtInt(v)}</td>`);
       }
       parts.push(`<td class="col-total">${fmtInt(s.total)}</td>`);
-      parts.push(`<td class="col-amt" title="단가 ${fmtInt(s.unitPrice)}원 (${currentMetric==='in'?'공급가':'상시가'})">${s.revenue ? fmtWon(s.revenue) : '—'}</td>`);
+      parts.push(`<td class="col-amt" title="단가 ${fmtInt(s.unitPrice)}원">${s.revenue ? fmtWon(s.revenue) : '—'}</td>`);
       parts.push('</tr>');
     }
     parts.push('</tbody></table>');
@@ -438,9 +394,7 @@
     monthInput.value = currentMonth;
   }
 
-  function refreshPivot() {
-    if (cache[currentMonth]) renderPivot(cache[currentMonth]);
-  }
+  function refreshPivot() { if (cache[currentMonth]) renderPivot(cache[currentMonth]); }
 
   function setMonth(ym) {
     if (!availableMonths.includes(ym)) {
@@ -451,10 +405,12 @@
     updateMonthNav();
     renderKpi(ym);
     pivotWrap.innerHTML = '<div class="loading">로드 중…</div>';
-    loadMonth(ym).then(d => {
-      renderKpi(ym); // 출고/입고 재계산
-      renderPivot(d);
-    }).catch(err => { pivotWrap.innerHTML = `<div class="loading">로드 실패 (${err})</div>`; });
+    const prevYm = prevMonthOf(ym);
+    const needPrev = availableMonths.includes(prevYm) && !cache[prevYm];
+    const loads = [loadMonth(ym)];
+    if (needPrev) loads.push(loadMonth(prevYm).catch(() => null));
+    Promise.all(loads).then(([d]) => { renderKpi(ym); renderPivot(d); })
+      .catch(err => { pivotWrap.innerHTML = `<div class="loading">로드 실패 (${err})</div>`; });
   }
 
   prevBtn.addEventListener('click', () => {
@@ -473,37 +429,31 @@
     renderKpi(currentMonth);
     refreshPivot();
   }));
-
   expandBtns.forEach(b => b.addEventListener('click', () => {
     visibleDays = Number(b.dataset.days);
     expandBtns.forEach(x => x.classList.toggle('active', x === b));
     refreshPivot();
   }));
-
   let searchTimer;
-  searchEl.addEventListener('input', () => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(refreshPivot, 120);
-  });
+  searchEl.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(refreshPivot, 120); });
 
   Promise.all([
     fetch('data/sales-sku-index.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : Promise.reject(r.status)),
-    fetch('/api/margin-state', { cache: 'no-cache' })
-      .then(r => r.ok ? r.json() : { rows: [] })
-      .catch(() => ({ rows: [] }))
-  ]).then(([m, ms]) => {
+    fetch('/api/margin-state', { cache: 'no-cache' }).then(r => r.ok ? r.json() : { rows: [] }).catch(() => ({ rows: [] })),
+    fetch('data/sales-sku-master.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : { skus: {} }).catch(() => ({ skus: {} }))
+  ]).then(([m, ms, mm]) => {
     manifest = m;
     availableMonths = m.months.slice().sort();
     monthInput.min = availableMonths[0];
     monthInput.max = availableMonths[availableMonths.length - 1];
-    const rows = (ms && ms.rows) || [];
-    for (const r of rows) {
+    for (const r of ((ms && ms.rows) || [])) {
       const sku = String(r.sku || '').trim();
       if (!sku || !/^\d+$/.test(sku)) continue;
-      marginMap[sku] = { cat: r.cat || '', name: r.name || '', owner: r.owner || '', cost: r.cost || 0, price: r.price || 0 };
+      marginMap[sku] = { cat: r.cat || '', name: r.name || '', cost: r.cost || 0, price: r.price || 0 };
     }
+    masterMap = (mm && mm.skus) || {};
     const mcount = Object.keys(marginMap).length;
-    metaEl.textContent = `업데이트: ${m.updated_at} · 마진테이블 매칭 ${mcount} SKU (오아/보아르)`;
+    metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${mm.as_of || '-'} · 마진 ${mcount} SKU`;
     setMonth(availableMonths[availableMonths.length - 1]);
   }).catch(err => { metaEl.textContent = '데이터 로드 실패 (' + err + ')'; });
 })();
