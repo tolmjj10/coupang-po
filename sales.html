@@ -63,8 +63,10 @@
   .metric-tab { font-size: 12px; font-weight: 600; padding: 6px 16px; border-radius: 7px; cursor: pointer; color: var(--text-hint); display: inline-flex; align-items: center; gap: 6px; }
   .metric-tab .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
   .metric-tab:hover { color: var(--text); }
-  .metric-tab.active[data-metric="out"] { background: var(--accent); color: #fff; }
-  .metric-tab.active[data-metric="in"]  { background: var(--in); color: #fff; }
+  .metric-tab.active[data-metric="out"]       { background: var(--accent); color: #fff; }
+  .metric-tab.active[data-metric="in"]        { background: var(--in); color: #fff; }
+  .metric-tab.active[data-metric="month-out"] { background: var(--accent-dark); color: #fff; }
+  .metric-tab.active[data-metric="month-in"]  { background: #566977; color: #fff; }
 
   .expand-ctl { display: inline-flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--text-hint); }
   .expand-ctl button { font: inherit; font-size: 11.5px; font-weight: 600; padding: 5px 11px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); cursor: pointer; }
@@ -115,6 +117,10 @@
   thead .col-amt, thead .col-total { background: #faf7f4; z-index: 3; }
 
   .col-date { text-align: right; min-width: 54px; }
+  .col-month { text-align: right; min-width: 78px; }
+  td.col-month.zero { color: #cfc6bf; }
+  /* 월별 뷰: 매출 컬럼 없음 → 합계가 우측 끝 */
+  .month-view .col-total { right: 0px !important; }
   .col-date.wk { background: #faf7f4; }
   thead .col-date.wk { background: #f0ebe4; }
   td.col-date.zero { color: #cfc6bf; }
@@ -167,6 +173,8 @@
     <div class="metric-tabs" role="tablist">
       <div class="metric-tab active" data-metric="out" role="tab"><span class="dot"></span>출고 (실 판매)</div>
       <div class="metric-tab" data-metric="in" role="tab"><span class="dot"></span>입고 (쿠팡 창고)</div>
+      <div class="metric-tab" data-metric="month-out" role="tab"><span class="dot"></span>월별 출고량</div>
+      <div class="metric-tab" data-metric="month-in" role="tab"><span class="dot"></span>월별 입고량</div>
     </div>
     <div class="expand-ctl">
       <span>표시 날짜</span>
@@ -321,6 +329,11 @@
   }
 
   function renderPivot(data) {
+    if (currentMetric === 'month-out' || currentMetric === 'month-in') {
+      renderMonthlyPivot();
+      return;
+    }
+    const isIn = currentMetric === 'in';
     const q = searchEl.value.trim().toLowerCase();
     let skus = filterAndOverlay(data.metrics[currentMetric] || [], currentMetric);
     if (q) {
@@ -349,11 +362,13 @@
     parts.push('<th class="col-name">상품명</th>');
     parts.push('<th class="col-note">이슈사항</th>');
     parts.push('<th class="col-stock">현재고</th>');
-    parts.push('<th class="col-days">판매가능<br>일수</th>');
-    parts.push(`<th class="col-pm">${pmHeader}<br>판매량</th>`);
-    parts.push(`<th class="col-pma">${pmHeader}<br>평균</th>`);
-    parts.push('<th class="col-a14">14일<br>평균</th>');
-    parts.push('<th class="col-a7">7일<br>평균</th>');
+    if (!isIn) {
+      parts.push('<th class="col-days">판매가능<br>일수</th>');
+      parts.push(`<th class="col-pm">${pmHeader}<br>판매량</th>`);
+      parts.push(`<th class="col-pma">${pmHeader}<br>평균</th>`);
+      parts.push('<th class="col-a14">14일<br>평균</th>');
+      parts.push('<th class="col-a7">7일<br>평균</th>');
+    }
     for (const i of idxList) {
       const d = dates[i];
       const day = Number(d.slice(-2));
@@ -365,23 +380,23 @@
     parts.push('</tr></thead><tbody>');
 
     for (const s of skus) {
-      const ex = computeExtras(s, data);
-      const daysLabel = ex.sellableDays === null ? '—' : (ex.sellableDays < 7 ? fmtNum1(ex.sellableDays) : fmtNum1(ex.sellableDays));
-      const daysCls = (ex.sellableDays !== null && ex.sellableDays < 7) ? 'danger' : '';
       parts.push('<tr>');
       parts.push(`<td class="col-cat" title="${s.cat||''}">${s.cat||'—'}</td>`);
       parts.push(`<td class="col-sku">${s.id||'—'}</td>`);
       parts.push(`<td class="col-name" title="${s.sn||''}">${s.sn||'—'}</td>`);
       parts.push(`<td class="col-note" title="${s.note||''}">${s.note||''}</td>`);
-      const stockStyle = (s.stock < 5)
-        ? ' style="background:#f8d9d6;color:#b05858;font-weight:700;"'
-        : '';
+      const stockStyle = (s.stock < 5) ? ' style="background:#f8d9d6;color:#b05858;font-weight:700;"' : '';
       parts.push(`<td class="col-stock"${stockStyle}>${fmtInt(s.stock)}</td>`);
-      parts.push(`<td class="col-days ${daysCls}">${daysLabel}</td>`);
-      parts.push(`<td class="col-pm">${ex.prevTotal ? fmtInt(ex.prevTotal) : '—'}</td>`);
-      parts.push(`<td class="col-pma">${ex.prevAvg > 0 ? fmtNum1(ex.prevAvg) : '—'}</td>`);
-      parts.push(`<td class="col-a14">${ex.avg14 > 0 ? fmtNum1(ex.avg14) : '—'}</td>`);
-      parts.push(`<td class="col-a7">${ex.avg7 > 0 ? fmtNum1(ex.avg7) : '—'}</td>`);
+      if (!isIn) {
+        const ex = computeExtras(s, data);
+        const daysLabel = ex.sellableDays === null ? '—' : fmtNum1(ex.sellableDays);
+        const daysCls = (ex.sellableDays !== null && ex.sellableDays < 7) ? 'danger' : '';
+        parts.push(`<td class="col-days ${daysCls}">${daysLabel}</td>`);
+        parts.push(`<td class="col-pm">${ex.prevTotal ? fmtInt(ex.prevTotal) : '—'}</td>`);
+        parts.push(`<td class="col-pma">${ex.prevAvg > 0 ? fmtNum1(ex.prevAvg) : '—'}</td>`);
+        parts.push(`<td class="col-a14">${ex.avg14 > 0 ? fmtNum1(ex.avg14) : '—'}</td>`);
+        parts.push(`<td class="col-a7">${ex.avg7 > 0 ? fmtNum1(ex.avg7) : '—'}</td>`);
+      }
       for (const i of idxList) {
         const v = s.qty[i] || 0;
         const wkCls = isWeekend(dates[i]) ? ' wk' : '';
@@ -394,7 +409,91 @@
     }
     parts.push('</tbody></table>');
     pivotWrap.innerHTML = parts.join('');
-    // 최신 날짜가 보이도록 가로 스크롤을 오른쪽 끝으로
+    requestAnimationFrame(() => { pivotWrap.scrollLeft = pivotWrap.scrollWidth; });
+  }
+
+  function renderMonthlyPivot() {
+    const metric = currentMetric === 'month-in' ? 'in' : 'out';
+    // 모든 월의 데이터가 로드되어 있어야 함
+    const months = availableMonths.filter(ym => cache[ym]);
+    if (months.length === 0) {
+      pivotWrap.innerHTML = '<div class="loading">월별 데이터 로딩 중…</div>';
+      Promise.all(availableMonths.map(ym => loadMonth(ym).catch(() => null)))
+        .then(() => renderMonthlyPivot());
+      return;
+    }
+    // SKU 통합: 월별 메트릭 합치기
+    const skuAgg = {};
+    for (const ym of months) {
+      const d = cache[ym];
+      const arr = d.metrics[metric] || [];
+      for (const s of arr) {
+        if (!marginMap[s.id]) continue;
+        if (!skuAgg[s.id]) {
+          const mm = masterMap[s.id] || {};
+          const mg = marginMap[s.id];
+          skuAgg[s.id] = {
+            id: s.id,
+            cat: mg.cat || '',
+            sn: mg.name || mm.sn || '',
+            note: mm.note || '',
+            stock: mm.stock || 0,
+            byMonth: {},
+            total: 0
+          };
+        }
+        skuAgg[s.id].byMonth[ym] = (skuAgg[s.id].byMonth[ym] || 0) + s.total;
+        skuAgg[s.id].total += s.total;
+      }
+    }
+    let skus = Object.values(skuAgg);
+    const q = searchEl.value.trim().toLowerCase();
+    if (q) {
+      skus = skus.filter(s =>
+        (s.sn || '').toLowerCase().includes(q) ||
+        (s.cat|| '').toLowerCase().includes(q) ||
+        (s.id || '').toLowerCase().includes(q) ||
+        (s.note|| '').toLowerCase().includes(q)
+      );
+    }
+    if (skus.length === 0) { pivotWrap.innerHTML = ''; emptyEl.style.display = ''; return; }
+    emptyEl.style.display = 'none';
+    // 최신 월 기준 내림차순
+    const latestYm = months[months.length - 1];
+    skus.sort((a,b) => ((b.byMonth[latestYm]||0) - (a.byMonth[latestYm]||0)) || (b.total - a.total));
+
+    const parts = [];
+    parts.push('<table class="pivot month-view"><thead><tr>');
+    parts.push('<th class="col-cat">카테고리</th>');
+    parts.push('<th class="col-sku">SKU #</th>');
+    parts.push('<th class="col-name">상품명</th>');
+    parts.push('<th class="col-note">이슈사항</th>');
+    parts.push('<th class="col-stock">현재고</th>');
+    for (const ym of months) {
+      const [y, m] = ym.split('-');
+      parts.push(`<th class="col-month" title="${ym}">${y.slice(2)}.${Number(m)}월</th>`);
+    }
+    parts.push('<th class="col-total">합계</th>');
+    parts.push('</tr></thead><tbody>');
+
+    for (const s of skus) {
+      parts.push('<tr>');
+      parts.push(`<td class="col-cat" title="${s.cat||''}">${s.cat||'—'}</td>`);
+      parts.push(`<td class="col-sku">${s.id||'—'}</td>`);
+      parts.push(`<td class="col-name" title="${s.sn||''}">${s.sn||'—'}</td>`);
+      parts.push(`<td class="col-note" title="${s.note||''}">${s.note||''}</td>`);
+      const stockStyle = (s.stock < 5) ? ' style="background:#f8d9d6;color:#b05858;font-weight:700;"' : '';
+      parts.push(`<td class="col-stock"${stockStyle}>${fmtInt(s.stock)}</td>`);
+      for (const ym of months) {
+        const v = s.byMonth[ym] || 0;
+        if (v === 0) parts.push(`<td class="col-month zero">·</td>`);
+        else parts.push(`<td class="col-month">${fmtInt(v)}</td>`);
+      }
+      parts.push(`<td class="col-total">${fmtInt(s.total)}</td>`);
+      parts.push('</tr>');
+    }
+    parts.push('</tbody></table>');
+    pivotWrap.innerHTML = parts.join('');
     requestAnimationFrame(() => { pivotWrap.scrollLeft = pivotWrap.scrollWidth; });
   }
 
