@@ -31,7 +31,8 @@
     -webkit-font-smoothing: antialiased;
     letter-spacing: -0.01em;
   }
-  .wrap { padding: 24px 28px 60px; }
+  html, body { height: 100%; }
+  .wrap { padding: 20px 24px 24px; min-height: 100vh; display: flex; flex-direction: column; }
 
   header.page {
     display: flex; align-items: baseline; justify-content: space-between;
@@ -132,9 +133,11 @@
   .card {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 12px; overflow: hidden;
+    flex: 1; min-height: 400px;
+    display: flex; flex-direction: column;
   }
   .pivot-wrap {
-    max-height: 72vh; overflow: auto;
+    flex: 1; overflow: auto;
   }
   table.pivot {
     border-collapse: separate; border-spacing: 0;
@@ -173,7 +176,7 @@
   }
   thead .col-total { background: #faf7f4; z-index: 3; }
 
-  .col-date { text-align: right; min-width: 48px; }
+  .col-date { text-align: right; min-width: 56px; }
   .col-date.wk { background: #faf7f4; }
   thead .col-date.wk { background: #f0ebe4; }
   td.col-date.zero { color: #cfc6bf; }
