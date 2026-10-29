@@ -97,16 +97,16 @@
   }
 
   /* Sticky left columns: cumulative offsets */
-  .col-cat   { position: sticky; left: 0px;   background: var(--surface); z-index: 1; text-align: left; min-width: 86px; max-width: 86px; width: 86px; font-size: 11px; color: var(--text-hint); overflow: hidden; text-overflow: ellipsis; }
-  .col-sku   { position: sticky; left: 86px;  background: var(--surface); z-index: 1; text-align: left; min-width: 80px; max-width: 80px; width: 80px; font-size: 11px; color: var(--text-hint); }
+  .col-cat   { position: sticky; left: 0px;   background: var(--surface); z-index: 1; text-align: left; min-width: 86px; max-width: 86px; width: 86px; overflow: hidden; text-overflow: ellipsis; }
+  .col-sku   { position: sticky; left: 86px;  background: var(--surface); z-index: 1; text-align: left; min-width: 80px; max-width: 80px; width: 80px; }
   .col-name  { position: sticky; left: 166px; background: var(--surface); z-index: 1; text-align: left; min-width: 180px; max-width: 180px; width: 180px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
   .col-note  { position: sticky; left: 346px; background: var(--surface); z-index: 1; text-align: left; min-width: 110px; max-width: 110px; width: 110px; color: var(--neg); font-size: 11px; overflow: hidden; text-overflow: ellipsis; border-right: 2px solid var(--border-strong); }
   .col-stock { position: sticky; left: 458px; background: var(--surface); z-index: 1; text-align: right; min-width: 62px; max-width: 62px; width: 62px; font-weight: 600; }
-  .col-days  { position: sticky; left: 520px; background: var(--surface); z-index: 1; text-align: right; min-width: 62px; max-width: 62px; width: 62px; color: var(--text-hint); }
+  .col-days  { position: sticky; left: 520px; background: var(--surface); z-index: 1; text-align: right; min-width: 62px; max-width: 62px; width: 62px; }
   .col-pm    { position: sticky; left: 582px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; }
-  .col-pma   { position: sticky; left: 642px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; color: var(--text-hint); }
-  .col-a14   { position: sticky; left: 702px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; color: var(--text-hint); }
-  .col-a7    { position: sticky; left: 762px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; color: var(--text-hint); border-right: 2px solid var(--border-strong); }
+  .col-pma   { position: sticky; left: 642px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; }
+  .col-a14   { position: sticky; left: 702px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; }
+  .col-a7    { position: sticky; left: 762px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; border-right: 2px solid var(--border-strong); }
   thead .col-cat, thead .col-sku, thead .col-name, thead .col-note,
   thead .col-stock, thead .col-days, thead .col-pm, thead .col-pma,
   thead .col-a14, thead .col-a7 { background: #faf7f4; z-index: 3; }
@@ -121,8 +121,8 @@
   td.col-month.zero { color: #cfc6bf; }
   /* 월별 뷰: 매출 컬럼 없음 → 합계가 우측 끝 */
   .month-view .col-total { right: 0px !important; }
-  .col-date.wk { background: #faf7f4; }
-  thead .col-date.wk { background: #f0ebe4; }
+  .col-date.wk { background: #fcfaf6; }
+  thead .col-date.wk { background: #f6f1e9; }
   td.col-date.zero { color: #cfc6bf; }
   td.col-days.danger { color: var(--neg); font-weight: 700; }
   td.col-stock.low { background: #f8d9d6 !important; color: var(--neg); font-weight: 700; }
