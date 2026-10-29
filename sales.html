@@ -21,6 +21,17 @@
     --accent-light: #f2ede9;
     --neg: #b05858;
     --in: #7a8a9a;
+    /* 좌측 고정 컬럼 폭 (상품명만 리사이즈 가능) */
+    --w-cat: 86px;
+    --w-sku: 80px;
+    --w-name: 180px;
+    --w-note: 110px;
+    --w-stock: 62px;
+    --w-days: 62px;
+    --w-pm: 60px;
+    --w-pma: 60px;
+    --w-a14: 60px;
+    --w-a7: 60px;
   }
   html, body { height: 100%; overflow: hidden; margin: 0; padding: 0; }
   body {
@@ -97,27 +108,37 @@
   }
 
   /* Sticky left columns: cumulative offsets */
-  .col-cat   { position: sticky; left: 0px;   background: var(--surface); z-index: 1; text-align: left; min-width: 86px; max-width: 86px; width: 86px; overflow: hidden; text-overflow: ellipsis; }
-  .col-sku   { position: sticky; left: 86px;  background: var(--surface); z-index: 1; text-align: left; min-width: 80px; max-width: 80px; width: 80px; }
-  .col-name  { position: sticky; left: 166px; background: var(--surface); z-index: 1; text-align: left; min-width: 180px; max-width: 180px; width: 180px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
-  .col-note  { position: sticky; left: 346px; background: var(--surface); z-index: 1; text-align: left; min-width: 110px; max-width: 110px; width: 110px; color: var(--neg); font-size: 11px; overflow: hidden; text-overflow: ellipsis; border-right: 2px solid var(--border-strong); }
-  .col-stock { position: sticky; left: 458px; background: var(--surface); z-index: 1; text-align: right; min-width: 62px; max-width: 62px; width: 62px; font-weight: 600; }
-  .col-days  { position: sticky; left: 520px; background: var(--surface); z-index: 1; text-align: right; min-width: 62px; max-width: 62px; width: 62px; }
-  .col-pm    { position: sticky; left: 582px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; }
-  .col-pma   { position: sticky; left: 642px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; }
-  .col-a14   { position: sticky; left: 702px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; }
-  .col-a7    { position: sticky; left: 762px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; border-right: 2px solid var(--border-strong); }
-  /* 헤더: 좌측+상단 동시 고정 (position:sticky는 top+left 둘 다 설정돼야 2축 작동) */
-  table.pivot thead th.col-cat   { position: sticky; top: 0; left: 0px;   z-index: 3; background: #faf7f4; }
-  table.pivot thead th.col-sku   { position: sticky; top: 0; left: 86px;  z-index: 3; background: #faf7f4; }
-  table.pivot thead th.col-name  { position: sticky; top: 0; left: 166px; z-index: 3; background: #faf7f4; }
-  table.pivot thead th.col-note  { position: sticky; top: 0; left: 346px; z-index: 3; background: #faf7f4; }
-  table.pivot thead th.col-stock { position: sticky; top: 0; left: 458px; z-index: 3; background: #faf7f4; }
-  table.pivot thead th.col-days  { position: sticky; top: 0; left: 520px; z-index: 3; background: #faf7f4; }
-  table.pivot thead th.col-pm    { position: sticky; top: 0; left: 582px; z-index: 3; background: #faf7f4; }
-  table.pivot thead th.col-pma   { position: sticky; top: 0; left: 642px; z-index: 3; background: #faf7f4; }
-  table.pivot thead th.col-a14   { position: sticky; top: 0; left: 702px; z-index: 3; background: #faf7f4; }
-  table.pivot thead th.col-a7    { position: sticky; top: 0; left: 762px; z-index: 3; background: #faf7f4; }
+  .col-cat   { position: sticky; left: 0px; background: var(--surface); z-index: 1; text-align: left; min-width: var(--w-cat); max-width: var(--w-cat); width: var(--w-cat); overflow: hidden; text-overflow: ellipsis; }
+  .col-sku   { position: sticky; left: var(--w-cat); background: var(--surface); z-index: 1; text-align: left; min-width: var(--w-sku); max-width: var(--w-sku); width: var(--w-sku); }
+  .col-name  { position: sticky; left: calc(var(--w-cat) + var(--w-sku)); background: var(--surface); z-index: 1; text-align: left; min-width: var(--w-name); max-width: var(--w-name); width: var(--w-name); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+  .col-note  { position: sticky; left: calc(var(--w-cat) + var(--w-sku) + var(--w-name)); background: var(--surface); z-index: 1; text-align: left; min-width: var(--w-note); max-width: var(--w-note); width: var(--w-note); color: var(--neg); font-size: 11px; overflow: hidden; text-overflow: ellipsis; border-right: 2px solid var(--border-strong); }
+  .col-stock { position: sticky; left: calc(var(--w-cat) + var(--w-sku) + var(--w-name) + var(--w-note)); background: var(--surface); z-index: 1; text-align: right; min-width: var(--w-stock); max-width: var(--w-stock); width: var(--w-stock); font-weight: 600; }
+  .col-days  { position: sticky; left: calc(var(--w-cat) + var(--w-sku) + var(--w-name) + var(--w-note) + var(--w-stock)); background: var(--surface); z-index: 1; text-align: right; min-width: var(--w-days); max-width: var(--w-days); width: var(--w-days); }
+  .col-pm    { position: sticky; left: calc(var(--w-cat) + var(--w-sku) + var(--w-name) + var(--w-note) + var(--w-stock) + var(--w-days)); background: var(--surface); z-index: 1; text-align: right; min-width: var(--w-pm); max-width: var(--w-pm); width: var(--w-pm); }
+  .col-pma   { position: sticky; left: calc(var(--w-cat) + var(--w-sku) + var(--w-name) + var(--w-note) + var(--w-stock) + var(--w-days) + var(--w-pm)); background: var(--surface); z-index: 1; text-align: right; min-width: var(--w-pma); max-width: var(--w-pma); width: var(--w-pma); }
+  .col-a14   { position: sticky; left: calc(var(--w-cat) + var(--w-sku) + var(--w-name) + var(--w-note) + var(--w-stock) + var(--w-days) + var(--w-pm) + var(--w-pma)); background: var(--surface); z-index: 1; text-align: right; min-width: var(--w-a14); max-width: var(--w-a14); width: var(--w-a14); }
+  .col-a7    { position: sticky; left: calc(var(--w-cat) + var(--w-sku) + var(--w-name) + var(--w-note) + var(--w-stock) + var(--w-days) + var(--w-pm) + var(--w-pma) + var(--w-a14)); background: var(--surface); z-index: 1; text-align: right; min-width: var(--w-a7); max-width: var(--w-a7); width: var(--w-a7); border-right: 2px solid var(--border-strong); }
+  /* 헤더: 좌측+상단 동시 고정 */
+  table.pivot thead th.col-cat,
+  table.pivot thead th.col-sku,
+  table.pivot thead th.col-name,
+  table.pivot thead th.col-note,
+  table.pivot thead th.col-stock,
+  table.pivot thead th.col-days,
+  table.pivot thead th.col-pm,
+  table.pivot thead th.col-pma,
+  table.pivot thead th.col-a14,
+  table.pivot thead th.col-a7 { top: 0; z-index: 3; background: #faf7f4; }
+
+  /* 상품명 컬럼 리사이즈 핸들 */
+  table.pivot thead th.col-name { position: sticky; }
+  .resize-handle {
+    position: absolute; top: 0; bottom: 0; right: -3px;
+    width: 6px; cursor: col-resize; z-index: 20;
+    user-select: none;
+  }
+  .resize-handle:hover, .resize-handle.dragging { background: var(--accent); opacity: 0.4; }
+  body.resizing, body.resizing * { cursor: col-resize !important; user-select: none !important; }
 
   /* Sticky right */
   .col-amt   { position: sticky; right: 0px;   background: var(--surface); z-index: 1; text-align: right; min-width: 110px; max-width: 110px; width: 110px; font-weight: 700; border-left: 2px solid var(--border-strong); }
@@ -368,7 +389,7 @@
     parts.push('<table class="pivot"><thead><tr>');
     parts.push('<th class="col-cat">카테고리</th>');
     parts.push('<th class="col-sku">SKU #</th>');
-    parts.push('<th class="col-name">상품명</th>');
+    parts.push('<th class="col-name">상품명<span class="resize-handle" title="드래그로 폭 조절"></span></th>');
     parts.push('<th class="col-note">이슈사항</th>');
     parts.push('<th class="col-stock">현재고</th>');
     if (!isIn) {
@@ -475,7 +496,7 @@
     parts.push('<table class="pivot month-view"><thead><tr>');
     parts.push('<th class="col-cat">카테고리</th>');
     parts.push('<th class="col-sku">SKU #</th>');
-    parts.push('<th class="col-name">상품명</th>');
+    parts.push('<th class="col-name">상품명<span class="resize-handle" title="드래그로 폭 조절"></span></th>');
     parts.push('<th class="col-note">이슈사항</th>');
     parts.push('<th class="col-stock">현재고</th>');
     for (const ym of months) {
@@ -557,6 +578,38 @@
   }));
   let searchTimer;
   searchEl.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(refreshPivot, 120); });
+
+  // 상품명 컬럼 리사이즈 (드래그)
+  try {
+    const saved = localStorage.getItem('salesNameWidth');
+    if (saved) document.documentElement.style.setProperty('--w-name', saved);
+  } catch(e){}
+  pivotWrap.addEventListener('mousedown', (e) => {
+    if (!e.target.classList || !e.target.classList.contains('resize-handle')) return;
+    e.preventDefault();
+    const handle = e.target;
+    const startX = e.clientX;
+    const cs = getComputedStyle(document.documentElement).getPropertyValue('--w-name').trim();
+    const startW = parseFloat(cs) || 180;
+    document.body.classList.add('resizing');
+    handle.classList.add('dragging');
+    function onMove(ev) {
+      const newW = Math.max(100, Math.min(600, startW + (ev.clientX - startX)));
+      document.documentElement.style.setProperty('--w-name', newW + 'px');
+    }
+    function onUp() {
+      document.body.classList.remove('resizing');
+      handle.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      try {
+        const w = getComputedStyle(document.documentElement).getPropertyValue('--w-name').trim();
+        if (w) localStorage.setItem('salesNameWidth', w);
+      } catch(e){}
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
 
   Promise.all([
     fetch('data/sales-sku-index.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : Promise.reject(r.status)),
