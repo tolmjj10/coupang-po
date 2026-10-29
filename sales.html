@@ -107,14 +107,23 @@
   .col-pma   { position: sticky; left: 642px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; }
   .col-a14   { position: sticky; left: 702px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; }
   .col-a7    { position: sticky; left: 762px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; border-right: 2px solid var(--border-strong); }
-  thead .col-cat, thead .col-sku, thead .col-name, thead .col-note,
-  thead .col-stock, thead .col-days, thead .col-pm, thead .col-pma,
-  thead .col-a14, thead .col-a7 { background: #faf7f4; z-index: 3; }
+  /* 헤더: 좌측+상단 동시 고정 (position:sticky는 top+left 둘 다 설정돼야 2축 작동) */
+  table.pivot thead th.col-cat   { position: sticky; top: 0; left: 0px;   z-index: 3; background: #faf7f4; }
+  table.pivot thead th.col-sku   { position: sticky; top: 0; left: 86px;  z-index: 3; background: #faf7f4; }
+  table.pivot thead th.col-name  { position: sticky; top: 0; left: 166px; z-index: 3; background: #faf7f4; }
+  table.pivot thead th.col-note  { position: sticky; top: 0; left: 346px; z-index: 3; background: #faf7f4; }
+  table.pivot thead th.col-stock { position: sticky; top: 0; left: 458px; z-index: 3; background: #faf7f4; }
+  table.pivot thead th.col-days  { position: sticky; top: 0; left: 520px; z-index: 3; background: #faf7f4; }
+  table.pivot thead th.col-pm    { position: sticky; top: 0; left: 582px; z-index: 3; background: #faf7f4; }
+  table.pivot thead th.col-pma   { position: sticky; top: 0; left: 642px; z-index: 3; background: #faf7f4; }
+  table.pivot thead th.col-a14   { position: sticky; top: 0; left: 702px; z-index: 3; background: #faf7f4; }
+  table.pivot thead th.col-a7    { position: sticky; top: 0; left: 762px; z-index: 3; background: #faf7f4; }
 
   /* Sticky right */
   .col-amt   { position: sticky; right: 0px;   background: var(--surface); z-index: 1; text-align: right; min-width: 110px; max-width: 110px; width: 110px; font-weight: 700; border-left: 2px solid var(--border-strong); }
   .col-total { position: sticky; right: 110px; background: var(--surface); z-index: 1; text-align: right; min-width: 72px; max-width: 72px; width: 72px; font-weight: 700; border-left: 1px solid var(--border); }
-  thead .col-amt, thead .col-total { background: #faf7f4; z-index: 3; }
+  table.pivot thead th.col-amt   { position: sticky; top: 0; right: 0px;   z-index: 3; background: #faf7f4; }
+  table.pivot thead th.col-total { position: sticky; top: 0; right: 110px; z-index: 3; background: #faf7f4; }
 
   .col-date { text-align: right; min-width: 54px; }
   .col-month { text-align: right; min-width: 78px; }
