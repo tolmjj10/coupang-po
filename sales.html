@@ -392,6 +392,8 @@
     }
     parts.push('</tbody></table>');
     pivotWrap.innerHTML = parts.join('');
+    // 최신 날짜가 보이도록 가로 스크롤을 오른쪽 끝으로
+    requestAnimationFrame(() => { pivotWrap.scrollLeft = pivotWrap.scrollWidth; });
   }
 
   function updateMonthNav() {
