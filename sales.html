@@ -31,8 +31,8 @@
     -webkit-font-smoothing: antialiased;
     letter-spacing: -0.01em;
   }
-  html, body { height: 100%; }
-  .wrap { padding: 20px 24px 24px; min-height: 100vh; display: flex; flex-direction: column; }
+  html, body { height: 100%; overflow: hidden; }
+  .wrap { padding: 20px 24px 24px; height: 100vh; display: flex; flex-direction: column; }
 
   header.page {
     display: flex; align-items: baseline; justify-content: space-between;
@@ -133,11 +133,11 @@
   .card {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 12px; overflow: hidden;
-    flex: 1; min-height: 400px;
+    flex: 1; min-height: 0;
     display: flex; flex-direction: column;
   }
   .pivot-wrap {
-    flex: 1; overflow: auto;
+    flex: 1; min-height: 0; overflow: auto;
   }
   table.pivot {
     border-collapse: separate; border-spacing: 0;
@@ -272,12 +272,7 @@
 <script>
 (function () {
   const fmtInt = n => n.toLocaleString('ko-KR');
-  const fmtWon = n => {
-    const abs = Math.abs(n), sign = n < 0 ? '-' : '';
-    if (abs >= 1e8) return sign + (abs/1e8).toFixed(abs >= 1e9 ? 1 : 2).replace(/\.?0+$/,'') + '억';
-    if (abs >= 1e4) return sign + Math.round(abs/1e4).toLocaleString('ko-KR') + '만';
-    return sign + fmtInt(abs) + '원';
-  };
+  const fmtWon = n => Math.round(n).toLocaleString('ko-KR') + '원';
   const DOW = ['일','월','화','수','목','금','토'];
   const dowOf = iso => new Date(iso + 'T00:00:00').getDay();
   const isWeekend = iso => { const d = dowOf(iso); return d === 0 || d === 6; };
@@ -303,17 +298,19 @@
   const cache = {}; // month -> data
   let marginMap = {}; // sku_id -> {cat, name, owner}
 
-  function filterAndOverlay(skus) {
+  function filterAndOverlay(skus, metric) {
+    // 출고 매출 = 수량 × 상시가(margin.price), 입고 매출 = 수량 × 공급가(margin.cost)
+    const unitKey = metric === 'in' ? 'cost' : 'price';
     const out = [];
     for (const s of skus) {
       const m = marginMap[s.id];
       if (!m) continue; // 마진테이블에 없는 SKU(=오아/보아르 外) 제외
-      const cost = Number(m.cost) || 0; // 쿠팡 공급가(=우리 매출단가)
+      const unit = Number(m[unitKey]) || 0;
       out.push(Object.assign({}, s, {
         cat: m.cat || s.cat || '',
         sn:  m.name || s.sn || '',
-        unitCost: cost,
-        revenue: s.total * cost
+        unitPrice: unit,
+        revenue: s.total * unit
       }));
     }
     return out;
@@ -334,8 +331,8 @@
     // 출고/입고: 마진테이블 매칭 SKU만 합산 (오아/보아르)
     const d = cache[ym];
     if (d) {
-      const fo = filterAndOverlay(d.metrics.out || []);
-      const fi = filterAndOverlay(d.metrics.in  || []);
+      const fo = filterAndOverlay(d.metrics.out || [], 'out');
+      const fi = filterAndOverlay(d.metrics.in  || [], 'in');
       document.getElementById('k-out').textContent = fmtInt(fo.reduce((a,x)=>a+x.total,0)) + '개';
       document.getElementById('k-in').textContent  = fmtInt(fi.reduce((a,x)=>a+x.total,0)) + '개';
     } else {
@@ -360,7 +357,7 @@
 
   function renderPivot(data) {
     const q = searchEl.value.trim().toLowerCase();
-    let skus = filterAndOverlay(data.metrics[currentMetric] || []);
+    let skus = filterAndOverlay(data.metrics[currentMetric] || [], currentMetric);
     if (q) {
       skus = skus.filter(s =>
         (s.sn || '').toLowerCase().includes(q) ||
@@ -405,7 +402,7 @@
         else parts.push(`<td class="col-date${wkCls}">${fmtInt(v)}</td>`);
       }
       parts.push(`<td class="col-total">${fmtInt(s.total)}</td>`);
-      parts.push(`<td class="col-amt" title="단가 ${fmtInt(s.unitCost)}원">${s.revenue ? fmtWon(s.revenue) : '—'}</td>`);
+      parts.push(`<td class="col-amt" title="단가 ${fmtInt(s.unitPrice)}원 (${currentMetric==='in'?'공급가':'상시가'})">${s.revenue ? fmtWon(s.revenue) : '—'}</td>`);
       parts.push('</tr>');
     }
     parts.push('</tbody></table>');
@@ -483,7 +480,7 @@
     for (const r of rows) {
       const sku = String(r.sku || '').trim();
       if (!sku || !/^\d+$/.test(sku)) continue;
-      marginMap[sku] = { cat: r.cat || '', name: r.name || '', owner: r.owner || '', cost: r.cost || 0 };
+      marginMap[sku] = { cat: r.cat || '', name: r.name || '', owner: r.owner || '', cost: r.cost || 0, price: r.price || 0 };
     }
     const mcount = Object.keys(marginMap).length;
     metaEl.textContent = `업데이트: ${m.updated_at} · 마진테이블 매칭 ${mcount} SKU (오아/보아르)`;
