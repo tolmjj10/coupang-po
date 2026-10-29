@@ -345,13 +345,30 @@
     kpiIn.classList.remove('active-out');
   }
 
-  function getVisibleDateIndices(allDates) {
-    if (visibleDays === 0 || allDates.length <= visibleDays) {
-      return allDates.map((_, i) => i);
+  function lastDataIndex(data) {
+    // 모든 metric 중 가장 늦은 날짜 index (SKU qty 합이 0 초과인 마지막 날)
+    const dates = data.dates;
+    let last = -1;
+    for (const metric of ['out','in']) {
+      const skus = data.metrics[metric] || [];
+      for (let i = dates.length - 1; i > last; i--) {
+        let sum = 0;
+        for (const s of skus) { sum += s.qty[i] || 0; if (sum) break; }
+        if (sum) { last = i; break; }
+      }
     }
-    const start = allDates.length - visibleDays;
+    return last >= 0 ? last : dates.length - 1;
+  }
+
+  function getVisibleDateIndices(data) {
+    const allDates = data.dates;
+    const end = lastDataIndex(data); // 0-based inclusive
+    if (visibleDays === 0) {
+      return allDates.map((_, i) => i).slice(0, end + 1);
+    }
+    const start = Math.max(0, end - visibleDays + 1);
     const out = [];
-    for (let i = start; i < allDates.length; i++) out.push(i);
+    for (let i = start; i <= end; i++) out.push(i);
     return out;
   }
 
@@ -374,7 +391,7 @@
     emptyEl.style.display = 'none';
 
     const dates = data.dates;
-    const idxList = getVisibleDateIndices(dates);
+    const idxList = getVisibleDateIndices(data);
     const parts = [];
     parts.push('<table class="pivot"><thead><tr>');
     parts.push('<th class="col-cat">카테고리</th>');
