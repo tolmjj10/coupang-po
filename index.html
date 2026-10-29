@@ -190,122 +190,6 @@
     letter-spacing: -0.02em;
   }
 
-  /* ─────────── 쿠팡 판매 현황 패널 ─────────── */
-  .sales-panel {
-    max-width: 760px;
-    margin: 36px auto 0;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 16px;
-    padding: 20px 22px;
-    text-align: left;
-    color: #fff;
-  }
-  .sales-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin-bottom: 14px;
-  }
-  .sales-title {
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-  }
-  .sales-meta {
-    font-size: 11px;
-    color: rgba(255,255,255,0.55);
-  }
-  .sales-tabs {
-    display: inline-flex;
-    gap: 2px;
-    background: rgba(255,255,255,0.08);
-    padding: 3px;
-    border-radius: 8px;
-    margin-bottom: 14px;
-  }
-  .sales-tab {
-    font-size: 11.5px;
-    font-weight: 600;
-    padding: 5px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    color: rgba(255,255,255,0.6);
-    transition: background .12s, color .12s;
-  }
-  .sales-tab.active { background: #fff; color: #4a3728; }
-  .kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    margin-bottom: 16px;
-  }
-  .kpi {
-    background: rgba(255,255,255,0.08);
-    border-radius: 10px;
-    padding: 11px 13px;
-  }
-  .kpi-label {
-    font-size: 10.5px;
-    font-weight: 600;
-    color: rgba(255,255,255,0.55);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    margin-bottom: 4px;
-  }
-  .kpi-value {
-    font-size: 19px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-  }
-  .kpi-sub {
-    font-size: 10.5px;
-    color: rgba(255,255,255,0.5);
-    margin-top: 2px;
-  }
-  .spark-wrap {
-    background: rgba(255,255,255,0.05);
-    border-radius: 10px;
-    padding: 10px 12px 6px;
-    margin-bottom: 16px;
-  }
-  .spark-label {
-    font-size: 10.5px;
-    color: rgba(255,255,255,0.55);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    margin-bottom: 4px;
-  }
-  .spark-svg { width: 100%; height: 48px; display: block; }
-  .breakdown {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-  }
-  .bd-title {
-    font-size: 10.5px;
-    color: rgba(255,255,255,0.55);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    margin-bottom: 6px;
-  }
-  .bd-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 5px 0;
-    font-size: 12.5px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-  }
-  .bd-row:last-child { border-bottom: 0; }
-  .bd-name { font-weight: 600; }
-  .bd-val { color: rgba(255,255,255,0.75); font-variant-numeric: tabular-nums; }
-  .sales-err {
-    font-size: 12px;
-    color: rgba(255,255,255,0.5);
-    padding: 10px 0;
-  }
-
   /* ─────────── 모바일 대응 (≤ 720px) ─────────── */
   @media (max-width: 720px) {
     html, body { overflow: auto; -webkit-text-size-adjust: 100%; }
@@ -373,12 +257,6 @@
     .pick-icon { width: 38px; height: 38px; border-radius: 11px; }
     .pick-icon svg { width: 20px; height: 20px; }
     .pick-title { font-size: 15px; }
-
-    .sales-panel { margin-top: 24px; padding: 16px 14px; border-radius: 14px; }
-    .kpi-grid { gap: 8px; }
-    .kpi { padding: 9px 10px; }
-    .kpi-value { font-size: 16px; }
-    .breakdown { grid-template-columns: 1fr; gap: 10px; }
 
     /* 서브 페이지 iframe — 뷰포트 남은 높이 채움 */
     iframe { height: calc(100vh - 50px); }
@@ -457,6 +335,15 @@
       <span>판매가 확인</span>
     </div>
 
+    <div class="nav-item" data-target="sales">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/>
+        <line x1="12" y1="20" x2="12" y2="4"/>
+        <line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+      <span>판매 현황</span>
+    </div>
+
     <div class="sidebar-footer">v1.0</div>
   </aside>
 
@@ -514,38 +401,17 @@
             </div>
             <div class="pick-title">판매가 확인</div>
           </div>
+          <div class="pick-card" data-target="sales">
+            <div class="pick-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+            </div>
+            <div class="pick-title">판매 현황</div>
+          </div>
         </div>
-
-        <section class="sales-panel" id="sales-panel" aria-label="쿠팡 판매 현황">
-          <div class="sales-head">
-            <div class="sales-title">쿠팡 판매 현황</div>
-            <div class="sales-meta" id="sales-meta">로딩…</div>
-          </div>
-          <div class="sales-tabs" role="tablist">
-            <div class="sales-tab" data-days="7" role="tab">7일</div>
-            <div class="sales-tab active" data-days="14" role="tab">14일</div>
-            <div class="sales-tab" data-days="30" role="tab">30일</div>
-          </div>
-          <div class="kpi-grid">
-            <div class="kpi"><div class="kpi-label">판매수량</div><div class="kpi-value" id="kpi-qty">—</div></div>
-            <div class="kpi"><div class="kpi-label">매출</div><div class="kpi-value" id="kpi-amt">—</div></div>
-            <div class="kpi"><div class="kpi-label">마진</div><div class="kpi-value" id="kpi-mgn">—</div><div class="kpi-sub" id="kpi-mgnrate">—</div></div>
-          </div>
-          <div class="spark-wrap">
-            <div class="spark-label">일자별 매출 추이</div>
-            <svg class="spark-svg" id="spark" viewBox="0 0 600 48" preserveAspectRatio="none"></svg>
-          </div>
-          <div class="breakdown">
-            <div>
-              <div class="bd-title">브랜드 (30일)</div>
-              <div id="bd-brand"></div>
-            </div>
-            <div>
-              <div class="bd-title">카테고리 Top (30일)</div>
-              <div id="bd-cat"></div>
-            </div>
-          </div>
-        </section>
       </div>
     </div>
     <iframe id="frame-order" data-src="po.html"></iframe>
@@ -553,6 +419,7 @@
     <iframe id="frame-margin" data-src="margin.html"></iframe>
     <iframe id="frame-promotion" data-src="promotion/promotion.html"></iframe>
     <iframe id="frame-price" data-src="price.html"></iframe>
+    <iframe id="frame-sales" data-src="sales.html"></iframe>
   </main>
 </div>
 
@@ -564,7 +431,8 @@
     new:       document.getElementById('frame-new'),
     margin:    document.getElementById('frame-margin'),
     promotion: document.getElementById('frame-promotion'),
-    price:     document.getElementById('frame-price')
+    price:     document.getElementById('frame-price'),
+    sales:     document.getElementById('frame-sales')
   };
 
   function ensureLoaded(target) {
@@ -602,95 +470,11 @@
       setTimeout(() => ensureLoaded('new'), 600);
       setTimeout(() => ensureLoaded('promotion'), 900);
       setTimeout(() => ensureLoaded('price'), 1200);
+      setTimeout(() => ensureLoaded('sales'), 1500);
     };
     if ('requestIdleCallback' in window) requestIdleCallback(preload, { timeout: 1500 });
     else setTimeout(preload, 400);
   });
-
-  // ─────────── 쿠팡 판매 현황 ───────────
-  (function () {
-    const metaEl = document.getElementById('sales-meta');
-    const qEl = document.getElementById('kpi-qty');
-    const aEl = document.getElementById('kpi-amt');
-    const mEl = document.getElementById('kpi-mgn');
-    const mrEl = document.getElementById('kpi-mgnrate');
-    const sparkEl = document.getElementById('spark');
-    const brandEl = document.getElementById('bd-brand');
-    const catEl = document.getElementById('bd-cat');
-    const tabs = document.querySelectorAll('.sales-tab');
-    let data = null;
-
-    const fmtInt = n => n.toLocaleString('ko-KR');
-    const fmtWon = n => {
-      const abs = Math.abs(n);
-      if (abs >= 1e8) return (n/1e8).toFixed(abs >= 1e9 ? 1 : 2).replace(/\.0+$/,'') + '억';
-      if (abs >= 1e4) return (n/1e4).toFixed(0) + '만';
-      return fmtInt(n) + '원';
-    };
-
-    function sumRange(days) {
-      const arr = data.daily.slice(-days);
-      return arr.reduce((acc, r) => ({ q: acc.q + r.q, a: acc.a + r.a, m: acc.m + r.m }), { q: 0, a: 0, m: 0 });
-    }
-
-    function renderKpi(days) {
-      const s = sumRange(days);
-      qEl.textContent = fmtInt(s.q) + '개';
-      aEl.textContent = fmtWon(s.a);
-      mEl.textContent = fmtWon(s.m);
-      mrEl.textContent = s.a > 0 ? '마진율 ' + (s.m / s.a * 100).toFixed(1) + '%' : '—';
-    }
-
-    function renderSpark() {
-      const arr = data.daily.slice(-30);
-      const W = 600, H = 48, P = 2;
-      const vals = arr.map(r => r.a);
-      const min = Math.min(0, ...vals), max = Math.max(...vals, 1);
-      const span = (max - min) || 1;
-      const step = (W - P*2) / Math.max(arr.length - 1, 1);
-      const pts = arr.map((r, i) => {
-        const x = P + i * step;
-        const y = H - P - ((r.a - min) / span) * (H - P*2);
-        return x.toFixed(1) + ',' + y.toFixed(1);
-      });
-      const path = 'M ' + pts.join(' L ');
-      const areaPath = path + ` L ${W-P},${H-P} L ${P},${H-P} Z`;
-      sparkEl.innerHTML =
-        `<path d="${areaPath}" fill="rgba(255,255,255,0.12)" stroke="none"/>` +
-        `<path d="${path}" fill="none" stroke="#ffffff" stroke-width="1.3" stroke-linejoin="round"/>`;
-    }
-
-    function renderBreakdown() {
-      brandEl.innerHTML = data.brands_30d.map(b =>
-        `<div class="bd-row"><span class="bd-name">${b.name}</span><span class="bd-val">${fmtWon(b.a)}</span></div>`
-      ).join('');
-      catEl.innerHTML = data.categories_30d.slice(0, 5).map(c =>
-        `<div class="bd-row"><span class="bd-name">${c.name}</span><span class="bd-val">${fmtWon(c.a)}</span></div>`
-      ).join('');
-    }
-
-    function setActive(days) {
-      tabs.forEach(t => t.classList.toggle('active', Number(t.dataset.days) === days));
-      renderKpi(days);
-    }
-
-    fetch('/data/sales-coupang.json', { cache: 'no-cache' })
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then(j => {
-        data = j;
-        metaEl.textContent = `업데이트 ${j.updated_at}`;
-        setActive(14);
-        renderSpark();
-        renderBreakdown();
-        tabs.forEach(t => t.addEventListener('click', () => setActive(Number(t.dataset.days))));
-      })
-      .catch(err => {
-        metaEl.textContent = '데이터 없음';
-        document.getElementById('sales-panel').innerHTML =
-          '<div class="sales-title">쿠팡 판매 현황</div>' +
-          '<div class="sales-err">판매 데이터를 불러오지 못했습니다 (' + err + ')</div>';
-      });
-  })();
 </script>
 
 </body>
