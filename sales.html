@@ -28,7 +28,7 @@
     -webkit-font-smoothing: antialiased;
     letter-spacing: -0.01em;
   }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 28px 60px; }
+  .wrap { padding: 24px 28px 60px; max-width: 100%; }
 
   header.page {
     display: flex; align-items: baseline; justify-content: space-between;
@@ -37,7 +37,6 @@
   h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; margin: 0; }
   .meta { font-size: 12px; color: var(--text-hint); }
 
-  /* 월 선택기 */
   .month-nav {
     display: inline-flex; align-items: center;
     background: var(--surface); border: 1px solid var(--border);
@@ -61,29 +60,26 @@
   }
   .month-label:hover { color: var(--accent-dark); }
   .month-input {
-    position: absolute; inset: 0; opacity: 0; cursor: pointer;
-    font: inherit;
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; font: inherit;
   }
 
-  /* KPI */
   .kpi-grid {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
-    margin-bottom: 24px;
+    margin-bottom: 24px; max-width: 900px;
   }
   .kpi {
     background: var(--surface); border: 1px solid var(--border);
-    border-radius: 12px; padding: 16px 18px;
+    border-radius: 12px; padding: 14px 18px;
   }
   .kpi-label {
     font-size: 11px; font-weight: 600; color: var(--text-hint);
     letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 8px;
   }
   .kpi-value {
-    font-size: 24px; font-weight: 700; letter-spacing: -0.02em;
+    font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
   }
 
-  /* 테이블 */
   .card {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 12px; overflow: hidden;
@@ -95,48 +91,93 @@
   }
   .card-head h2 {
     font-size: 13px; font-weight: 700; margin: 0;
-    letter-spacing: -0.01em;
   }
-  .card-head .hint {
-    font-size: 11.5px; color: var(--text-hint);
+  .card-head .hint { font-size: 11.5px; color: var(--text-hint); }
+
+  .pivot-wrap {
+    max-height: 70vh; overflow: auto;
   }
-  table {
-    width: 100%; border-collapse: collapse; font-size: 13px;
+  table.pivot {
+    border-collapse: separate; border-spacing: 0;
+    font-size: 12.5px;
     font-variant-numeric: tabular-nums;
   }
-  th, td {
-    text-align: right; padding: 10px 16px;
+  table.pivot th, table.pivot td {
+    padding: 7px 10px;
+    border-right: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
+    white-space: nowrap;
   }
-  th:first-child, td:first-child { text-align: left; }
-  th {
-    font-size: 11px; font-weight: 600; color: var(--text-hint);
-    text-transform: uppercase; letter-spacing: 0.04em;
+  table.pivot thead th {
     background: #faf7f4;
+    position: sticky; top: 0; z-index: 2;
+    font-size: 11px; font-weight: 600; color: var(--text-hint);
+    letter-spacing: 0.03em;
   }
-  th.sortable { cursor: pointer; user-select: none; }
-  th.sortable:hover { background: var(--accent-light); color: var(--text); }
-  th .arrow { display: inline-block; margin-left: 4px; opacity: 0.5; }
-  th.sort-active { color: var(--accent-dark); }
-  th.sort-active .arrow { opacity: 1; }
-  tbody tr:hover { background: var(--accent-light); }
-  tbody tr:last-child td { border-bottom: 0; }
-  td.name { font-weight: 600; }
-  td.neg { color: var(--neg); }
-  td .dow {
-    font-size: 11px; color: var(--text-hint); margin-left: 6px; font-weight: 400;
+  /* 좌측 고정 컬럼: 상품명 + 월합계 */
+  table.pivot th.col-name, table.pivot td.col-name {
+    position: sticky; left: 0; background: var(--surface); z-index: 1;
+    min-width: 260px; max-width: 260px;
+    overflow: hidden; text-overflow: ellipsis;
+    text-align: left;
+    border-right: 2px solid var(--border);
+  }
+  table.pivot thead th.col-name { z-index: 3; background: #faf7f4; }
+  table.pivot th.col-total, table.pivot td.col-total {
+    position: sticky; left: 260px; background: var(--surface); z-index: 1;
+    min-width: 80px; text-align: right;
+    border-right: 2px solid var(--border-strong, #d9d1c8);
+    font-weight: 700;
+  }
+  table.pivot thead th.col-total { z-index: 3; background: #faf7f4; }
+  table.pivot th.col-code, table.pivot td.col-code {
+    position: sticky; left: 340px; background: var(--surface); z-index: 1;
+    min-width: 80px; font-size: 11px; color: var(--text-hint);
+    border-right: 2px solid var(--border);
+  }
+  table.pivot thead th.col-code { z-index: 3; background: #faf7f4; }
+
+  table.pivot td.col-name {
+    font-weight: 600;
+  }
+  table.pivot th.col-date, table.pivot td.col-date {
+    text-align: right;
+    min-width: 46px;
+  }
+  table.pivot td.col-date.zero { color: #ccc; }
+  table.pivot td.col-date.wk { background: #fafafa; }
+  table.pivot th.col-date.wk { background: #f3efea; }
+  table.pivot tbody tr:hover td { background: var(--accent-light); }
+  table.pivot tbody tr:hover td.col-name,
+  table.pivot tbody tr:hover td.col-total,
+  table.pivot tbody tr:hover td.col-code { background: var(--accent-light); }
+
+  .search {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-left: 12px;
+  }
+  .search input {
+    font: inherit; font-size: 12.5px;
+    padding: 6px 10px; min-width: 180px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text);
   }
 
   .empty {
     padding: 40px 20px; text-align: center;
     color: var(--text-hint); font-size: 13px;
   }
+  .loading {
+    padding: 24px; text-align: center; color: var(--text-hint); font-size: 12px;
+  }
 
   @media (max-width: 720px) {
     .wrap { padding: 16px; }
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-    .kpi-value { font-size: 20px; }
-    th, td { padding: 8px 10px; font-size: 12px; }
+    .kpi-value { font-size: 18px; }
+    table.pivot th.col-name, table.pivot td.col-name { min-width: 180px; max-width: 180px; }
+    table.pivot th.col-total, table.pivot td.col-total { left: 180px; }
+    table.pivot th.col-code, table.pivot td.col-code { left: 260px; display: none; }
   }
 </style>
 </head>
@@ -148,16 +189,21 @@
     <div class="meta" id="meta">로딩…</div>
   </header>
 
-  <div class="month-nav">
-    <div class="month-btn" id="prev" title="이전 달">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+  <div style="display:flex;align-items:center;flex-wrap:wrap">
+    <div class="month-nav">
+      <div class="month-btn" id="prev" title="이전 달">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </div>
+      <div class="month-label" id="month-label">
+        <span id="month-text">—</span>
+        <input type="month" class="month-input" id="month-input">
+      </div>
+      <div class="month-btn" id="next" title="다음 달">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
     </div>
-    <div class="month-label" id="month-label">
-      <span id="month-text">—</span>
-      <input type="month" class="month-input" id="month-input">
-    </div>
-    <div class="month-btn" id="next" title="다음 달">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    <div class="search">
+      <input type="search" id="search" placeholder="상품명/코드 검색">
     </div>
   </div>
 
@@ -170,22 +216,13 @@
 
   <section class="card">
     <div class="card-head">
-      <h2>일자별 판매</h2>
-      <div class="hint">컬럼 헤더 클릭 → 정렬 변경</div>
+      <h2>제품 × 날짜 판매수량</h2>
+      <div class="hint">기본: 월 합계 수량 내림차순 · 가로 스크롤로 전체 날짜 확인</div>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th class="sortable" data-key="d">일자<span class="arrow">↕</span></th>
-          <th class="sortable sort-active" data-key="q">판매수량<span class="arrow">▼</span></th>
-          <th class="sortable" data-key="a">매출<span class="arrow">↕</span></th>
-          <th class="sortable" data-key="m">마진<span class="arrow">↕</span></th>
-          <th class="sortable" data-key="r">마진율<span class="arrow">↕</span></th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
-    <div class="empty" id="empty" style="display:none">선택한 달의 데이터가 없습니다</div>
+    <div class="pivot-wrap" id="pivot-wrap">
+      <div class="loading" id="loading-msg">데이터 로드 중…</div>
+    </div>
+    <div class="empty" id="empty" style="display:none">선택한 달 데이터가 없습니다</div>
   </section>
 </div>
 
@@ -193,83 +230,86 @@
 (function () {
   const fmtInt = n => n.toLocaleString('ko-KR');
   const fmtWon = n => {
-    const abs = Math.abs(n);
-    const sign = n < 0 ? '-' : '';
+    const abs = Math.abs(n), sign = n < 0 ? '-' : '';
     if (abs >= 1e8) return sign + (abs/1e8).toFixed(abs >= 1e9 ? 1 : 2).replace(/\.?0+$/,'') + '억';
     if (abs >= 1e4) return sign + Math.round(abs/1e4).toLocaleString('ko-KR') + '만';
     return sign + fmtInt(abs) + '원';
   };
   const DOW = ['일','월','화','수','목','금','토'];
-  const dowOf = iso => DOW[new Date(iso + 'T00:00:00').getDay()];
+  const dowOf = iso => new Date(iso + 'T00:00:00').getDay();
+  const isWeekend = iso => { const d = dowOf(iso); return d === 0 || d === 6; };
 
   const metaEl = document.getElementById('meta');
   const prevBtn = document.getElementById('prev');
   const nextBtn = document.getElementById('next');
   const monthText = document.getElementById('month-text');
   const monthInput = document.getElementById('month-input');
-  const tbody = document.getElementById('tbody');
+  const pivotWrap = document.getElementById('pivot-wrap');
+  const loadingMsg = document.getElementById('loading-msg');
   const emptyEl = document.getElementById('empty');
+  const searchEl = document.getElementById('search');
 
-  let data = null;
-  let availableMonths = [];       // ['2026-05', ...] 오름차순
-  let currentMonth = null;        // 'YYYY-MM'
-  let sort = { key: 'q', dir: -1 }; // 기본: 수량 내림차순
+  let manifest = null;
+  let availableMonths = [];
+  let currentMonth = null;
+  const cache = {}; // month -> data
 
-  function monthsFromData(daily) {
-    const set = new Set(daily.map(r => r.d.slice(0,7)));
-    return [...set].sort();
+  function loadMonth(ym) {
+    if (cache[ym]) return Promise.resolve(cache[ym]);
+    return fetch(`data/sales-sku-${ym}.json`, { cache: 'no-cache' })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => { cache[ym] = d; return d; });
   }
 
-  function pickMonth(ym) {
-    return data.daily.filter(r => r.d.startsWith(ym));
+  function renderKpi(ym) {
+    const t = manifest.monthly_totals[ym];
+    if (!t) { ['k-qty','k-amt','k-mgn','k-mgnrate'].forEach(id => document.getElementById(id).textContent = '—'); return; }
+    document.getElementById('k-qty').textContent = fmtInt(t.q) + '개';
+    document.getElementById('k-amt').textContent = fmtWon(t.a);
+    document.getElementById('k-mgn').textContent = fmtWon(t.m);
+    document.getElementById('k-mgnrate').textContent = t.a !== 0 ? (t.m/t.a*100).toFixed(1) + '%' : '—';
   }
 
-  function renderKpi(arr) {
-    const s = arr.reduce((a,r) => ({ q:a.q+r.q, a:a.a+r.a, m:a.m+r.m }), { q:0, a:0, m:0 });
-    document.getElementById('k-qty').textContent = fmtInt(s.q) + '개';
-    document.getElementById('k-amt').textContent = fmtWon(s.a);
-    document.getElementById('k-mgn').textContent = fmtWon(s.m);
-    document.getElementById('k-mgnrate').textContent = s.a !== 0 ? (s.m/s.a*100).toFixed(1) + '%' : '—';
-  }
-
-  function renderTable(arr) {
-    if (arr.length === 0) {
-      tbody.innerHTML = '';
+  function renderPivot(data) {
+    const q = searchEl.value.trim().toLowerCase();
+    const skus = q
+      ? data.skus.filter(s => s.n.toLowerCase().includes(q) || s.c.toLowerCase().includes(q))
+      : data.skus;
+    if (skus.length === 0) {
+      pivotWrap.innerHTML = '';
       emptyEl.style.display = '';
       return;
     }
     emptyEl.style.display = 'none';
 
-    const withRate = arr.map(r => ({ ...r, r: r.a !== 0 ? r.m / r.a : 0 }));
-    withRate.sort((a, b) => {
-      const k = sort.key;
-      if (k === 'd') return (a.d < b.d ? -1 : a.d > b.d ? 1 : 0) * sort.dir;
-      return (a[k] - b[k]) * sort.dir;
-    });
+    const dates = data.dates;
+    const parts = [];
+    parts.push('<table class="pivot"><thead><tr>');
+    parts.push('<th class="col-name">상품명</th>');
+    parts.push('<th class="col-total">월합계</th>');
+    parts.push('<th class="col-code">코드</th>');
+    for (const d of dates) {
+      const day = Number(d.slice(-2));
+      const wkCls = isWeekend(d) ? ' wk' : '';
+      parts.push(`<th class="col-date${wkCls}" title="${d} (${DOW[dowOf(d)]})">${day}</th>`);
+    }
+    parts.push('</tr></thead><tbody>');
 
-    tbody.innerHTML = withRate.map(r => {
-      const amtCls = r.a < 0 ? 'neg' : '';
-      const mgnCls = r.m < 0 ? 'neg' : '';
-      const rate = r.a !== 0 ? (r.r*100).toFixed(1) + '%' : '—';
-      const dow = dowOf(r.d);
-      return `<tr>
-        <td class="name">${r.d}<span class="dow">${dow}</span></td>
-        <td>${fmtInt(r.q)}</td>
-        <td class="${amtCls}">${fmtWon(r.a)}</td>
-        <td class="${mgnCls}">${fmtWon(r.m)}</td>
-        <td>${rate}</td>
-      </tr>`;
-    }).join('');
-  }
-
-  function updateSortHeaders() {
-    document.querySelectorAll('th.sortable').forEach(th => {
-      const k = th.dataset.key;
-      const isActive = k === sort.key;
-      th.classList.toggle('sort-active', isActive);
-      const arrow = th.querySelector('.arrow');
-      arrow.textContent = isActive ? (sort.dir === 1 ? '▲' : '▼') : '↕';
-    });
+    for (const s of skus) {
+      parts.push('<tr>');
+      parts.push(`<td class="col-name" title="${s.n}">${s.n}</td>`);
+      parts.push(`<td class="col-total">${fmtInt(s.total)}</td>`);
+      parts.push(`<td class="col-code">${s.c}</td>`);
+      for (let i = 0; i < dates.length; i++) {
+        const v = s.qty[i] || 0;
+        const wkCls = isWeekend(dates[i]) ? ' wk' : '';
+        if (v === 0) parts.push(`<td class="col-date zero${wkCls}">·</td>`);
+        else parts.push(`<td class="col-date${wkCls}">${fmtInt(v)}</td>`);
+      }
+      parts.push('</tr>');
+    }
+    parts.push('</tbody></table>');
+    pivotWrap.innerHTML = parts.join('');
   }
 
   function updateMonthNav() {
@@ -283,15 +323,16 @@
 
   function setMonth(ym) {
     if (!availableMonths.includes(ym)) {
-      // 범위 밖이면 가장 가까운 유효 월로 보정
       const earlier = availableMonths.filter(x => x <= ym).pop();
-      ym = earlier || availableMonths[0];
+      ym = earlier || availableMonths[availableMonths.length-1];
     }
     currentMonth = ym;
     updateMonthNav();
-    const arr = pickMonth(ym);
-    renderKpi(arr);
-    renderTable(arr);
+    renderKpi(ym);
+    pivotWrap.innerHTML = '<div class="loading">로드 중…</div>';
+    loadMonth(ym)
+      .then(d => renderPivot(d))
+      .catch(err => { pivotWrap.innerHTML = `<div class="loading">로드 실패 (${err})</div>`; });
   }
 
   prevBtn.addEventListener('click', () => {
@@ -306,26 +347,23 @@
     if (e.target.value) setMonth(e.target.value);
   });
 
-  document.querySelectorAll('th.sortable').forEach(th => {
-    th.addEventListener('click', () => {
-      const k = th.dataset.key;
-      if (sort.key === k) sort.dir *= -1;
-      else { sort.key = k; sort.dir = (k === 'd') ? -1 : -1; }
-      updateSortHeaders();
-      renderTable(pickMonth(currentMonth));
-    });
+  let searchTimer;
+  searchEl.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      if (cache[currentMonth]) renderPivot(cache[currentMonth]);
+    }, 120);
   });
 
-  fetch('data/sales-coupang.json', { cache: 'no-cache' })
+  fetch('data/sales-sku-index.json', { cache: 'no-cache' })
     .then(r => r.ok ? r.json() : Promise.reject(r.status))
-    .then(j => {
-      data = j;
-      availableMonths = monthsFromData(j.daily);
-      metaEl.textContent = `업데이트: ${j.updated_at}`;
+    .then(m => {
+      manifest = m;
+      availableMonths = m.months.slice().sort();
       monthInput.min = availableMonths[0];
       monthInput.max = availableMonths[availableMonths.length - 1];
+      metaEl.textContent = `업데이트: ${m.updated_at}`;
       setMonth(availableMonths[availableMonths.length - 1]);
-      updateSortHeaders();
     })
     .catch(err => { metaEl.textContent = '데이터 로드 실패 (' + err + ')'; });
 })();
