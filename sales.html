@@ -392,6 +392,9 @@
 
     const dates = data.dates;
     const idxList = getVisibleDateIndices(data);
+    const lastIdx = lastDataIndex(data);
+    // 최신 날짜 판매량 내림차순, 동률이면 월합계 보조정렬
+    skus.sort((a, b) => ((b.qty[lastIdx]||0) - (a.qty[lastIdx]||0)) || (b.total - a.total));
     const parts = [];
     parts.push('<table class="pivot"><thead><tr>');
     parts.push('<th class="col-cat">카테고리</th>');
