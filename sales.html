@@ -13,12 +13,15 @@
     --bg: #fbfbfe;
     --surface: #ffffff;
     --border: #ebe6df;
+    --border-strong: #d9d1c8;
     --text: #2a1a15;
     --text-hint: #7a706a;
     --accent: #aa9791;
     --accent-dark: #8b756c;
     --accent-light: #f2ede9;
+    --sage: #b1c0b2;
     --neg: #b05858;
+    --in: #7a8a9a;
   }
   html, body {
     margin: 0; padding: 0;
@@ -28,7 +31,7 @@
     -webkit-font-smoothing: antialiased;
     letter-spacing: -0.01em;
   }
-  .wrap { padding: 24px 28px 60px; max-width: 100%; }
+  .wrap { padding: 24px 28px 60px; }
 
   header.page {
     display: flex; align-items: baseline; justify-content: space-between;
@@ -37,10 +40,14 @@
   h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; margin: 0; }
   .meta { font-size: 12px; color: var(--text-hint); }
 
+  .toolbar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
   .month-nav {
     display: inline-flex; align-items: center;
     background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; padding: 4px; margin-bottom: 20px;
+    border-radius: 10px; padding: 4px;
     user-select: none;
   }
   .month-btn {
@@ -62,15 +69,24 @@
   .month-input {
     position: absolute; inset: 0; opacity: 0; cursor: pointer; font: inherit;
   }
+  .search input {
+    font: inherit; font-size: 12.5px;
+    padding: 7px 12px; min-width: 200px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text);
+  }
 
   .kpi-grid {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
-    margin-bottom: 24px; max-width: 900px;
+    margin-bottom: 20px; max-width: 900px;
   }
   .kpi {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 12px; padding: 14px 18px;
+    transition: border-color .12s, box-shadow .12s;
   }
+  .kpi.active-out { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(170,151,145,0.12); }
+  .kpi.active-in  { border-color: var(--in); box-shadow: 0 0 0 3px rgba(122,138,154,0.14); }
   .kpi-label {
     font-size: 11px; font-weight: 600; color: var(--text-hint);
     letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 8px;
@@ -80,22 +96,45 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .tabs-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px; flex-wrap: wrap; gap: 10px;
+  }
+  .metric-tabs {
+    display: inline-flex; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px; padding: 3px;
+    user-select: none;
+  }
+  .metric-tab {
+    font-size: 12.5px; font-weight: 600; padding: 7px 18px;
+    border-radius: 7px; cursor: pointer; color: var(--text-hint);
+    transition: background .12s, color .12s;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .metric-tab .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .metric-tab:hover { color: var(--text); }
+  .metric-tab.active[data-metric="out"] { background: var(--accent); color: #fff; }
+  .metric-tab.active[data-metric="in"]  { background: var(--in); color: #fff; }
+
+  .expand-ctl {
+    display: inline-flex; gap: 8px; align-items: center;
+    font-size: 12px; color: var(--text-hint);
+  }
+  .expand-ctl button {
+    font: inherit; font-size: 12px; font-weight: 600;
+    padding: 6px 12px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--surface); color: var(--text);
+    cursor: pointer;
+  }
+  .expand-ctl button:hover { background: var(--accent-light); }
+  .expand-ctl button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
   .card {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 12px; overflow: hidden;
   }
-  .card-head {
-    padding: 14px 18px;
-    display: flex; align-items: baseline; justify-content: space-between;
-    border-bottom: 1px solid var(--border);
-  }
-  .card-head h2 {
-    font-size: 13px; font-weight: 700; margin: 0;
-  }
-  .card-head .hint { font-size: 11.5px; color: var(--text-hint); }
-
   .pivot-wrap {
-    max-height: 70vh; overflow: auto;
+    max-height: 72vh; overflow: auto;
   }
   table.pivot {
     border-collapse: separate; border-spacing: 0;
@@ -114,70 +153,53 @@
     font-size: 11px; font-weight: 600; color: var(--text-hint);
     letter-spacing: 0.03em;
   }
-  /* 좌측 고정 컬럼: 상품명 + 월합계 */
-  table.pivot th.col-name, table.pivot td.col-name {
-    position: sticky; left: 0; background: var(--surface); z-index: 1;
-    min-width: 260px; max-width: 260px;
-    overflow: hidden; text-overflow: ellipsis;
+  /* Sticky left columns */
+  .col-cat, .col-sku, .col-name {
+    position: sticky; background: var(--surface); z-index: 1;
     text-align: left;
-    border-right: 2px solid var(--border);
+    overflow: hidden; text-overflow: ellipsis;
   }
-  table.pivot thead th.col-name { z-index: 3; background: #faf7f4; }
-  table.pivot th.col-total, table.pivot td.col-total {
-    position: sticky; left: 260px; background: var(--surface); z-index: 1;
-    min-width: 80px; text-align: right;
-    border-right: 2px solid var(--border-strong, #d9d1c8);
-    font-weight: 700;
-  }
-  table.pivot thead th.col-total { z-index: 3; background: #faf7f4; }
-  table.pivot th.col-code, table.pivot td.col-code {
-    position: sticky; left: 340px; background: var(--surface); z-index: 1;
-    min-width: 80px; font-size: 11px; color: var(--text-hint);
-    border-right: 2px solid var(--border);
-  }
-  table.pivot thead th.col-code { z-index: 3; background: #faf7f4; }
+  thead .col-cat, thead .col-sku, thead .col-name { background: #faf7f4; z-index: 3; }
+  .col-cat { left: 0; min-width: 110px; max-width: 110px; font-size: 11.5px; color: var(--text-hint); }
+  .col-sku { left: 110px; min-width: 160px; max-width: 160px; font-weight: 600; border-right: 1px solid var(--border); }
+  .col-name { left: 270px; min-width: 220px; max-width: 220px; border-right: 2px solid var(--border-strong); }
 
-  table.pivot td.col-name {
-    font-weight: 600;
+  /* Sticky right total column */
+  .col-total {
+    position: sticky; right: 0; z-index: 1;
+    background: var(--surface);
+    text-align: right; min-width: 90px; font-weight: 700;
+    border-left: 2px solid var(--border-strong);
   }
-  table.pivot th.col-date, table.pivot td.col-date {
-    text-align: right;
-    min-width: 46px;
-  }
-  table.pivot td.col-date.zero { color: #ccc; }
-  table.pivot td.col-date.wk { background: #fafafa; }
-  table.pivot th.col-date.wk { background: #f3efea; }
-  table.pivot tbody tr:hover td { background: var(--accent-light); }
-  table.pivot tbody tr:hover td.col-name,
-  table.pivot tbody tr:hover td.col-total,
-  table.pivot tbody tr:hover td.col-code { background: var(--accent-light); }
+  thead .col-total { background: #faf7f4; z-index: 3; }
 
-  .search {
-    display: inline-flex; align-items: center; gap: 8px;
-    margin-left: 12px;
-  }
-  .search input {
-    font: inherit; font-size: 12.5px;
-    padding: 6px 10px; min-width: 180px;
-    border: 1px solid var(--border); border-radius: 8px;
-    background: var(--surface); color: var(--text);
-  }
+  .col-date { text-align: right; min-width: 48px; }
+  .col-date.wk { background: #faf7f4; }
+  thead .col-date.wk { background: #f0ebe4; }
+  td.col-date.zero { color: #cfc6bf; }
 
-  .empty {
+  tbody tr:hover td { background: var(--accent-light); }
+  tbody tr:hover td.col-cat,
+  tbody tr:hover td.col-sku,
+  tbody tr:hover td.col-name,
+  tbody tr:hover td.col-total { background: var(--accent-light); }
+
+  .empty, .loading {
     padding: 40px 20px; text-align: center;
     color: var(--text-hint); font-size: 13px;
   }
-  .loading {
-    padding: 24px; text-align: center; color: var(--text-hint); font-size: 12px;
-  }
 
-  @media (max-width: 720px) {
-    .wrap { padding: 16px; }
+  @media (max-width: 900px) {
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
     .kpi-value { font-size: 18px; }
-    table.pivot th.col-name, table.pivot td.col-name { min-width: 180px; max-width: 180px; }
-    table.pivot th.col-total, table.pivot td.col-total { left: 180px; }
-    table.pivot th.col-code, table.pivot td.col-code { left: 260px; display: none; }
+    .col-cat { display: none; }
+    .col-sku { left: 0; min-width: 120px; max-width: 120px; }
+    .col-name { left: 120px; min-width: 150px; max-width: 150px; }
+  }
+  @media (max-width: 600px) {
+    .wrap { padding: 16px; }
+    .col-sku { display: none; }
+    .col-name { left: 0; min-width: 140px; max-width: 140px; }
   }
 </style>
 </head>
@@ -189,7 +211,7 @@
     <div class="meta" id="meta">로딩…</div>
   </header>
 
-  <div style="display:flex;align-items:center;flex-wrap:wrap">
+  <div class="toolbar">
     <div class="month-nav">
       <div class="month-btn" id="prev" title="이전 달">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -203,22 +225,31 @@
       </div>
     </div>
     <div class="search">
-      <input type="search" id="search" placeholder="상품명/코드 검색">
+      <input type="search" id="search" placeholder="상품명/SKU/카테고리/코드 검색">
     </div>
   </div>
 
   <div class="kpi-grid">
-    <div class="kpi"><div class="kpi-label">판매수량</div><div class="kpi-value" id="k-qty">—</div></div>
+    <div class="kpi" id="kpi-out"><div class="kpi-label">출고 수량</div><div class="kpi-value" id="k-out">—</div></div>
+    <div class="kpi" id="kpi-in"><div class="kpi-label">입고 수량</div><div class="kpi-value" id="k-in">—</div></div>
     <div class="kpi"><div class="kpi-label">매출</div><div class="kpi-value" id="k-amt">—</div></div>
     <div class="kpi"><div class="kpi-label">마진</div><div class="kpi-value" id="k-mgn">—</div></div>
-    <div class="kpi"><div class="kpi-label">마진율</div><div class="kpi-value" id="k-mgnrate">—</div></div>
+  </div>
+
+  <div class="tabs-row">
+    <div class="metric-tabs" role="tablist">
+      <div class="metric-tab active" data-metric="out" role="tab"><span class="dot"></span>출고 (실 판매)</div>
+      <div class="metric-tab" data-metric="in" role="tab"><span class="dot"></span>입고 (쿠팡 창고)</div>
+    </div>
+    <div class="expand-ctl">
+      <span>표시 날짜</span>
+      <button data-days="7" class="active">7일</button>
+      <button data-days="14">14일</button>
+      <button data-days="0">전체</button>
+    </div>
   </div>
 
   <section class="card">
-    <div class="card-head">
-      <h2>제품 × 날짜 판매수량</h2>
-      <div class="hint">기본: 월 합계 수량 내림차순 · 가로 스크롤로 전체 날짜 확인</div>
-    </div>
     <div class="pivot-wrap" id="pivot-wrap">
       <div class="loading" id="loading-msg">데이터 로드 중…</div>
     </div>
@@ -245,13 +276,18 @@
   const monthText = document.getElementById('month-text');
   const monthInput = document.getElementById('month-input');
   const pivotWrap = document.getElementById('pivot-wrap');
-  const loadingMsg = document.getElementById('loading-msg');
   const emptyEl = document.getElementById('empty');
   const searchEl = document.getElementById('search');
+  const metricTabs = document.querySelectorAll('.metric-tab');
+  const expandBtns = document.querySelectorAll('.expand-ctl button');
+  const kpiOut = document.getElementById('kpi-out');
+  const kpiIn = document.getElementById('kpi-in');
 
   let manifest = null;
   let availableMonths = [];
   let currentMonth = null;
+  let currentMetric = 'out';
+  let visibleDays = 7; // 0 = all
   const cache = {}; // month -> data
 
   function loadMonth(ym) {
@@ -263,18 +299,38 @@
 
   function renderKpi(ym) {
     const t = manifest.monthly_totals[ym];
-    if (!t) { ['k-qty','k-amt','k-mgn','k-mgnrate'].forEach(id => document.getElementById(id).textContent = '—'); return; }
-    document.getElementById('k-qty').textContent = fmtInt(t.q) + '개';
-    document.getElementById('k-amt').textContent = fmtWon(t.a);
-    document.getElementById('k-mgn').textContent = fmtWon(t.m);
-    document.getElementById('k-mgnrate').textContent = t.a !== 0 ? (t.m/t.a*100).toFixed(1) + '%' : '—';
+    if (!t) { ['k-out','k-in','k-amt','k-mgn'].forEach(id => document.getElementById(id).textContent = '—'); return; }
+    document.getElementById('k-out').textContent = fmtInt(t.out) + '개';
+    document.getElementById('k-in').textContent  = fmtInt(t.in) + '개';
+    document.getElementById('k-amt').textContent = fmtWon(t.amt);
+    document.getElementById('k-mgn').textContent = fmtWon(t.mgn);
+    kpiOut.classList.toggle('active-out', currentMetric === 'out');
+    kpiOut.classList.remove('active-in');
+    kpiIn.classList.toggle('active-in', currentMetric === 'in');
+    kpiIn.classList.remove('active-out');
+  }
+
+  function getVisibleDateIndices(allDates) {
+    if (visibleDays === 0 || allDates.length <= visibleDays) {
+      return allDates.map((_, i) => i);
+    }
+    const start = allDates.length - visibleDays;
+    const out = [];
+    for (let i = start; i < allDates.length; i++) out.push(i);
+    return out;
   }
 
   function renderPivot(data) {
     const q = searchEl.value.trim().toLowerCase();
-    const skus = q
-      ? data.skus.filter(s => s.n.toLowerCase().includes(q) || s.c.toLowerCase().includes(q))
-      : data.skus;
+    let skus = data.metrics[currentMetric] || [];
+    if (q) {
+      skus = skus.filter(s =>
+        (s.sn || '').toLowerCase().includes(q) ||
+        (s.c  || '').toLowerCase().includes(q) ||
+        (s.cat|| '').toLowerCase().includes(q) ||
+        (s.id || '').toLowerCase().includes(q)
+      );
+    }
     if (skus.length === 0) {
       pivotWrap.innerHTML = '';
       emptyEl.style.display = '';
@@ -283,29 +339,33 @@
     emptyEl.style.display = 'none';
 
     const dates = data.dates;
+    const idxList = getVisibleDateIndices(dates);
     const parts = [];
     parts.push('<table class="pivot"><thead><tr>');
-    parts.push('<th class="col-name">상품명</th>');
-    parts.push('<th class="col-total">월합계</th>');
-    parts.push('<th class="col-code">코드</th>');
-    for (const d of dates) {
+    parts.push('<th class="col-cat">카테고리</th>');
+    parts.push('<th class="col-sku">SKU명 (쿠팡)</th>');
+    parts.push('<th class="col-name">상품명 (ERP)</th>');
+    for (const i of idxList) {
+      const d = dates[i];
       const day = Number(d.slice(-2));
       const wkCls = isWeekend(d) ? ' wk' : '';
       parts.push(`<th class="col-date${wkCls}" title="${d} (${DOW[dowOf(d)]})">${day}</th>`);
     }
+    parts.push('<th class="col-total">월합계</th>');
     parts.push('</tr></thead><tbody>');
 
     for (const s of skus) {
       parts.push('<tr>');
-      parts.push(`<td class="col-name" title="${s.n}">${s.n}</td>`);
-      parts.push(`<td class="col-total">${fmtInt(s.total)}</td>`);
-      parts.push(`<td class="col-code">${s.c}</td>`);
-      for (let i = 0; i < dates.length; i++) {
+      parts.push(`<td class="col-cat" title="${s.cat||''}">${s.cat||'—'}</td>`);
+      parts.push(`<td class="col-sku" title="${s.sn||s.id}">${s.sn||s.id}</td>`);
+      parts.push(`<td class="col-name" title="${s.c||''}">${s.c||'—'}</td>`);
+      for (const i of idxList) {
         const v = s.qty[i] || 0;
         const wkCls = isWeekend(dates[i]) ? ' wk' : '';
         if (v === 0) parts.push(`<td class="col-date zero${wkCls}">·</td>`);
         else parts.push(`<td class="col-date${wkCls}">${fmtInt(v)}</td>`);
       }
+      parts.push(`<td class="col-total">${fmtInt(s.total)}</td>`);
       parts.push('</tr>');
     }
     parts.push('</tbody></table>');
@@ -321,6 +381,10 @@
     monthInput.value = currentMonth;
   }
 
+  function refreshPivot() {
+    if (cache[currentMonth]) renderPivot(cache[currentMonth]);
+  }
+
   function setMonth(ym) {
     if (!availableMonths.includes(ym)) {
       const earlier = availableMonths.filter(x => x <= ym).pop();
@@ -330,8 +394,7 @@
     updateMonthNav();
     renderKpi(ym);
     pivotWrap.innerHTML = '<div class="loading">로드 중…</div>';
-    loadMonth(ym)
-      .then(d => renderPivot(d))
+    loadMonth(ym).then(d => renderPivot(d))
       .catch(err => { pivotWrap.innerHTML = `<div class="loading">로드 실패 (${err})</div>`; });
   }
 
@@ -343,16 +406,25 @@
     const i = availableMonths.indexOf(currentMonth);
     if (i < availableMonths.length - 1) setMonth(availableMonths[i+1]);
   });
-  monthInput.addEventListener('change', (e) => {
-    if (e.target.value) setMonth(e.target.value);
-  });
+  monthInput.addEventListener('change', (e) => { if (e.target.value) setMonth(e.target.value); });
+
+  metricTabs.forEach(t => t.addEventListener('click', () => {
+    currentMetric = t.dataset.metric;
+    metricTabs.forEach(x => x.classList.toggle('active', x === t));
+    renderKpi(currentMonth);
+    refreshPivot();
+  }));
+
+  expandBtns.forEach(b => b.addEventListener('click', () => {
+    visibleDays = Number(b.dataset.days);
+    expandBtns.forEach(x => x.classList.toggle('active', x === b));
+    refreshPivot();
+  }));
 
   let searchTimer;
   searchEl.addEventListener('input', () => {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => {
-      if (cache[currentMonth]) renderPivot(cache[currentMonth]);
-    }, 120);
+    searchTimer = setTimeout(refreshPivot, 120);
   });
 
   fetch('data/sales-sku-index.json', { cache: 'no-cache' })
@@ -362,7 +434,7 @@
       availableMonths = m.months.slice().sort();
       monthInput.min = availableMonths[0];
       monthInput.max = availableMonths[availableMonths.length - 1];
-      metaEl.textContent = `업데이트: ${m.updated_at}`;
+      metaEl.textContent = `업데이트: ${m.updated_at} · 소스: ${m.source}`;
       setMonth(availableMonths[availableMonths.length - 1]);
     })
     .catch(err => { metaEl.textContent = '데이터 로드 실패 (' + err + ')'; });
