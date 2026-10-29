@@ -95,23 +95,23 @@
   }
 
   /* Sticky left columns: cumulative offsets */
-  .col-cat   { position: sticky; left: 0;   background: var(--surface); z-index: 1; text-align: left; min-width: 86px; max-width: 86px; font-size: 11px; color: var(--text-hint); overflow: hidden; text-overflow: ellipsis; }
-  .col-sku   { position: sticky; left: 86;  background: var(--surface); z-index: 1; text-align: left; min-width: 80px; max-width: 80px; font-size: 11px; color: var(--text-hint); }
-  .col-name  { position: sticky; left: 166; background: var(--surface); z-index: 1; text-align: left; min-width: 180px; max-width: 180px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
-  .col-note  { position: sticky; left: 346; background: var(--surface); z-index: 1; text-align: left; min-width: 110px; max-width: 110px; color: var(--neg); font-size: 11px; overflow: hidden; text-overflow: ellipsis; border-right: 2px solid var(--border-strong); }
-  .col-stock { position: sticky; left: 456; background: var(--surface); z-index: 1; text-align: right; min-width: 62px; font-weight: 600; }
-  .col-days  { position: sticky; left: 518; background: var(--surface); z-index: 1; text-align: right; min-width: 62px; color: var(--text-hint); }
-  .col-pm    { position: sticky; left: 580; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; }
-  .col-pma   { position: sticky; left: 640; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; color: var(--text-hint); }
-  .col-a14   { position: sticky; left: 700; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; color: var(--text-hint); }
-  .col-a7    { position: sticky; left: 760; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; color: var(--text-hint); border-right: 2px solid var(--border-strong); }
+  .col-cat   { position: sticky; left: 0px;   background: var(--surface); z-index: 1; text-align: left; min-width: 86px; max-width: 86px; width: 86px; font-size: 11px; color: var(--text-hint); overflow: hidden; text-overflow: ellipsis; }
+  .col-sku   { position: sticky; left: 86px;  background: var(--surface); z-index: 1; text-align: left; min-width: 80px; max-width: 80px; width: 80px; font-size: 11px; color: var(--text-hint); }
+  .col-name  { position: sticky; left: 166px; background: var(--surface); z-index: 1; text-align: left; min-width: 180px; max-width: 180px; width: 180px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+  .col-note  { position: sticky; left: 346px; background: var(--surface); z-index: 1; text-align: left; min-width: 110px; max-width: 110px; width: 110px; color: var(--neg); font-size: 11px; overflow: hidden; text-overflow: ellipsis; border-right: 2px solid var(--border-strong); }
+  .col-stock { position: sticky; left: 458px; background: var(--surface); z-index: 1; text-align: right; min-width: 62px; max-width: 62px; width: 62px; font-weight: 600; }
+  .col-days  { position: sticky; left: 520px; background: var(--surface); z-index: 1; text-align: right; min-width: 62px; max-width: 62px; width: 62px; color: var(--text-hint); }
+  .col-pm    { position: sticky; left: 582px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; }
+  .col-pma   { position: sticky; left: 642px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; color: var(--text-hint); }
+  .col-a14   { position: sticky; left: 702px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; color: var(--text-hint); }
+  .col-a7    { position: sticky; left: 762px; background: var(--surface); z-index: 1; text-align: right; min-width: 60px; max-width: 60px; width: 60px; color: var(--text-hint); border-right: 2px solid var(--border-strong); }
   thead .col-cat, thead .col-sku, thead .col-name, thead .col-note,
   thead .col-stock, thead .col-days, thead .col-pm, thead .col-pma,
   thead .col-a14, thead .col-a7 { background: #faf7f4; z-index: 3; }
 
   /* Sticky right */
-  .col-amt   { position: sticky; right: 0;   background: var(--surface); z-index: 1; text-align: right; min-width: 110px; font-weight: 700; border-left: 2px solid var(--border-strong); }
-  .col-total { position: sticky; right: 110; background: var(--surface); z-index: 1; text-align: right; min-width: 72px; font-weight: 700; border-left: 1px solid var(--border); }
+  .col-amt   { position: sticky; right: 0px;   background: var(--surface); z-index: 1; text-align: right; min-width: 110px; max-width: 110px; width: 110px; font-weight: 700; border-left: 2px solid var(--border-strong); }
+  .col-total { position: sticky; right: 110px; background: var(--surface); z-index: 1; text-align: right; min-width: 72px; max-width: 72px; width: 72px; font-weight: 700; border-left: 1px solid var(--border); }
   thead .col-amt, thead .col-total { background: #faf7f4; z-index: 3; }
 
   .col-date { text-align: right; min-width: 54px; }
@@ -123,7 +123,10 @@
   tbody tr:hover td.col-stock.low { background: #f3c4c0 !important; }
 
   /* 참고 컬럼(전월·14일·7일)은 헤더를 약간 더 진하게 */
-  thead .col-pm, thead .col-pma, thead .col-a14, thead .col-a7 { background: #ede6dc; color: var(--accent-dark); }
+  table.pivot thead th.col-pm,
+  table.pivot thead th.col-pma,
+  table.pivot thead th.col-a14,
+  table.pivot thead th.col-a7 { background: #e3d8ca !important; color: var(--accent-dark); }
 
   tbody tr:hover td { background: var(--accent-light); }
   tbody tr:hover .col-cat, tbody tr:hover .col-sku, tbody tr:hover .col-name,
