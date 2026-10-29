@@ -292,6 +292,20 @@
   let currentMetric = 'out';
   let visibleDays = 7; // 0 = all
   const cache = {}; // month -> data
+  let marginMap = {}; // sku_id -> {cat, name, owner}
+
+  function filterAndOverlay(skus) {
+    const out = [];
+    for (const s of skus) {
+      const m = marginMap[s.id];
+      if (!m) continue; // 마진테이블에 없는 SKU(=오아/보아르 外) 제외
+      out.push(Object.assign({}, s, {
+        cat: m.cat || s.cat || '',
+        sn:  m.name || s.sn || ''
+      }));
+    }
+    return out;
+  }
 
   function loadMonth(ym) {
     if (cache[ym]) return Promise.resolve(cache[ym]);
@@ -301,12 +315,21 @@
   }
 
   function renderKpi(ym) {
-    const t = manifest.monthly_totals[ym];
-    if (!t) { ['k-out','k-in','k-amt','k-mgn'].forEach(id => document.getElementById(id).textContent = '—'); return; }
-    document.getElementById('k-out').textContent = fmtInt(t.out) + '개';
-    document.getElementById('k-in').textContent  = fmtInt(t.in) + '개';
-    document.getElementById('k-amt').textContent = fmtWon(t.amt);
-    document.getElementById('k-mgn').textContent = fmtWon(t.mgn);
+    const t = manifest.monthly_totals[ym] || {};
+    // 매출/마진: mart_sales_daily 쿠팡 파트너 = 오아+보아르와 동일한 값이라 그대로 사용
+    document.getElementById('k-amt').textContent = t.amt != null ? fmtWon(t.amt) : '—';
+    document.getElementById('k-mgn').textContent = t.mgn != null ? fmtWon(t.mgn) : '—';
+    // 출고/입고: 마진테이블 매칭 SKU만 합산 (오아/보아르)
+    const d = cache[ym];
+    if (d) {
+      const fo = filterAndOverlay(d.metrics.out || []);
+      const fi = filterAndOverlay(d.metrics.in  || []);
+      document.getElementById('k-out').textContent = fmtInt(fo.reduce((a,x)=>a+x.total,0)) + '개';
+      document.getElementById('k-in').textContent  = fmtInt(fi.reduce((a,x)=>a+x.total,0)) + '개';
+    } else {
+      document.getElementById('k-out').textContent = '…';
+      document.getElementById('k-in').textContent  = '…';
+    }
     kpiOut.classList.toggle('active-out', currentMetric === 'out');
     kpiOut.classList.remove('active-in');
     kpiIn.classList.toggle('active-in', currentMetric === 'in');
@@ -325,7 +348,7 @@
 
   function renderPivot(data) {
     const q = searchEl.value.trim().toLowerCase();
-    let skus = data.metrics[currentMetric] || [];
+    let skus = filterAndOverlay(data.metrics[currentMetric] || []);
     if (q) {
       skus = skus.filter(s =>
         (s.sn || '').toLowerCase().includes(q) ||
@@ -346,8 +369,8 @@
     const parts = [];
     parts.push('<table class="pivot"><thead><tr>');
     parts.push('<th class="col-cat">카테고리</th>');
-    parts.push('<th class="col-sku">SKU명 (쿠팡)</th>');
-    parts.push('<th class="col-name">상품명 (ERP)</th>');
+    parts.push('<th class="col-sku">SKU #</th>');
+    parts.push('<th class="col-name">상품명</th>');
     for (const i of idxList) {
       const d = dates[i];
       const day = Number(d.slice(-2));
@@ -360,8 +383,8 @@
     for (const s of skus) {
       parts.push('<tr>');
       parts.push(`<td class="col-cat" title="${s.cat||''}">${s.cat||'—'}</td>`);
-      parts.push(`<td class="col-sku" title="${s.sn||s.id}">${s.sn||s.id}</td>`);
-      parts.push(`<td class="col-name" title="${s.c||''}">${s.c||'—'}</td>`);
+      parts.push(`<td class="col-sku" title="${s.id||''}">${s.id||'—'}</td>`);
+      parts.push(`<td class="col-name" title="${s.sn||''}">${s.sn||'—'}</td>`);
       for (const i of idxList) {
         const v = s.qty[i] || 0;
         const wkCls = isWeekend(dates[i]) ? ' wk' : '';
@@ -397,8 +420,10 @@
     updateMonthNav();
     renderKpi(ym);
     pivotWrap.innerHTML = '<div class="loading">로드 중…</div>';
-    loadMonth(ym).then(d => renderPivot(d))
-      .catch(err => { pivotWrap.innerHTML = `<div class="loading">로드 실패 (${err})</div>`; });
+    loadMonth(ym).then(d => {
+      renderKpi(ym); // 출고/입고 재계산
+      renderPivot(d);
+    }).catch(err => { pivotWrap.innerHTML = `<div class="loading">로드 실패 (${err})</div>`; });
   }
 
   prevBtn.addEventListener('click', () => {
@@ -430,17 +455,26 @@
     searchTimer = setTimeout(refreshPivot, 120);
   });
 
-  fetch('data/sales-sku-index.json', { cache: 'no-cache' })
-    .then(r => r.ok ? r.json() : Promise.reject(r.status))
-    .then(m => {
-      manifest = m;
-      availableMonths = m.months.slice().sort();
-      monthInput.min = availableMonths[0];
-      monthInput.max = availableMonths[availableMonths.length - 1];
-      metaEl.textContent = `업데이트: ${m.updated_at} · 소스: ${m.source}`;
-      setMonth(availableMonths[availableMonths.length - 1]);
-    })
-    .catch(err => { metaEl.textContent = '데이터 로드 실패 (' + err + ')'; });
+  Promise.all([
+    fetch('data/sales-sku-index.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+    fetch('/api/margin-state', { cache: 'no-cache' })
+      .then(r => r.ok ? r.json() : { rows: [] })
+      .catch(() => ({ rows: [] }))
+  ]).then(([m, ms]) => {
+    manifest = m;
+    availableMonths = m.months.slice().sort();
+    monthInput.min = availableMonths[0];
+    monthInput.max = availableMonths[availableMonths.length - 1];
+    const rows = (ms && ms.rows) || [];
+    for (const r of rows) {
+      const sku = String(r.sku || '').trim();
+      if (!sku || !/^\d+$/.test(sku)) continue;
+      marginMap[sku] = { cat: r.cat || '', name: r.name || '', owner: r.owner || '' };
+    }
+    const mcount = Object.keys(marginMap).length;
+    metaEl.textContent = `업데이트: ${m.updated_at} · 마진테이블 매칭 ${mcount} SKU (오아/보아르)`;
+    setMonth(availableMonths[availableMonths.length - 1]);
+  }).catch(err => { metaEl.textContent = '데이터 로드 실패 (' + err + ')'; });
 })();
 </script>
 
