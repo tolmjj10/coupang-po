@@ -582,34 +582,36 @@
           </div>`).join('');
       });
 
-    /* ───────── ③ 판매 요약 ───────── */
-    // 목업: 당월 / 작년 동월 / 최근 6개월 입고매출
-    const KPI_MOCK = {
-      out_this: 1_240_000_000,
-      in_this:  1_380_000_000,
-      out_ly:   1_050_000_000,
-      in_ly:    1_120_000_000,
-    };
-    document.getElementById('kpi-out').textContent    = fmtWon(KPI_MOCK.out_this);
-    document.getElementById('kpi-in').textContent     = fmtWon(KPI_MOCK.in_this);
-    document.getElementById('kpi-out-ly').textContent = fmtWon(KPI_MOCK.out_ly);
-    document.getElementById('kpi-in-ly').textContent  = fmtWon(KPI_MOCK.in_ly);
+    /* ───────── ③ 판매 요약 (실데이터) ─────────
+       데이터 소스: data/sales-dash.json (oa_ops.mart_sales_daily · partner_name=쿠팡)
+       실매출 = sales_amount, 입고매출 = cost_amount */
+    let data = []; // 차트에 쓸 6개월 시리즈 (fetch 뒤 채움)
+    fetch('data/sales-dash.json', { cache: 'no-cache' })
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null)
+      .then(dash => {
+        if (!dash) {
+          ['kpi-out','kpi-in','kpi-out-ly','kpi-in-ly'].forEach(id =>
+            document.getElementById(id).textContent = '—');
+          return;
+        }
+        const k = dash.kpi || {};
+        document.getElementById('kpi-out').textContent    = fmtWon(k.sales_this);
+        document.getElementById('kpi-in').textContent     = fmtWon(k.cost_this);
+        document.getElementById('kpi-out-ly').textContent = fmtWon(k.sales_ly);
+        document.getElementById('kpi-in-ly').textContent  = fmtWon(k.cost_ly);
 
-    // 최근 6개월 입고매출 (오래된 → 최신)
-    const months = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-      months.push({
-        label: `${d.getMonth()+1}월`,
-        ym: `${d.getFullYear()}-${pad(d.getMonth()+1)}`,
+        const trend = Array.isArray(dash.trend_6m) ? dash.trend_6m : [];
+        data = trend.map(p => ({
+          ym: p.ym,
+          label: `${+p.ym.slice(5)}월`,
+          v: Number(p.cost) || 0,
+        }));
+        drawChart(data);
       });
-    }
-    const SERIES_MOCK = [980_000_000, 1_100_000_000, 1_050_000_000, 1_210_000_000, 1_300_000_000, KPI_MOCK.in_this];
-    const data = months.map((m,i) => ({ ...m, v: SERIES_MOCK[i] }));
-
-    drawChart(data);
 
     function drawChart(data){
+      if (!data || data.length < 2) return;
       const svg = document.getElementById('chart');
       const tip = document.getElementById('chart-tip');
       const wrap = svg.parentElement;
