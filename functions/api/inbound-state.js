@@ -1,0 +1,31 @@
+/**
+ * Cloudflare Pages Function
+ * URL: /api/inbound-state
+ *
+ * 입고리스트(inbound.html) 공유 상태 저장소.
+ * STATE_KV binding 재사용, 키만 분리.
+ */
+const KEY = 'inbound_state';
+const MAX_BYTES = 3 * 1024 * 1024; // 3MB (파싱 결과만 저장)
+
+export async function onRequestGet({ env }) {
+  if (!env.STATE_KV) return new Response('STATE_KV binding missing', { status: 500 });
+  const raw = await env.STATE_KV.get(KEY);
+  return new Response(raw || 'null', {
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store'
+    }
+  });
+}
+
+export async function onRequestPost({ request, env }) {
+  if (!env.STATE_KV) return new Response('STATE_KV binding missing', { status: 500 });
+  const text = await request.text();
+  if (text.length > MAX_BYTES) return new Response('Payload too large', { status: 413 });
+  try { JSON.parse(text); } catch (e) {
+    return new Response('Invalid JSON', { status: 400 });
+  }
+  await env.STATE_KV.put(KEY, text);
+  return new Response('ok');
+}

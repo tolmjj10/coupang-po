@@ -51,6 +51,27 @@
   .drop-file { font-size: 12px; font-weight: 600; color: var(--accent-dark); margin-top: 6px; }
   input[type="file"] { display: none; }
 
+  /* 간단 상태바 (저장 시각 + 버튼) */
+  .status-row {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 10px 14px; margin-bottom: 16px;
+    box-shadow: 0 1px 2px rgba(139,117,108,0.05);
+  }
+  .status-row .label { font-size: 12.5px; color: var(--text-hint); font-weight: 600; }
+  .status-row .val   { font-size: 12.5px; color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .status-row .spacer { flex: 1; }
+  .btn {
+    font: 600 12.5px 'Pretendard',sans-serif; letter-spacing: -0.01em;
+    padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: #fff; color: var(--text); cursor: pointer;
+    transition: background .12s, border-color .12s;
+  }
+  .btn:hover { background: var(--accent-light); border-color: var(--accent); }
+  .btn.primary { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; }
+  .btn.primary:hover { background: #705c54; border-color: #705c54; }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+
   /* 날짜별 섹션 */
   .date-section { margin-bottom: 18px; }
   .date-head {
@@ -105,6 +126,17 @@
     <div class="drop-hint">파일명 예: <code>1023_업데이트_10월_입고리스트.xlsx</code> · 가장 최신 시트의 입고 예정일별로 그룹화</div>
     <div class="drop-file" id="drop-file" hidden></div>
     <input type="file" id="file" accept=".xlsx,.xls" />
+  </div>
+
+  <!-- 상태바: 서버 저장본 정보 + 갱신 버튼 -->
+  <div class="status-row" id="status-row" hidden>
+    <span class="label">마지막 갱신</span>
+    <span class="val" id="last-updated">—</span>
+    <span class="label">파일</span>
+    <span class="val" id="last-filename">—</span>
+    <span class="spacer"></span>
+    <button class="btn" id="btn-reload" title="서버에서 다시 불러오기">새로고침</button>
+    <button class="btn primary" id="btn-save" disabled>갱신 저장</button>
   </div>
 
   <div id="result"></div>
@@ -309,10 +341,75 @@ async function render(parsed) {
     html || '<div class="empty">인식된 입고 데이터가 없습니다.</div>';
 }
 
-/* ─────────── 파일 핸들링 ─────────── */
+/* ─────────── 파일 핸들링 + 서버 저장 ─────────── */
 const drop = document.getElementById('drop');
 const fileInput = document.getElementById('file');
 const fileLabel = document.getElementById('drop-file');
+const statusRow = document.getElementById('status-row');
+const lastUpdatedEl = document.getElementById('last-updated');
+const lastFileEl = document.getElementById('last-filename');
+const btnSave = document.getElementById('btn-save');
+const btnReload = document.getElementById('btn-reload');
+
+let currentPending = null; // { parsed, filename }  — 아직 서버 저장 안된 로컬 파싱 결과
+
+function fmtTs(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    const p = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  } catch(_) { return '—'; }
+}
+
+async function loadFromServer() {
+  try {
+    const res = await fetch('/api/inbound-state', { cache: 'no-cache' });
+    if (!res.ok) throw new Error('fetch failed');
+    const data = await res.json();
+    if (!data || !data.parsed) {
+      statusRow.hidden = true;
+      document.getElementById('result').innerHTML =
+        '<div class="empty">저장된 입고리스트가 없습니다. 엑셀 파일을 업로드하세요.</div>';
+      return;
+    }
+    statusRow.hidden = false;
+    lastUpdatedEl.textContent = fmtTs(data.updated_at);
+    lastFileEl.textContent = data.filename || '—';
+    await render(data.parsed);
+  } catch(err) {
+    document.getElementById('result').innerHTML =
+      `<div class="empty" style="color:var(--neg)">서버 로드 실패: ${esc(err.message)}</div>`;
+  }
+}
+
+async function saveToServer() {
+  if (!currentPending) return;
+  btnSave.disabled = true;
+  const prev = btnSave.textContent;
+  btnSave.textContent = '저장 중…';
+  try {
+    const body = JSON.stringify({
+      filename: currentPending.filename,
+      updated_at: new Date().toISOString(),
+      parsed: currentPending.parsed,
+    });
+    const res = await fetch('/api/inbound-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+    if (!res.ok) throw new Error('save failed: ' + res.status);
+    currentPending = null;
+    btnSave.textContent = '저장됨';
+    setTimeout(() => { btnSave.textContent = prev; }, 1500);
+    await loadFromServer();
+  } catch(err) {
+    btnSave.disabled = false;
+    btnSave.textContent = prev;
+    alert('저장 실패: ' + err.message);
+  }
+}
 
 function handleFile(file) {
   if (!file) return;
@@ -320,11 +417,17 @@ function handleFile(file) {
   fileLabel.hidden = false;
   drop.classList.add('loaded');
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       const wb = XLSX.read(e.target.result, { type: 'array' });
       const parsed = parseWorkbook(wb);
-      render(parsed);
+      currentPending = { parsed, filename: file.name };
+      // 미저장 상태 표시
+      statusRow.hidden = false;
+      lastUpdatedEl.textContent = '(미저장 · 미리보기)';
+      lastFileEl.textContent = file.name;
+      btnSave.disabled = false;
+      await render(parsed);
     } catch(err) {
       document.getElementById('result').innerHTML =
         `<div class="empty" style="color:var(--neg)">파일을 읽는 중 오류: ${esc(err.message)}</div>`;
@@ -345,6 +448,12 @@ fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
 drop.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
 window.addEventListener('dragover', e => { if (!e.target.closest('.drop-zone')) e.preventDefault(); });
 window.addEventListener('drop',     e => { if (!e.target.closest('.drop-zone')) e.preventDefault(); });
+
+btnSave.addEventListener('click', saveToServer);
+btnReload.addEventListener('click', loadFromServer);
+
+// 초기 로드
+loadFromServer();
 </script>
 </body>
 </html>
