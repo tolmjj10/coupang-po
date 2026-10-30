@@ -33,7 +33,7 @@ python scripts\refresh_sales.py
 
 정상 출력:
 ```
-=== refresh_sales 2026-10-30T09:00:12 ===
+=== refresh_sales 2026-10-30T08:35:12 ===
 [dash] 당월 매출 1,773,708,289원  입고 1,162,708,849원  ...
 [check] DB 최신 2026-10-28  로컬 최신 2026-10-28
 [sku] 새 데이터 없음 — 생략
@@ -47,12 +47,12 @@ python scripts\refresh_sales.py
 
 ```powershell
 $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument '/c ""C:\Users\admin\Desktop\17. claude\po\scripts\refresh_sales.bat""'
-$trigger = New-ScheduledTaskTrigger -Daily -At 9:00am
+$trigger = New-ScheduledTaskTrigger -Daily -At 8:35am
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 1)
 Register-ScheduledTask -TaskName "쿠팡 판매 데이터 갱신" -Action $action -Trigger $trigger -Settings $settings -Force
 ```
 
-- `StartWhenAvailable`: PC가 09:00에 꺼져 있었다면 켜졌을 때 자동 실행
+- `StartWhenAvailable`: PC가 08:35에 꺼져 있었다면 켜졌을 때 자동 실행
 - `ExecutionTimeLimit 1시간`: 1시간 넘으면 강제 종료 (hang 방지)
 
 **지금 바로 테스트:**
@@ -71,7 +71,7 @@ Get-Content scripts\refresh_sales.log -Encoding utf8 -Tail 20
 
 ## 주의
 
-- PC가 **09:00 시점에 켜져 있어야** 작동. 꺼져 있으면 다음 켜졌을 때 밀린 작업으로 1회 실행 (작업 스케줄러 옵션 "예약된 시작 시간이 지난 후 작업을 가능한 한 빨리 시작" 체크 시)
+- PC가 **08:35 시점에 켜져 있어야** 작동. 꺼져 있으면 다음 켜졌을 때 밀린 작업으로 1회 실행 (작업 스케줄러 옵션 "예약된 시작 시간이 지난 후 작업을 가능한 한 빨리 시작" 체크 시)
 - 사내망(192.168.30.x) 접속 가능해야 함 (= 사무실 PC 또는 VPN)
 - 로그가 커지면 가끔 `scripts\refresh_sales.log` 삭제
 
