@@ -519,8 +519,13 @@
       g.classList.toggle('active-group', g.dataset.group === targetGroup);
     });
 
-    // 네비게이션 발생 시 서브바는 항상 닫음
-    closeSubbar();
+    // 서브바가 열려 있고 네비 대상이 같은 그룹의 자식이면 서브바를 유지하고 active 갱신
+    // 그 외에는 서브바를 닫음
+    if (targetGroup && visibleGroup === targetGroup) {
+      renderSubbar(targetGroup, target);
+    } else {
+      closeSubbar();
+    }
 
     if (target) ensureLoaded(target);
     Object.entries(frames).forEach(([k, f]) => f.classList.toggle('active', k === target));
