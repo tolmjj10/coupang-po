@@ -378,7 +378,7 @@
               </div>
             </div>
             <div class="chart-wrap">
-              <svg id="chart" viewBox="0 0 800 220" preserveAspectRatio="none"></svg>
+              <svg id="chart"></svg>
               <div class="chart-tip" id="chart-tip"></div>
             </div>
           </section>
@@ -417,7 +417,6 @@
     document.querySelectorAll('.nav-item[data-target]').forEach(i =>
       i.classList.toggle('active', i.dataset.target === target));
     document.getElementById('nav-home').classList.toggle('active', !target);
-    // 드롭다운 그룹 중 활성 자식 보유 시 그룹에도 밑줄 표시
     document.querySelectorAll('.nav-group').forEach(g => {
       const hasActive = !!g.querySelector('.nav-item[data-target].active');
       g.classList.toggle('active-group', hasActive);
@@ -426,6 +425,9 @@
     Object.entries(frames).forEach(([k, f]) => f.classList.toggle('active', k === target));
     landing.classList.toggle('active', !target);
     closeAllGroups();
+    if (!target && typeof window.__redrawDashChart === 'function') {
+      requestAnimationFrame(() => window.__redrawDashChart());
+    }
     try { history.replaceState(null, '', target ? '#' + target : location.pathname); } catch(e) {}
   }
 
@@ -500,53 +502,85 @@
     };
     const fmtWon = (n) => (n == null || isNaN(n)) ? '—' : n.toLocaleString('ko-KR') + '원';
 
-    /* ───────── ① 프로모션 ───────── */
-    const PROMO_MOCK = [
-      { type:'골드박스', date:'2026-11-03',             name:'헤라 블랙쿠션 리필 세트' },
-      { type:'타임특가', date:'2026-11-05', time:'14',  name:'설화수 자음생크림' },
-      { type:'골드박스', date:'2026-11-12',             name:'더글라스 프로 에센스' },
-    ];
+    const todayStr = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+    const diffDays = (ymd) => {
+      if (!ymd) return null;
+      const d = new Date(ymd + 'T00:00:00');
+      return Math.round((today - d) / 86400000);
+    };
+
+    /* ───────── ① 프로모션 (실데이터) ───────── */
     const promoList = document.getElementById('promo-list');
-    const upcoming = PROMO_MOCK
-      .filter(p => new Date(p.date) >= new Date(today.toDateString()))
-      .sort((a,b) => a.date.localeCompare(b.date))
-      .slice(0, 5);
-    if (upcoming.length === 0) {
-      promoList.innerHTML = '<div class="empty-state">예정된 골드박스·타임특가가 없습니다</div>';
-    } else {
+    promoList.innerHTML = '<div class="empty-state">불러오는 중…</div>';
+    Promise.all([
+      fetch('/api/promotion-state', { cache:'no-cache' }).then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch('/api/margin-state',    { cache:'no-cache' }).then(r => r.ok ? r.json() : null).catch(() => null)
+    ]).then(([promos, margin]) => {
+      const rows = Array.isArray(promos) ? promos : (promos?.rows || []);
+      // SKU → 상품명 매핑
+      const mRows = Array.isArray(margin) ? margin : (margin?.rows || []);
+      const nameOf = {};
+      mRows.forEach(r => {
+        const sku = r.sku || r.skuId || r.SKU;
+        const nm  = r.name || r.productName || r.title;
+        if (sku && nm) nameOf[String(sku)] = nm;
+      });
+
+      const upcoming = rows
+        .filter(r => (r.type === '골드박스' || r.type === '타임특가') && r.date && r.date >= todayStr)
+        .sort((a,b) => (a.date + (a.time||'00')).localeCompare(b.date + (b.time||'00')))
+        .slice(0, 5);
+
+      if (upcoming.length === 0) {
+        promoList.innerHTML = '<div class="empty-state">예정된 골드박스·타임특가가 없습니다</div>';
+        return;
+      }
       promoList.innerHTML = upcoming.map(p => {
-        const dd = Math.round((new Date(p.date) - today)/86400000);
+        const dd = diffDays(p.date) * -1; // 미래이므로 양수
         const cls = p.type === '골드박스' ? 'gold' : 'time';
         const ddLabel = dd === 0 ? '오늘' : `D-${dd}`;
         const timeLabel = (p.type === '타임특가' && p.time) ? ` ${p.time}시` : '';
+        const name = nameOf[String(p.skuId)] || p.title || (p.skuId ? `SKU ${p.skuId}` : '(이름 없음)');
         return `
           <div class="promo-row">
             <span class="promo-type ${cls}">${p.type}</span>
             <span class="promo-date">${p.date.slice(5)}${timeLabel}</span>
-            <span class="promo-name">${p.name}</span>
+            <span class="promo-name" title="${name.replace(/"/g,'&quot;')}">${name}</span>
             <span class="promo-dday">${ddLabel}</span>
           </div>`;
       }).join('');
-    }
+    }).catch(() => {
+      promoList.innerHTML = '<div class="empty-state">프로모션 데이터를 불러오지 못했습니다</div>';
+    });
 
-    /* ───────── ② 신제품 (진전 없는 것만) ───────── */
-    const NEW_MOCK = [
-      { name:'[신제품] 라이프스타일 블렌딩 세럼', daysIdle: 18 },
-      { name:'[신제품] 데일리 모이스처 토너',   daysIdle: 11 },
-    ];
+    /* ───────── ② 신제품 (진전 없는 것만, 실데이터) ─────────
+       "진전 없음" = 입고완료(arrivalDone)됐지만 로켓/윙/벤플/광고 모두 미완료 + 미등록
+       기간 임계값: arrivalDate 기준 7일 이상 경과한 것만 표시 */
     const newList = document.getElementById('new-list');
-    // 급하지 않으면(= daysIdle < 7) 비노출. 하나도 없으면 카드 자체는 유지하되 안내문구만.
-    const urgent = NEW_MOCK.filter(n => n.daysIdle >= 7)
-      .sort((a,b) => b.daysIdle - a.daysIdle);
-    if (urgent.length === 0) {
-      newList.innerHTML = '<div class="empty-state">주의할 신제품이 없습니다</div>';
-    } else {
-      newList.innerHTML = urgent.map(n => `
-        <div class="new-row">
-          <span class="new-name">${n.name}</span>
-          <span class="new-days">${n.daysIdle}일째</span>
-        </div>`).join('');
-    }
+    newList.innerHTML = '<div class="empty-state">불러오는 중…</div>';
+    fetch('/api/new-state', { cache:'no-cache' })
+      .then(r => r.ok ? r.json() : { rows:[] })
+      .catch(() => ({ rows:[] }))
+      .then(parsed => {
+        const rows = Array.isArray(parsed) ? parsed : (parsed?.rows || []);
+        const stuck = rows.map(r => {
+          const name = r.realName || r.regName || '(이름 없음)';
+          const anyTask = (r.rocket?.done) || (r.wing?.done) || (r.venple?.done) || (r.ad?.done);
+          const noProgress = r.arrivalDone === true && !anyTask && !r.registered;
+          const days = diffDays(r.arrivalDate);
+          return { name, days, stuck: noProgress && days != null && days >= 7 };
+        }).filter(x => x.stuck).sort((a,b) => b.days - a.days);
+
+        if (stuck.length === 0) {
+          newList.innerHTML = '<div class="empty-state">주의할 신제품이 없습니다</div>';
+          return;
+        }
+        newList.innerHTML = stuck.slice(0, 8).map(n => `
+          <div class="new-row">
+            <span class="new-name" title="${n.name.replace(/"/g,'&quot;')}">${n.name}</span>
+            <span class="new-days">${n.days}일째</span>
+          </div>`).join('');
+      });
 
     /* ───────── ③ 판매 요약 ───────── */
     // 목업: 당월 / 작년 동월 / 최근 6개월 입고매출
@@ -578,8 +612,13 @@
     function drawChart(data){
       const svg = document.getElementById('chart');
       const tip = document.getElementById('chart-tip');
-      const W = 800, H = 220;
-      const padL = 56, padR = 16, padT = 16, padB = 30;
+      const wrap = svg.parentElement;
+      const W = Math.max(320, Math.floor(wrap.clientWidth));
+      const H = Math.max(140, Math.floor(wrap.clientHeight));
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      svg.setAttribute('width', W);
+      svg.setAttribute('height', H);
+      const padL = 64, padR = 20, padT = 14, padB = 30;
       const innerW = W - padL - padR;
       const innerH = H - padT - padB;
 
@@ -633,24 +672,29 @@
         ${parts.join('')}
       `;
 
-      // hover 툴팁 (SVG → DOM 좌표 변환)
+      // hover 툴팁 (SVG 좌표 = 컨테이너 좌표, 1:1 매핑)
       svg.querySelectorAll('.hover-pt').forEach(pt => {
         pt.addEventListener('mouseenter', () => {
           const i = +pt.dataset.i;
           const d = data[i];
-          const rect = svg.getBoundingClientRect();
-          const wrap = svg.parentElement.getBoundingClientRect();
-          const sx = +pt.getAttribute('cx'), sy = +pt.getAttribute('cy');
-          const cx = rect.left - wrap.left + sx * rect.width / W;
-          const cy = rect.top  - wrap.top  + sy * rect.height / H;
-          tip.style.left = cx + 'px';
-          tip.style.top  = cy + 'px';
+          tip.style.left = pt.getAttribute('cx') + 'px';
+          tip.style.top  = pt.getAttribute('cy') + 'px';
           tip.innerHTML = `<div style="opacity:.75;font-weight:500">${d.ym}</div>${fmtWon(d.v)}`;
           tip.classList.add('show');
         });
         pt.addEventListener('mouseleave', () => tip.classList.remove('show'));
       });
     }
+
+    // 리사이즈 대응
+    let rT;
+    window.addEventListener('resize', () => {
+      clearTimeout(rT);
+      rT = setTimeout(() => drawChart(data), 120);
+    });
+
+    // 랜딩이 보일 때 재렌더 (iframe 전환 → 홈 복귀 등)
+    window.__redrawDashChart = () => drawChart(data);
   })();
 </script>
 
