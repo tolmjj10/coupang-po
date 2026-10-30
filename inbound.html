@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>쿠팡 입고리스트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #fbfbfe; --surface: #ffffff;
+    --border: #ebe6df; --border-strong: #d9d1c8;
+    --text: #2a1a15; --text-hint: #7a706a;
+    --accent: #aa9791; --accent-dark: #8b756c; --accent-light: #f2ede9;
+    --warn: #c9995a; --warn-soft: #f5ead7;
+    --neg: #b05858; --neg-soft: #f2dede;
+    --orange: #e07c3a; --orange-soft: #fbe6d4;
+  }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif;
+    background: var(--bg); color: var(--text);
+    -webkit-font-smoothing: antialiased; letter-spacing: -0.01em;
+  }
+  .wrap { max-width: 1720px; margin: 0 auto; width: 100%; box-sizing: border-box;
+          padding: 20px 24px 22px; min-height: 100vh; display: flex; flex-direction: column; }
+
+  header.page { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.024em; margin: 0; color: var(--text); line-height: 1.15; }
+  .meta { font-size: 11.5px; color: var(--text-hint); font-variant-numeric: tabular-nums; }
+
+  /* 업로드 영역 */
+  .drop-zone {
+    background: var(--surface);
+    border: 1.5px dashed var(--border-strong);
+    border-radius: 14px;
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    margin-bottom: 16px;
+  }
+  .drop-zone:hover { border-color: var(--accent); background: #fdfbf9; }
+  .drop-zone.dragover { border-color: var(--accent-dark); background: var(--accent-light); }
+  .drop-zone.loaded { border-style: solid; border-color: var(--accent); background: #fdfbf9; }
+  .drop-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .drop-hint { font-size: 11.5px; color: var(--text-hint); }
+  .drop-file { font-size: 12px; font-weight: 600; color: var(--accent-dark); margin-top: 6px; }
+  input[type="file"] { display: none; }
+
+  /* 날짜별 섹션 */
+  .date-section { margin-bottom: 18px; }
+  .date-head {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--orange); color: #fff;
+    padding: 8px 14px; border-radius: 10px 10px 0 0;
+    font-size: 13px; font-weight: 700; letter-spacing: -0.01em;
+  }
+  .date-head .count {
+    background: rgba(255,255,255,0.22); padding: 2px 8px;
+    border-radius: 10px; font-size: 11px; font-weight: 700;
+  }
+  .date-head .total {
+    margin-left: auto; font-size: 11.5px; font-weight: 600; opacity: 0.95;
+    font-variant-numeric: tabular-nums;
+  }
+
+  table.items {
+    width: 100%; border-collapse: collapse; background: var(--surface);
+    border: 1px solid var(--border); border-top: 0;
+    border-radius: 0 0 10px 10px; overflow: hidden;
+    font-size: 12.5px;
+  }
+  table.items th {
+    background: #faf7f3; font-weight: 700; font-size: 11.5px;
+    color: var(--text-hint); padding: 8px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  table.items th.right { text-align: right; }
+  table.items td {
+    padding: 9px 12px; border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.items tr:last-child td { border-bottom: 0; }
+  table.items td.name { font-weight: 600; color: var(--text); }
+  table.items td.qty { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); white-space: nowrap; }
+  table.items td.sku { font-size: 11px; color: var(--text-hint); font-family: ui-monospace,SFMono-Regular,Consolas,monospace; }
+  table.items td.cat { font-size: 11px; color: var(--text-hint); }
+  table.items tr.has-foc td.name::after {
+    content: '무료제공분 포함'; margin-left: 8px;
+    font-size: 10px; font-weight: 600; color: var(--warn);
+    background: var(--warn-soft); padding: 2px 6px; border-radius: 4px; vertical-align: 2px;
+  }
+
+  .empty { color: var(--text-hint); font-size: 12px; text-align: center; padding: 40px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <h1>입고리스트</h1>
+    <div class="meta" id="meta">엑셀 파일을 끌어다 놓거나 클릭해 업로드</div>
+  </header>
+
+  <div class="drop-zone" id="drop">
+    <div class="drop-title">엑셀(.xlsx) 파일 업로드</div>
+    <div class="drop-hint">파일명 예: <code>1023_업데이트_10월_입고리스트.xlsx</code> · 가장 최신 시트의 입고 예정일별로 그룹화</div>
+    <div class="drop-file" id="drop-file" hidden></div>
+    <input type="file" id="file" accept=".xlsx,.xls" />
+  </div>
+
+  <div id="result"></div>
+</div>
+
+<script>
+/* ─────────── 유틸 ─────────── */
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtInt = n => (n==null||isNaN(n)) ? '' : Number(n).toLocaleString('ko-KR');
+
+/* 제품명 정리: 첫 줄만, 괄호 코드 제거 */
+function cleanName(raw) {
+  if (!raw) return '';
+  let s = String(raw).split('\n')[0].trim();
+  // 끝에 괄호 코드 (OTS-004WH) 또는 （OTS-004WH） 제거
+  s = s.replace(/\s*[(（][A-Z0-9\-]+[)）]\s*$/,'').trim();
+  // 끝에 "무료제공분" 들어있으면 제거
+  s = s.replace(/\s*무료제공분\s*$/, '').trim();
+  // 끝에 "(부속)" 유지(별도 품목으로 간주)
+  return s;
+}
+
+/* "입고 예정일 : 10/27 → 10/26" → "10/26" (마지막 날짜) */
+function parseDate(cell) {
+  if (!cell) return null;
+  const txt = String(cell);
+  const matches = [...txt.matchAll(/(\d{1,2})\/(\d{1,2})/g)];
+  if (!matches.length) return null;
+  const last = matches[matches.length-1];
+  const m = +last[1], d = +last[2];
+  return { m, d, key: `${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}` };
+}
+
+const WEEKDAYS = ['일','월','화','수','목','금','토'];
+function labelFor(date) {
+  const now = new Date();
+  // 연도는 추정: 월이 현재월보다 작으면 내년, 아니면 올해
+  let year = now.getFullYear();
+  if (date.m < now.getMonth()+1 - 2) year += 1;
+  const dt = new Date(year, date.m-1, date.d);
+  return `${date.m}/${String(date.d).padStart(2,'0')} (${WEEKDAYS[dt.getDay()]})`;
+}
+
+/* ─────────── 파싱 ─────────── */
+function parseWorkbook(wb) {
+  // 가장 최신(마지막) 시트 사용
+  const ws = wb.Sheets[wb.SheetNames[wb.SheetNames.length - 1]];
+  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  const sheetName = wb.SheetNames[wb.SheetNames.length - 1];
+
+  // 1) 컨테이너 블록 찾기: "입고 예정일" 포함 셀 전부
+  const blocks = []; // { row, col, date }
+  for (let r = 0; r < aoa.length; r++) {
+    const row = aoa[r] || [];
+    for (let c = 0; c < row.length; c++) {
+      const v = row[c];
+      if (v && String(v).includes('입고 예정일')) {
+        // 날짜는 이 셀 자체에서 추출
+        const d = parseDate(v);
+        if (d) blocks.push({ row: r, col: c, date: d });
+      }
+    }
+  }
+
+  // 2) 각 블록의 "제품" 컬럼 열 좌표 찾기
+  // 블록 헤더 아래 2~5행 범위에 "제품" 셀이 있고 그 열이 블록의 좌측 끝
+  // 입고예정일 셀은 블록의 좌측 끝에서 +1 열에 있음(관찰 결과)
+  // → 제품 컬럼 = 입고예정일 컬럼 - 1
+  // 수량 컬럼 = 제품 컬럼 + 4
+  blocks.forEach(b => {
+    b.nameCol = Math.max(0, b.col - 1);
+    b.qtyCol  = b.nameCol + 4;
+    b.subCol  = b.nameCol + 1; // 영문 구분 (NO SALE 여부 판단)
+  });
+
+  // 3) 각 블록의 세로 범위: 다음 블록 전까지 (같은 열 범위 내)
+  // 블록 nameCol 기준으로 다음 블록까지의 행을 찾기
+  const byDate = new Map(); // dateKey → Map(name → {qty, foc})
+  const dateLabel = new Map(); // dateKey → "10/26 (월)"
+
+  blocks.forEach((b, idx) => {
+    // 같은 nameCol 범위(±2)의 다음 블록 row 찾기 (수직 범위 결정)
+    let endRow = aoa.length;
+    for (let j = idx+1; j < blocks.length; j++) {
+      const nb = blocks[j];
+      if (Math.abs(nb.nameCol - b.nameCol) <= 2 && nb.row > b.row) {
+        endRow = nb.row;
+        break;
+      }
+    }
+    // 상품 행: row+2 (헤더 "제품/구분/..." 다음) ~ endRow-1
+    // 하지만 안전하게 row+1부터 scan, 내용으로 판별
+    for (let r = b.row + 1; r < endRow; r++) {
+      const row = aoa[r] || [];
+      const nameCell = row[b.nameCol];
+      const subCell  = row[b.subCol] || '';
+      const qtyCell  = row[b.qtyCol];
+      if (!nameCell) continue;
+      const name = cleanName(nameCell);
+      if (!name) continue;
+      // 헤더성 행 스킵
+      if (/^제품$|^구분$|^입수단위$|^수량$|^카톤수$/.test(name)) continue;
+      // "총 N 박스" 같은 요약 행 스킵
+      if (/총\s*\d+\s*박스/.test(nameCell) || /^\d+\s*박스/.test(name)) continue;
+      // (NO SALE) 부속품 제외
+      if (/NO\s*SALE/i.test(subCell) || /\(부속\)/.test(nameCell)) continue;
+      const qty = Number(String(qtyCell).replace(/,/g,''));
+      if (!qty || isNaN(qty)) continue;
+
+      const dateKey = b.date.key;
+      if (!byDate.has(dateKey)) {
+        byDate.set(dateKey, new Map());
+        dateLabel.set(dateKey, labelFor(b.date));
+      }
+      const bucket = byDate.get(dateKey);
+      const isFoc = /무료제공분|FOC.*ADD/i.test(String(nameCell) + ' ' + String(subCell));
+      const prev = bucket.get(name) || { qty: 0, foc: false };
+      prev.qty += qty;
+      if (isFoc) prev.foc = true;
+      bucket.set(name, prev);
+    }
+  });
+
+  // 정렬: 날짜 오름차순
+  const dateKeys = [...byDate.keys()].sort();
+  return {
+    sheetName,
+    dates: dateKeys.map(k => ({
+      key: k,
+      label: dateLabel.get(k),
+      items: [...byDate.get(k).entries()]
+        .map(([name, v]) => ({ name, qty: v.qty, foc: v.foc }))
+        .sort((a,b) => b.qty - a.qty),
+    })),
+  };
+}
+
+/* ─────────── 렌더 ─────────── */
+async function render(parsed) {
+  // 마진테이블 로드 (SKU/카테고리 매핑)
+  let margin = [];
+  try {
+    const res = await fetch('/api/margin-state', { cache:'no-cache' });
+    const j = res.ok ? await res.json() : null;
+    margin = Array.isArray(j) ? j : (j?.rows || []);
+  } catch(_) {}
+  const skuBy = {}, catBy = {};
+  margin.forEach(m => {
+    const nm = (m.name || '').trim();
+    if (!nm) return;
+    if (m.sku) skuBy[nm] = m.sku;
+    if (m.cat) catBy[nm] = m.cat;
+  });
+  const matchMargin = (name) => {
+    if (skuBy[name]) return { sku: skuBy[name], cat: catBy[name] };
+    // 포함 매칭 (상품명 접두)
+    for (const k of Object.keys(skuBy)) {
+      if (k.startsWith(name) || name.startsWith(k)) return { sku: skuBy[k], cat: catBy[k] };
+    }
+    return null;
+  };
+
+  const totalItems = parsed.dates.reduce((s,d) => s + d.items.length, 0);
+  const totalQty   = parsed.dates.reduce((s,d) => s + d.items.reduce((a,i) => a + i.qty, 0), 0);
+  document.getElementById('meta').textContent =
+    `시트: ${parsed.sheetName} · ${parsed.dates.length}개 입고일 · ${totalItems}개 품목 · 총 ${fmtInt(totalQty)}개`;
+
+  const html = parsed.dates.map(d => {
+    const dayTotal = d.items.reduce((a,i) => a + i.qty, 0);
+    const rows = d.items.map(it => {
+      const m = matchMargin(it.name);
+      return `
+        <tr class="${it.foc ? 'has-foc' : ''}">
+          <td class="name">${esc(it.name)}</td>
+          <td class="sku">${m ? esc(m.sku) : ''}</td>
+          <td class="cat">${m && m.cat ? esc(m.cat) : ''}</td>
+          <td class="qty">${fmtInt(it.qty)}</td>
+        </tr>`;
+    }).join('');
+    return `
+      <div class="date-section">
+        <div class="date-head">
+          <span>${esc(d.label)} 입고 컨테이너</span>
+          <span class="count">${d.items.length}품목</span>
+          <span class="total">총 ${fmtInt(dayTotal)}개</span>
+        </div>
+        <table class="items">
+          <thead>
+            <tr>
+              <th>제품명</th>
+              <th style="width:130px">SKU</th>
+              <th style="width:200px">카테고리</th>
+              <th class="right" style="width:110px">수량</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }).join('');
+
+  document.getElementById('result').innerHTML =
+    html || '<div class="empty">인식된 입고 데이터가 없습니다.</div>';
+}
+
+/* ─────────── 파일 핸들링 ─────────── */
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+const fileLabel = document.getElementById('drop-file');
+
+function handleFile(file) {
+  if (!file) return;
+  fileLabel.textContent = file.name;
+  fileLabel.hidden = false;
+  drop.classList.add('loaded');
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const parsed = parseWorkbook(wb);
+      render(parsed);
+    } catch(err) {
+      document.getElementById('result').innerHTML =
+        `<div class="empty" style="color:var(--neg)">파일을 읽는 중 오류: ${esc(err.message)}</div>`;
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); e.stopPropagation(); drop.classList.add('dragover');
+}));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); e.stopPropagation(); drop.classList.remove('dragover');
+}));
+drop.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+window.addEventListener('dragover', e => { if (!e.target.closest('.drop-zone')) e.preventDefault(); });
+window.addEventListener('drop',     e => { if (!e.target.closest('.drop-zone')) e.preventDefault(); });
+</script>
+</body>
+</html>

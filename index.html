@@ -322,8 +322,17 @@
       </div>
     </div>
 
-    <!-- 발주 -->
-    <div class="nav-item" data-target="order"><span>발주</span></div>
+    <!-- 발주 ▾ (발주리스트, 입고리스트) -->
+    <div class="nav-group" data-group="order">
+      <div class="nav-item nav-trigger">
+        <span>발주</span>
+        <svg class="nav-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="nav-dropdown">
+        <div class="nav-item" data-target="order"><span>발주리스트</span></div>
+        <div class="nav-item" data-target="inbound"><span>입고리스트</span></div>
+      </div>
+    </div>
 
     <!-- 프로모션 -->
     <div class="nav-item" data-target="promotion"><span>프로모션</span></div>
@@ -415,6 +424,7 @@
       </div>
     </div>
     <iframe id="frame-order" data-src="po.html"></iframe>
+    <iframe id="frame-inbound" data-src="inbound.html"></iframe>
     <iframe id="frame-new" data-src="newproduct/new.html"></iframe>
     <iframe id="frame-margin" data-src="margin.html"></iframe>
     <iframe id="frame-promotion" data-src="promotion/promotion.html"></iframe>
@@ -428,6 +438,7 @@
   const landing = document.getElementById('landing');
   const frames = {
     order:      document.getElementById('frame-order'),
+    inbound:    document.getElementById('frame-inbound'),
     new:        document.getElementById('frame-new'),
     margin:     document.getElementById('frame-margin'),
     promotion:  document.getElementById('frame-promotion'),
@@ -561,6 +572,7 @@
   window.addEventListener('load', () => {
     const preload = () => {
       ensureLoaded('order');
+      setTimeout(() => ensureLoaded('inbound'), 150);
       setTimeout(() => ensureLoaded('margin'), 300);
       setTimeout(() => ensureLoaded('new'), 600);
       setTimeout(() => ensureLoaded('promotion'), 900);
