@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>쿠팡 정산</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #fbfbfe;
+    --surface: #ffffff;
+    --border: #ebe6df;
+    --border-strong: #d9d1c8;
+    --text: #2a1a15;
+    --text-hint: #7a706a;
+    --accent: #aa9791;
+    --accent-dark: #8b756c;
+    --accent-light: #f2ede9;
+    --neg: #b05858;
+    --ok: #6e8a6a;
+  }
+  html, body { height: 100%; margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',-apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.01em;
+  }
+  .wrap { padding: 20px 24px 22px; max-width: 1720px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+
+  header.page { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 18px; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.024em; margin: 0; color: var(--text); }
+  .meta { font-size: 11.5px; color: var(--text-hint); }
+
+  .drop-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .drop-zone {
+    background: var(--surface);
+    border: 1.5px dashed var(--border-strong);
+    border-radius: 12px;
+    padding: 22px 18px;
+    min-height: 160px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s, transform .08s;
+    position: relative;
+  }
+  .drop-zone:hover {
+    border-color: var(--accent);
+    background: #fdfbf9;
+  }
+  .drop-zone.dragover {
+    border-color: var(--accent-dark);
+    background: var(--accent-light);
+    transform: scale(1.01);
+  }
+  .drop-zone.loaded {
+    border-style: solid;
+    border-color: var(--accent);
+    background: #fdfbf9;
+  }
+  .drop-icon {
+    width: 36px; height: 36px;
+    color: var(--text-hint);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .drop-zone.loaded .drop-icon { color: var(--accent-dark); }
+  .drop-icon svg { width: 100%; height: 100%; stroke-width: 1.6; }
+  .drop-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .drop-hint {
+    font-size: 11.5px;
+    color: var(--text-hint);
+    line-height: 1.5;
+  }
+  .drop-file {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--accent-dark);
+    word-break: break-all;
+    max-width: 100%;
+  }
+  .drop-clear {
+    position: absolute;
+    top: 8px; right: 8px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: var(--text-hint);
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    line-height: 1;
+  }
+  .drop-clear:hover { background: var(--accent-light); color: var(--neg); }
+  .drop-zone.loaded .drop-clear { display: inline-flex; }
+
+  input[type="file"] { display: none; }
+
+  .result-area {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    min-height: 260px;
+    color: var(--text-hint);
+    font-size: 13px;
+  }
+  .result-area .placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 40px 0;
+    text-align: center;
+  }
+  .result-area .placeholder svg { width: 32px; height: 32px; opacity: 0.4; }
+
+  @media (max-width: 900px) {
+    .drop-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <h1>정산</h1>
+    <div class="meta" id="meta">파일을 끌어다 놓거나 클릭해 선택하세요</div>
+  </header>
+
+  <div class="drop-grid">
+    <!-- slot 1 -->
+    <div class="drop-zone" data-slot="1">
+      <button class="drop-clear" type="button" aria-label="제거">×</button>
+      <div class="drop-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <div class="drop-title">파일 1</div>
+      <div class="drop-hint">드래그 또는 클릭</div>
+      <div class="drop-file" hidden></div>
+      <input type="file" />
+    </div>
+
+    <!-- slot 2 -->
+    <div class="drop-zone" data-slot="2">
+      <button class="drop-clear" type="button" aria-label="제거">×</button>
+      <div class="drop-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <div class="drop-title">파일 2</div>
+      <div class="drop-hint">드래그 또는 클릭</div>
+      <div class="drop-file" hidden></div>
+      <input type="file" />
+    </div>
+
+    <!-- slot 3 -->
+    <div class="drop-zone" data-slot="3">
+      <button class="drop-clear" type="button" aria-label="제거">×</button>
+      <div class="drop-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <div class="drop-title">파일 3</div>
+      <div class="drop-hint">드래그 또는 클릭</div>
+      <div class="drop-file" hidden></div>
+      <input type="file" />
+    </div>
+  </div>
+
+  <div class="result-area" id="result">
+    <div class="placeholder">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <line x1="9" y1="3" x2="9" y2="21"/>
+        <line x1="15" y1="3" x2="15" y2="21"/>
+        <line x1="3" y1="9" x2="21" y2="9"/>
+        <line x1="3" y1="15" x2="21" y2="15"/>
+      </svg>
+      <div>파일을 모두 넣으면 이곳에 정산 결과가 표시됩니다.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const slots = {}; // { 1: File, 2: File, 3: File }
+
+  document.querySelectorAll('.drop-zone').forEach(zone => {
+    const slot = zone.dataset.slot;
+    const input = zone.querySelector('input[type="file"]');
+    const fileLabel = zone.querySelector('.drop-file');
+    const hint = zone.querySelector('.drop-hint');
+    const clearBtn = zone.querySelector('.drop-clear');
+
+    const setFile = (file) => {
+      if (!file) return;
+      slots[slot] = file;
+      zone.classList.add('loaded');
+      fileLabel.textContent = file.name;
+      fileLabel.hidden = false;
+      hint.hidden = true;
+      onFilesChanged();
+    };
+
+    const clearFile = () => {
+      delete slots[slot];
+      zone.classList.remove('loaded');
+      fileLabel.textContent = '';
+      fileLabel.hidden = true;
+      hint.hidden = false;
+      input.value = '';
+      onFilesChanged();
+    };
+
+    zone.addEventListener('click', (e) => {
+      if (e.target === clearBtn) return;
+      input.click();
+    });
+
+    input.addEventListener('change', (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) setFile(f);
+    });
+
+    clearBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearFile();
+    });
+
+    ['dragenter', 'dragover'].forEach(ev => {
+      zone.addEventListener(ev, (e) => {
+        e.preventDefault(); e.stopPropagation();
+        zone.classList.add('dragover');
+      });
+    });
+    ['dragleave', 'drop'].forEach(ev => {
+      zone.addEventListener(ev, (e) => {
+        e.preventDefault(); e.stopPropagation();
+        zone.classList.remove('dragover');
+      });
+    });
+    zone.addEventListener('drop', (e) => {
+      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) setFile(f);
+    });
+  });
+
+  // 창 전체에 파일 드롭 시 기본 동작(브라우저가 파일 열기) 방지
+  ['dragover', 'drop'].forEach(ev => {
+    window.addEventListener(ev, (e) => {
+      if (e.target.closest && e.target.closest('.drop-zone')) return;
+      e.preventDefault();
+    });
+  });
+
+  function onFilesChanged() {
+    const count = Object.keys(slots).length;
+    const meta = document.getElementById('meta');
+    meta.textContent = count === 0
+      ? '파일을 끌어다 놓거나 클릭해 선택하세요'
+      : `${count}/3 파일 선택됨`;
+    // TODO: 3개 파일이 모두 들어왔을 때 파싱 및 결과 렌더 로직을 여기에 작성
+  }
+</script>
+</body>
+</html>

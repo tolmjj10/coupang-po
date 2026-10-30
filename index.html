@@ -33,26 +33,24 @@
     letter-spacing: -0.01em;
     overflow: hidden;
   }
-  .app { display: flex; height: 100vh; width: 100vw; }
+  .app { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
 
-  .sidebar {
-    width: 220px;
+  /* ─────────── 상단 가로 네비 ─────────── */
+  .topbar {
     flex-shrink: 0;
     background: var(--surface);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    padding: 18px 12px;
-  }
-  /* 랜딩(메인) 화면에서는 사이드바 숨김 */
-  body.landing-mode .sidebar { display: none; }
-  .brand {
+    border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 4px 10px 16px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 14px;
+    gap: 2px;
+    padding: 10px 20px;
+    position: relative;
+    z-index: 100;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    padding: 4px 12px 4px 4px;
+    margin-right: 14px;
     cursor: pointer;
     border-radius: 8px;
     transition: background .12s ease;
@@ -68,51 +66,59 @@
   }
   .brand .logo svg { width: 15px; height: 15px; stroke-width: 1.9; }
   .brand .title {
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--text);
+    font-size: 14px; font-weight: 700; letter-spacing: -0.02em; color: var(--text);
   }
-  .nav-label {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--text-hint);
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    padding: 10px 12px 8px;
-  }
+
   .nav-item {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    padding: 9px 12px;
+    position: relative;
+    display: flex; align-items: center; gap: 7px;
+    padding: 7px 14px;
     border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 13px; font-weight: 600;
     color: var(--text);
-    cursor: pointer;
-    user-select: none;
-    transition: background .12s ease, color .12s ease;
-    margin-bottom: 2px;
+    cursor: pointer; user-select: none;
+    transition: color .12s ease;
+    white-space: nowrap;
   }
-  .nav-item:hover { background: var(--accent-light); color: var(--text); }
-  .nav-item.active {
-    background: var(--accent-light);
-    color: var(--accent);
-    font-weight: 600;
+  .nav-item:hover { color: var(--accent-dark); }
+  .nav-item.active { color: var(--accent-dark); }
+  /* 상단바 직속 항목만 밑줄 표시 (드롭다운 내부는 제외) */
+  .topbar > .nav-item.active::after,
+  .topbar > .nav-group.active-group .nav-trigger::after {
+    content: '';
+    position: absolute;
+    left: 10px; right: 10px; bottom: -11px;
+    height: 2px; background: var(--accent-dark);
+    border-radius: 2px;
   }
   .nav-item svg {
-    width: 17px; height: 17px;
-    stroke-width: 1.75;
+    width: 15px; height: 15px;
+    stroke-width: 1.9;
     flex-shrink: 0;
   }
-  .sidebar-footer {
-    margin-top: auto;
-    padding: 10px 12px;
-    font-size: 10.5px;
-    color: var(--text-hint);
-    letter-spacing: 0.02em;
+  .nav-caret {
+    width: 10px; height: 10px; opacity: 0.55;
+    transition: transform .15s;
   }
+  .nav-group.open .nav-caret { transform: rotate(180deg); }
+
+  .nav-group { position: relative; }
+  .nav-dropdown {
+    position: absolute; top: calc(100% + 6px); left: 0;
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 10px; padding: 5px;
+    min-width: 160px;
+    box-shadow: 0 10px 28px rgba(42,26,21,0.08);
+    display: none;
+    z-index: 200;
+  }
+  .nav-group.open .nav-dropdown { display: block; }
+  .nav-dropdown .nav-item {
+    padding: 8px 12px; width: 100%; font-size: 12.5px;
+    transition: background .12s ease, color .12s ease;
+  }
+  .nav-dropdown .nav-item:hover { background: var(--accent-light); }
+  .nav-dropdown .nav-item.active { background: var(--accent-light); }
 
   .content {
     flex: 1;
@@ -133,150 +139,136 @@
     width: 100%;
     height: 100%;
     display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 40px;
-    background: #4a3728;
+    padding: 20px 24px 22px;
+    background: var(--bg);
+    overflow: auto;
   }
-  .landing.active { display: flex; }
+  .landing.active { display: block; }
   .landing-inner {
-    max-width: 760px;
+    max-width: 1720px;
     width: 100%;
-    text-align: center;
-  }
-  .landing h2 {
-    font-size: 40px;
-    font-weight: 700;
-    letter-spacing: -0.035em;
-    margin: 0 0 52px;
-    color: #ffffff;
-  }
-  .pick-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    max-width: 640px;
     margin: 0 auto;
-    gap: 20px;
   }
-  .pick-card {
+  .landing-head {
+    display: flex; align-items: baseline; justify-content: flex-end;
+    margin-bottom: 14px;
+  }
+  .landing-head h2 {
+    font-size: 22px; font-weight: 700; letter-spacing: -0.024em; margin: 0; color: var(--text);
+  }
+  .landing-head .today {
+    font-size: 11.5px; color: var(--text-hint); font-variant-numeric: tabular-nums;
+  }
+
+  .dash-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 14px;
+  }
+  .dash-card {
     background: var(--surface);
-    border: 1px solid transparent;
-    border-radius: 16px;
-    padding: 22px 24px;
-    cursor: pointer;
-    text-align: left;
-    transition: transform .18s ease, box-shadow .18s ease;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    min-height: 220px;
+    display: flex; flex-direction: column;
   }
-  .pick-card:hover {
-    transform: translateY(-3px);
+  .dash-card.full { grid-column: 1 / -1; }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
   }
-  .pick-icon {
-    width: 42px; height: 42px;
-    border-radius: 12px;
-    background: var(--accent-light);
-    color: var(--accent-dark);
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
+  .card-title {
+    font-size: 13.5px; font-weight: 700; letter-spacing: -0.02em; color: var(--text);
   }
-  .pick-icon svg { width: 22px; height: 22px; stroke-width: 1.75; }
-  .pick-title {
-    font-size: 17px;
-    font-weight: 700;
-    color: var(--text);
-    letter-spacing: -0.02em;
+  .card-sub { font-size: 11px; color: var(--text-hint); font-weight: 500; }
+  .card-link {
+    font-size: 11.5px; color: var(--accent-dark); font-weight: 600;
+    cursor: pointer; letter-spacing: -0.01em;
   }
+  .card-link:hover { text-decoration: underline; }
+
+  /* 프로모션/신제품 리스트 */
+  .promo-list, .new-list { display: flex; flex-direction: column; gap: 2px; }
+  .promo-row, .new-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 4px; border-bottom: 1px solid var(--border);
+    font-size: 12.5px;
+  }
+  .promo-row:last-child, .new-row:last-child { border-bottom: 0; }
+  .promo-type {
+    font-size: 10.5px; font-weight: 700; padding: 3px 7px; border-radius: 4px;
+    letter-spacing: -0.01em; flex-shrink: 0;
+  }
+  .promo-type.gold { background: #efe4ea; color: #6a4a5a; }
+  .promo-type.time { background: #e6ece6; color: #4a5748; }
+  .promo-date { font-size: 11.5px; color: var(--text-hint); font-variant-numeric: tabular-nums; min-width: 92px; flex-shrink: 0; }
+  .promo-dday { font-size: 10.5px; font-weight: 700; color: var(--accent-dark); min-width: 32px; text-align: right; flex-shrink: 0; }
+  .promo-name, .new-name { flex: 1; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .new-days { font-size: 10.5px; font-weight: 700; color: var(--neg, #b05858); flex-shrink: 0; }
+  .empty-state {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: var(--text-hint); font-size: 12px; padding: 24px 0;
+  }
+
+  /* 판매 요약 */
+  .sales-kpis {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    margin-bottom: 14px;
+  }
+  .sales-kpi {
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px;
+    background: #fdfbf9;
+  }
+  .sales-kpi .k-label { font-size: 10.5px; color: var(--text-hint); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 4px; }
+  .sales-kpi .k-value { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; white-space: nowrap; }
+  .sales-kpi .k-sub { font-size: 10.5px; color: var(--text-hint); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .sales-kpi.ly { background: #fff; }
+  .sales-kpi.ly .k-value { color: var(--text-hint); font-size: 14px; }
+
+  /* 차트 */
+  .chart-wrap { position: relative; width: 100%; height: 220px; }
+  .chart-wrap svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .chart-tip {
+    position: absolute; pointer-events: none;
+    background: #2a1a15; color: #fff;
+    font-size: 11px; font-weight: 600; padding: 5px 9px; border-radius: 6px;
+    transform: translate(-50%, -115%); white-space: nowrap;
+    font-variant-numeric: tabular-nums; opacity: 0; transition: opacity .1s;
+  }
+  .chart-tip.show { opacity: 1; }
 
   /* ─────────── 모바일 대응 (≤ 720px) ─────────── */
   @media (max-width: 720px) {
     html, body { overflow: auto; -webkit-text-size-adjust: 100%; }
-    .app { flex-direction: column; height: auto; min-height: 100vh; width: 100%; }
-
-    /* 사이드바 → 상단 가로 스크롤 바 */
-    .sidebar {
-      width: 100%;
-      flex-direction: row;
-      align-items: center;
+    .app { height: auto; min-height: 100vh; width: 100%; }
+    .topbar {
       padding: 8px 10px;
-      border-right: 0;
-      border-bottom: 1px solid var(--border);
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
-      gap: 6px;
-      position: sticky;
-      top: 0;
-      z-index: 10;
+      position: sticky; top: 0;
     }
-    .sidebar::-webkit-scrollbar { display: none; }
-    .sidebar .brand {
-      padding: 4px 10px;
-      margin-bottom: 0;
-      border-bottom: 0;
-      flex-shrink: 0;
-      gap: 8px;
-    }
-    .sidebar .brand .title { font-size: 13px; }
-    .sidebar .brand .logo { width: 22px; height: 22px; }
-    .sidebar .brand .logo svg { width: 13px; height: 13px; }
-    .nav-label { display: none; }
-    .nav-item {
-      flex-shrink: 0;
-      padding: 7px 12px;
-      font-size: 12.5px;
-      margin-bottom: 0;
-      white-space: nowrap;
-      gap: 6px;
-    }
-    .nav-item svg { width: 14px; height: 14px; }
-    .sidebar-footer { display: none; }
+    .topbar::-webkit-scrollbar { display: none; }
+    .brand { margin-right: 6px; }
+    .brand .title { font-size: 13px; }
+    .nav-item { padding: 6px 10px; font-size: 12.5px; }
 
-    /* 랜딩 화면 — 세로 스택 */
     .content { height: auto; min-height: calc(100vh - 50px); }
-    .landing { padding: 32px 20px 40px; align-items: flex-start; }
-    .landing-inner { max-width: 100%; }
-    .landing h2 {
-      font-size: 26px;
-      margin: 8px 0 28px;
-      letter-spacing: -0.03em;
-    }
-    .pick-grid {
-      grid-template-columns: 1fr;
-      gap: 12px;
-      max-width: 100%;
-    }
-    .pick-card {
-      padding: 16px 18px;
-      gap: 14px;
-      border-radius: 14px;
-    }
-    .pick-card:hover { transform: none; }
-    .pick-card:active { transform: scale(0.98); }
-    .pick-icon { width: 38px; height: 38px; border-radius: 11px; }
-    .pick-icon svg { width: 20px; height: 20px; }
-    .pick-title { font-size: 15px; }
+    .landing { padding: 16px 14px 24px; }
+    .landing-head h2 { font-size: 17px; }
+    .dash-grid { grid-template-columns: 1fr; }
+    .sales-kpis { grid-template-columns: repeat(2, 1fr); }
+    .chart-wrap { height: 180px; }
 
-    /* 서브 페이지 iframe — 뷰포트 남은 높이 채움 */
     iframe { height: calc(100vh - 50px); }
-
-    /* 랜딩 모드에서는 사이드바 계속 숨김 (원래 동작 유지) */
-    body.landing-mode .sidebar { display: none; }
-  }
-
-  /* 아주 작은 폰 (≤ 380px) — 폰트 한 단계 더 축소 */
-  @media (max-width: 380px) {
-    .landing h2 { font-size: 22px; margin-bottom: 22px; }
-    .pick-card { padding: 14px 16px; }
-    .pick-title { font-size: 14px; }
   }
 </style>
 </head>
 <body>
 
 <div class="app">
-  <aside class="sidebar">
+  <nav class="topbar">
     <div class="brand" id="brand-home" title="첫 화면">
       <div class="logo">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -289,128 +281,107 @@
       <span class="title">쿠팡팀 업무 허브</span>
     </div>
 
-    <div class="nav-label">Workspace</div>
+    <!-- 홈 -->
+    <div class="nav-item" id="nav-home"><span>홈</span></div>
 
-    <div class="nav-item" data-target="margin">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="3" y1="6" x2="21" y2="6"/>
-        <line x1="3" y1="12" x2="21" y2="12"/>
-        <line x1="3" y1="18" x2="21" y2="18"/>
-        <line x1="8" y1="3" x2="8" y2="21"/>
-      </svg>
-      <span>마진테이블</span>
+    <!-- 상품 ▾ (마진테이블, 신제품) -->
+    <div class="nav-group" data-group="product">
+      <div class="nav-item nav-trigger">
+        <span>상품</span>
+        <svg class="nav-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="nav-dropdown">
+        <div class="nav-item" data-target="margin"><span>마진테이블</span></div>
+        <div class="nav-item" data-target="new"><span>신제품</span></div>
+      </div>
     </div>
 
-    <div class="nav-item" data-target="order">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-        <line x1="12" y1="22.08" x2="12" y2="12"/>
-      </svg>
-      <span>발주</span>
+    <!-- 발주 -->
+    <div class="nav-item" data-target="order"><span>발주</span></div>
+
+    <!-- 프로모션 -->
+    <div class="nav-item" data-target="promotion"><span>프로모션</span></div>
+
+    <!-- 판매 ▾ (판매 현황, 판매가 확인) -->
+    <div class="nav-group" data-group="sales">
+      <div class="nav-item nav-trigger">
+        <span>판매</span>
+        <svg class="nav-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="nav-dropdown">
+        <div class="nav-item" data-target="sales"><span>판매 현황</span></div>
+        <div class="nav-item" data-target="price"><span>판매가 확인</span></div>
+      </div>
     </div>
 
-    <div class="nav-item" data-target="promotion">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/>
-        <line x1="8" y1="2" x2="8" y2="6"/>
-        <line x1="3" y1="10" x2="21" y2="10"/>
-      </svg>
-      <span>프로모션</span>
-    </div>
-
-    <div class="nav-item" data-target="new">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 3l1.9 5.8L20 10.5l-4.7 3.9L16.9 21 12 17.6 7.1 21l1.6-6.6L4 10.5l6.1-1.7L12 3z"/>
-      </svg>
-      <span>신제품</span>
-    </div>
-
-    <div class="nav-item" data-target="price">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="12" y1="1" x2="12" y2="23"/>
-        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-      </svg>
-      <span>판매가 확인</span>
-    </div>
-
-    <div class="nav-item" data-target="sales">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="18" y1="20" x2="18" y2="10"/>
-        <line x1="12" y1="20" x2="12" y2="4"/>
-        <line x1="6" y1="20" x2="6" y2="14"/>
-      </svg>
-      <span>판매 현황</span>
-    </div>
-
-    <div class="sidebar-footer">v1.0</div>
-  </aside>
+    <!-- 정산 -->
+    <div class="nav-item" data-target="settlement"><span>정산</span></div>
+  </nav>
 
   <main class="content">
     <div id="landing" class="landing">
       <div class="landing-inner">
-        <h2>쿠팡팀 업무 허브</h2>
-        <div class="pick-grid">
-          <div class="pick-card" data-target="margin">
-            <div class="pick-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="3" y1="6" x2="21" y2="6"/>
-                <line x1="3" y1="12" x2="21" y2="12"/>
-                <line x1="3" y1="18" x2="21" y2="18"/>
-                <line x1="8" y1="3" x2="8" y2="21"/>
-              </svg>
+        <div class="landing-head">
+          <div class="today" id="today-label"></div>
+        </div>
+
+        <div class="dash-grid">
+          <!-- ① 프로모션 요약 -->
+          <section class="dash-card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">예정된 프로모션</div>
+                <div class="card-sub">골드박스 · 타임특가</div>
+              </div>
+              <div class="card-link" data-link="promotion">전체 보기 →</div>
             </div>
-            <div class="pick-title">마진테이블</div>
-          </div>
-          <div class="pick-card" data-target="order">
-            <div class="pick-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-                <line x1="12" y1="22.08" x2="12" y2="12"/>
-              </svg>
+            <div class="promo-list" id="promo-list"></div>
+          </section>
+
+          <!-- ② 신제품 요약 -->
+          <section class="dash-card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">진전 없는 신제품</div>
+                <div class="card-sub">입고 완료 이후 변화 없음</div>
+              </div>
+              <div class="card-link" data-link="new">전체 보기 →</div>
             </div>
-            <div class="pick-title">발주</div>
-          </div>
-          <div class="pick-card" data-target="promotion">
-            <div class="pick-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
+            <div class="new-list" id="new-list"></div>
+          </section>
+
+          <!-- ③ 판매 요약 -->
+          <section class="dash-card full">
+            <div class="card-head">
+              <div>
+                <div class="card-title">판매 요약 <span class="card-sub" id="sales-month-label"></span></div>
+                <div class="card-sub">최근 6개월 입고매출 추이</div>
+              </div>
+              <div class="card-link" data-link="sales">판매 현황 →</div>
             </div>
-            <div class="pick-title">프로모션</div>
-          </div>
-          <div class="pick-card" data-target="new">
-            <div class="pick-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 3l1.9 5.8L20 10.5l-4.7 3.9L16.9 21 12 17.6 7.1 21l1.6-6.6L4 10.5l6.1-1.7L12 3z"/>
-              </svg>
+            <div class="sales-kpis">
+              <div class="sales-kpi">
+                <div class="k-label">당월 실매출</div>
+                <div class="k-value" id="kpi-out">—</div>
+              </div>
+              <div class="sales-kpi">
+                <div class="k-label">당월 입고매출</div>
+                <div class="k-value" id="kpi-in">—</div>
+              </div>
+              <div class="sales-kpi ly">
+                <div class="k-label">작년 동월 실매출</div>
+                <div class="k-value" id="kpi-out-ly">—</div>
+              </div>
+              <div class="sales-kpi ly">
+                <div class="k-label">작년 동월 입고매출</div>
+                <div class="k-value" id="kpi-in-ly">—</div>
+              </div>
             </div>
-            <div class="pick-title">신제품</div>
-          </div>
-          <div class="pick-card" data-target="price">
-            <div class="pick-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="1" x2="12" y2="23"/>
-                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-              </svg>
+            <div class="chart-wrap">
+              <svg id="chart" viewBox="0 0 800 220" preserveAspectRatio="none"></svg>
+              <div class="chart-tip" id="chart-tip"></div>
             </div>
-            <div class="pick-title">판매가 확인</div>
-          </div>
-          <div class="pick-card" data-target="sales">
-            <div class="pick-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="20" x2="18" y2="10"/>
-                <line x1="12" y1="20" x2="12" y2="4"/>
-                <line x1="6" y1="20" x2="6" y2="14"/>
-              </svg>
-            </div>
-            <div class="pick-title">판매 현황</div>
-          </div>
+          </section>
         </div>
       </div>
     </div>
@@ -420,19 +391,20 @@
     <iframe id="frame-promotion" data-src="promotion/promotion.html"></iframe>
     <iframe id="frame-price" data-src="price.html"></iframe>
     <iframe id="frame-sales" data-src="sales.html"></iframe>
+    <iframe id="frame-settlement" data-src="settlement.html"></iframe>
   </main>
 </div>
 
 <script>
-  const items = document.querySelectorAll('.nav-item');
   const landing = document.getElementById('landing');
   const frames = {
-    order:     document.getElementById('frame-order'),
-    new:       document.getElementById('frame-new'),
-    margin:    document.getElementById('frame-margin'),
-    promotion: document.getElementById('frame-promotion'),
-    price:     document.getElementById('frame-price'),
-    sales:     document.getElementById('frame-sales')
+    order:      document.getElementById('frame-order'),
+    new:        document.getElementById('frame-new'),
+    margin:     document.getElementById('frame-margin'),
+    promotion:  document.getElementById('frame-promotion'),
+    price:      document.getElementById('frame-price'),
+    sales:      document.getElementById('frame-sales'),
+    settlement: document.getElementById('frame-settlement')
   };
 
   function ensureLoaded(target) {
@@ -442,22 +414,50 @@
   }
 
   function showTarget(target) {
-    items.forEach(i => i.classList.toggle('active', i.dataset.target === target));
+    document.querySelectorAll('.nav-item[data-target]').forEach(i =>
+      i.classList.toggle('active', i.dataset.target === target));
+    document.getElementById('nav-home').classList.toggle('active', !target);
+    // 드롭다운 그룹 중 활성 자식 보유 시 그룹에도 밑줄 표시
+    document.querySelectorAll('.nav-group').forEach(g => {
+      const hasActive = !!g.querySelector('.nav-item[data-target].active');
+      g.classList.toggle('active-group', hasActive);
+    });
     if (target) ensureLoaded(target);
     Object.entries(frames).forEach(([k, f]) => f.classList.toggle('active', k === target));
     landing.classList.toggle('active', !target);
-    // 랜딩 화면에서는 사이드바 숨김
-    document.body.classList.toggle('landing-mode', !target);
+    closeAllGroups();
     try { history.replaceState(null, '', target ? '#' + target : location.pathname); } catch(e) {}
   }
 
-  items.forEach(el => {
-    el.addEventListener('click', () => showTarget(el.dataset.target));
+  // 리프 nav-item (data-target 가진 것들)
+  document.querySelectorAll('.nav-item[data-target]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showTarget(el.dataset.target);
+    });
   });
-  document.querySelectorAll('.pick-card').forEach(el => {
-    el.addEventListener('click', () => showTarget(el.dataset.target));
+
+  // 드롭다운 토글
+  function closeAllGroups() {
+    document.querySelectorAll('.nav-group.open').forEach(g => g.classList.remove('open'));
+  }
+  document.querySelectorAll('.nav-group').forEach(group => {
+    const trigger = group.querySelector('.nav-trigger');
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wasOpen = group.classList.contains('open');
+      closeAllGroups();
+      if (!wasOpen) group.classList.add('open');
+    });
+  });
+  // 외부 클릭 시 닫기
+  document.addEventListener('click', closeAllGroups);
+
+  document.querySelectorAll('.card-link').forEach(el => {
+    el.addEventListener('click', () => showTarget(el.dataset.link));
   });
   document.getElementById('brand-home').addEventListener('click', () => showTarget(null));
+  document.getElementById('nav-home').addEventListener('click', (e) => { e.stopPropagation(); showTarget(null); });
 
   const hash = (location.hash || '').replace('#','');
   showTarget(frames[hash] ? hash : null);
@@ -475,6 +475,183 @@
     if ('requestIdleCallback' in window) requestIdleCallback(preload, { timeout: 1500 });
     else setTimeout(preload, 400);
   });
+
+  /* ──────────────────────────────────────────────────
+     대시보드 렌더링 (현재는 목업 데이터)
+     TODO: 실데이터 연결
+       - 프로모션: /api/promotion-state 에서 미래 골드박스/타임특가 추출
+       - 신제품: /api/new-state 에서 "진전 없음" 판정 (status/updated_at 기반)
+       - 판매: data/sales-sku/<ym>.json 또는 신규 월별 롤업 엔드포인트
+     ────────────────────────────────────────────────── */
+  (function initDashboard(){
+    const today = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    document.getElementById('today-label').textContent =
+      `${today.getFullYear()}.${pad(today.getMonth()+1)}.${pad(today.getDate())}`;
+    document.getElementById('sales-month-label').textContent =
+      `${today.getFullYear()}년 ${today.getMonth()+1}월`;
+
+    // 금액 포맷 (10억 = 1,000,000,000)
+    const fmtKR = (n) => {
+      if (n == null || isNaN(n)) return '—';
+      if (n >= 1e8)  return (n/1e8).toFixed(n>=1e9?0:1).replace(/\.0$/,'') + '억';
+      if (n >= 1e4)  return (n/1e4).toFixed(0) + '만';
+      return n.toLocaleString('ko-KR');
+    };
+    const fmtWon = (n) => (n == null || isNaN(n)) ? '—' : n.toLocaleString('ko-KR') + '원';
+
+    /* ───────── ① 프로모션 ───────── */
+    const PROMO_MOCK = [
+      { type:'골드박스', date:'2026-11-03',             name:'헤라 블랙쿠션 리필 세트' },
+      { type:'타임특가', date:'2026-11-05', time:'14',  name:'설화수 자음생크림' },
+      { type:'골드박스', date:'2026-11-12',             name:'더글라스 프로 에센스' },
+    ];
+    const promoList = document.getElementById('promo-list');
+    const upcoming = PROMO_MOCK
+      .filter(p => new Date(p.date) >= new Date(today.toDateString()))
+      .sort((a,b) => a.date.localeCompare(b.date))
+      .slice(0, 5);
+    if (upcoming.length === 0) {
+      promoList.innerHTML = '<div class="empty-state">예정된 골드박스·타임특가가 없습니다</div>';
+    } else {
+      promoList.innerHTML = upcoming.map(p => {
+        const dd = Math.round((new Date(p.date) - today)/86400000);
+        const cls = p.type === '골드박스' ? 'gold' : 'time';
+        const ddLabel = dd === 0 ? '오늘' : `D-${dd}`;
+        const timeLabel = (p.type === '타임특가' && p.time) ? ` ${p.time}시` : '';
+        return `
+          <div class="promo-row">
+            <span class="promo-type ${cls}">${p.type}</span>
+            <span class="promo-date">${p.date.slice(5)}${timeLabel}</span>
+            <span class="promo-name">${p.name}</span>
+            <span class="promo-dday">${ddLabel}</span>
+          </div>`;
+      }).join('');
+    }
+
+    /* ───────── ② 신제품 (진전 없는 것만) ───────── */
+    const NEW_MOCK = [
+      { name:'[신제품] 라이프스타일 블렌딩 세럼', daysIdle: 18 },
+      { name:'[신제품] 데일리 모이스처 토너',   daysIdle: 11 },
+    ];
+    const newList = document.getElementById('new-list');
+    // 급하지 않으면(= daysIdle < 7) 비노출. 하나도 없으면 카드 자체는 유지하되 안내문구만.
+    const urgent = NEW_MOCK.filter(n => n.daysIdle >= 7)
+      .sort((a,b) => b.daysIdle - a.daysIdle);
+    if (urgent.length === 0) {
+      newList.innerHTML = '<div class="empty-state">주의할 신제품이 없습니다</div>';
+    } else {
+      newList.innerHTML = urgent.map(n => `
+        <div class="new-row">
+          <span class="new-name">${n.name}</span>
+          <span class="new-days">${n.daysIdle}일째</span>
+        </div>`).join('');
+    }
+
+    /* ───────── ③ 판매 요약 ───────── */
+    // 목업: 당월 / 작년 동월 / 최근 6개월 입고매출
+    const KPI_MOCK = {
+      out_this: 1_240_000_000,
+      in_this:  1_380_000_000,
+      out_ly:   1_050_000_000,
+      in_ly:    1_120_000_000,
+    };
+    document.getElementById('kpi-out').textContent    = fmtWon(KPI_MOCK.out_this);
+    document.getElementById('kpi-in').textContent     = fmtWon(KPI_MOCK.in_this);
+    document.getElementById('kpi-out-ly').textContent = fmtWon(KPI_MOCK.out_ly);
+    document.getElementById('kpi-in-ly').textContent  = fmtWon(KPI_MOCK.in_ly);
+
+    // 최근 6개월 입고매출 (오래된 → 최신)
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      months.push({
+        label: `${d.getMonth()+1}월`,
+        ym: `${d.getFullYear()}-${pad(d.getMonth()+1)}`,
+      });
+    }
+    const SERIES_MOCK = [980_000_000, 1_100_000_000, 1_050_000_000, 1_210_000_000, 1_300_000_000, KPI_MOCK.in_this];
+    const data = months.map((m,i) => ({ ...m, v: SERIES_MOCK[i] }));
+
+    drawChart(data);
+
+    function drawChart(data){
+      const svg = document.getElementById('chart');
+      const tip = document.getElementById('chart-tip');
+      const W = 800, H = 220;
+      const padL = 56, padR = 16, padT = 16, padB = 30;
+      const innerW = W - padL - padR;
+      const innerH = H - padT - padB;
+
+      const vals = data.map(d => d.v);
+      const max = Math.max(...vals);
+      const min = Math.min(...vals);
+      // 눈금 범위: 아래로 min*0.9, 위로 max*1.08
+      const yMin = Math.max(0, Math.floor(min * 0.9 / 1e8) * 1e8);
+      const yMax = Math.ceil(max * 1.08 / 1e8) * 1e8;
+      const steps = 4;
+      const stepV = (yMax - yMin) / steps;
+
+      const x = i => padL + (innerW * i / (data.length - 1));
+      const y = v => padT + innerH - (innerH * (v - yMin) / (yMax - yMin));
+
+      let parts = [];
+      // Y축 눈금선 + 라벨
+      for (let s = 0; s <= steps; s++) {
+        const v = yMin + stepV * s;
+        const yy = y(v);
+        parts.push(`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#eee5dc" stroke-dasharray="3,3"/>`);
+        parts.push(`<text x="${padL-8}" y="${yy+3}" text-anchor="end" font-size="10" fill="#7a706a" font-family="Pretendard">${fmtKR(v)}</text>`);
+      }
+      // X축 라벨
+      data.forEach((d,i) => {
+        parts.push(`<text x="${x(i)}" y="${H-10}" text-anchor="middle" font-size="10.5" fill="#7a706a" font-family="Pretendard">${d.label}</text>`);
+      });
+      // 라인 (부드러운 곡선)
+      const path = data.map((d,i) => `${i===0?'M':'L'} ${x(i).toFixed(1)} ${y(d.v).toFixed(1)}`).join(' ');
+      // 면 영역
+      const area = `M ${x(0)} ${padT+innerH} L ` + data.map((d,i) => `${x(i).toFixed(1)} ${y(d.v).toFixed(1)}`).join(' L ') + ` L ${x(data.length-1)} ${padT+innerH} Z`;
+      parts.push(`<path d="${area}" fill="url(#g-area)"/>`);
+      parts.push(`<path d="${path}" fill="none" stroke="#8b756c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`);
+      // 점 + hover 영역
+      data.forEach((d,i) => {
+        parts.push(`<circle cx="${x(i)}" cy="${y(d.v)}" r="3.2" fill="#fff" stroke="#8b756c" stroke-width="1.8"/>`);
+      });
+      // hover용 투명 영역
+      data.forEach((d,i) => {
+        const cx = x(i), cy = y(d.v);
+        parts.push(`<circle class="hover-pt" data-i="${i}" cx="${cx}" cy="${cy}" r="18" fill="transparent"/>`);
+      });
+
+      svg.innerHTML = `
+        <defs>
+          <linearGradient id="g-area" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%"  stop-color="#aa9791" stop-opacity="0.22"/>
+            <stop offset="100%" stop-color="#aa9791" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        ${parts.join('')}
+      `;
+
+      // hover 툴팁 (SVG → DOM 좌표 변환)
+      svg.querySelectorAll('.hover-pt').forEach(pt => {
+        pt.addEventListener('mouseenter', () => {
+          const i = +pt.dataset.i;
+          const d = data[i];
+          const rect = svg.getBoundingClientRect();
+          const wrap = svg.parentElement.getBoundingClientRect();
+          const sx = +pt.getAttribute('cx'), sy = +pt.getAttribute('cy');
+          const cx = rect.left - wrap.left + sx * rect.width / W;
+          const cy = rect.top  - wrap.top  + sy * rect.height / H;
+          tip.style.left = cx + 'px';
+          tip.style.top  = cy + 'px';
+          tip.innerHTML = `<div style="opacity:.75;font-weight:500">${d.ym}</div>${fmtWon(d.v)}`;
+          tip.classList.add('show');
+        });
+        pt.addEventListener('mouseleave', () => tip.classList.remove('show'));
+      });
+    }
+  })();
 </script>
 
 </body>

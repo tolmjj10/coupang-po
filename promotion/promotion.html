@@ -761,7 +761,16 @@ let tombstones = {}; // { id: timestamp } — 최근 삭제된 행. loadRemote�
 
 let data = [];        // rows
 let marginMap = {};   // skuId → {name, cost, price, originN, supply, curMargin, viid, pid}
-let activeTab = '전체';
+let activeTab = (function(){
+  try {
+    const m = (location.hash || '').match(/tab=([^&]+)/);
+    if (m) {
+      const t = decodeURIComponent(m[1]);
+      if (['전체','골드박스','타임특가','기획전','즉시할인','체험단'].includes(t)) return t;
+    }
+  } catch(_) {}
+  return '전체';
+})();
 // 기획전 그룹 접힘 상태 (key = 그룹 key). localStorage 로 새로고침 후에도 유지
 const collapsedPlans = new Set(
   (function(){ try { return JSON.parse(localStorage.getItem('collapsedPlans')||'[]'); } catch(_) { return []; } })()
