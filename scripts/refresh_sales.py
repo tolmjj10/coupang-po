@@ -72,10 +72,25 @@ class McpSession:
             return None
         ct = r.headers.get("content-type", "")
         if ct.startswith("text/event-stream"):
-            for line in r.text.splitlines():
+            # SSE: 큰 응답은 data: 라인 여러 개로 분할 전송됨 → 이벤트 단위로 재조립
+            events, current = [], []
+            for line in r.text.split("\n"):
                 if line.startswith("data:"):
-                    return json.loads(line[5:].strip())
-            raise RuntimeError("event-stream 응답에 data 필드 없음")
+                    current.append(line[5:].lstrip())
+                elif line.strip() == "":
+                    if current:
+                        try: events.append(json.loads("\n".join(current)))
+                        except json.JSONDecodeError: pass
+                        current = []
+            if current:
+                try: events.append(json.loads("\n".join(current)))
+                except json.JSONDecodeError: pass
+            for e in events:
+                if "id" in e and e.get("id") == payload.get("id"):
+                    return e
+            if events:
+                return events[-1]
+            raise RuntimeError("event-stream 응답에 유효 JSON 없음")
         return r.json()
 
     def _initialize(self):
@@ -294,6 +309,57 @@ def update_index():
     print(f"[idx] {len(months)}개월 인덱스 갱신")
 
 
+def refresh_inbound(mcp):
+    """mart_purchase_incoming → 오아/보아르 + 하이픈≤1 필터 + 날짜별 집계 → /api/inbound-state 저장."""
+    today = dt.date.today()
+    end = today + dt.timedelta(days=90)
+    sql = (
+        "SELECT eta_warehouse, product_name, SUM(qty) qty "
+        "FROM mart_purchase_incoming "
+        f"WHERE eta_warehouse BETWEEN '{today}' AND '{end}' "
+        "  AND (product_name LIKE '오아%' OR product_name LIKE '보아르%') "
+        "  AND product_name NOT LIKE '%-%-%' "
+        "GROUP BY eta_warehouse, product_name "
+        "ORDER BY eta_warehouse, qty DESC"
+    )
+    res = mcp.run_query(sql)
+    rows = res["rows"]
+
+    WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
+    by_date = {}
+    for r in rows:
+        d_str = str(r["eta_warehouse"])
+        name = r["product_name"]
+        qty = int(r["qty"] or 0)
+        if qty <= 0:
+            continue
+        if d_str not in by_date:
+            d_obj = dt.date.fromisoformat(d_str)
+            label = f"{d_obj.month}/{d_obj.day:02d} ({WEEKDAYS[d_obj.weekday()]})"
+            by_date[d_str] = {
+                "key": f"{d_obj.month:02d}-{d_obj.day:02d}",
+                "label": label,
+                "items": [],
+            }
+        by_date[d_str]["items"].append({"name": name, "qty": qty, "foc": False})
+
+    dates = [by_date[k] for k in sorted(by_date.keys())]
+    parsed = {"sheetName": f"auto-{today.isoformat()}", "dates": dates}
+    body = {
+        "filename": f"[자동] oa_ops.mart_purchase_incoming ({today.isoformat()})",
+        "updated_at": dt.datetime.now().isoformat(),
+        "parsed": parsed,
+    }
+    r = requests.post(
+        "https://coupang-po.pages.dev/api/inbound-state",
+        json=body, timeout=30,
+    )
+    r.raise_for_status()
+    total_items = sum(len(d["items"]) for d in dates)
+    total_qty = sum(it["qty"] for d in dates for it in d["items"])
+    print(f"[inbound] {len(dates)}개 입고일, {total_items}품목, 총 {total_qty:,}개 → KV 저장")
+
+
 def git_push():
     os.chdir(REPO)
     subprocess.run(["git", "add", "data/sales-dash.json", "data/sales-sku/"], check=True)
@@ -305,8 +371,12 @@ def git_push():
     msg = f"판매 데이터 자동 갱신 ({today})"
     subprocess.run(["git", "commit", "-m", msg], check=True)
     # untracked 파일 때문에 rebase 실패하지 않도록 stash 처리
-    stash = subprocess.run(["git", "stash", "-u"], capture_output=True, text=True)
-    stashed = "No local changes" not in stash.stdout
+    stash = subprocess.run(
+        ["git", "stash", "-u"],
+        capture_output=True, text=True,
+        encoding="utf-8", errors="replace",
+    )
+    stashed = "No local changes" not in (stash.stdout or "")
     try:
         subprocess.run(["git", "pull", "--rebase"], check=False)
         subprocess.run(["git", "push"], check=True)
@@ -323,7 +393,10 @@ def main():
     # 1) 대시보드 — 항상 갱신
     refresh_sales_dash(mcp)
 
-    # 2) sales-sku — DB에 새 데이터가 있을 때만
+    # 2) 입고리스트 — mart_purchase_incoming → KV
+    refresh_inbound(mcp)
+
+    # 3) sales-sku — DB에 새 데이터가 있을 때만
     today = dt.date.today()
     cm = today.strftime("%Y-%m")
     db_latest = db_latest_coupang_date(mcp)
