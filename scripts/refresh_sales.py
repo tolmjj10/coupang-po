@@ -72,19 +72,24 @@ class McpSession:
             return None
         ct = r.headers.get("content-type", "")
         if ct.startswith("text/event-stream"):
-            # SSE: 큰 응답은 data: 라인 여러 개로 분할 전송됨 → 이벤트 단위로 재조립
+            # SSE: 이벤트 단위로 파싱. 하나의 이벤트는 여러 data: 라인(\n으로 재결합)으로 나올 수 있음.
             events, current = [], []
             for line in r.text.split("\n"):
                 if line.startswith("data:"):
                     current.append(line[5:].lstrip())
                 elif line.strip() == "":
                     if current:
-                        try: events.append(json.loads("\n".join(current)))
-                        except json.JSONDecodeError: pass
+                        try:
+                            events.append(json.loads("\n".join(current)))
+                        except json.JSONDecodeError:
+                            pass
                         current = []
             if current:
-                try: events.append(json.loads("\n".join(current)))
-                except json.JSONDecodeError: pass
+                try:
+                    events.append(json.loads("\n".join(current)))
+                except json.JSONDecodeError:
+                    pass
+            # 이번 요청에 해당하는 id의 응답 반환
             for e in events:
                 if "id" in e and e.get("id") == payload.get("id"):
                     return e
@@ -312,6 +317,7 @@ def update_index():
 def refresh_inbound(mcp):
     """mart_purchase_incoming → 오아/보아르 + 하이픈≤1 필터 + 날짜별 집계 → /api/inbound-state 저장."""
     today = dt.date.today()
+    # 오늘 이후 90일치
     end = today + dt.timedelta(days=90)
     sql = (
         "SELECT eta_warehouse, product_name, SUM(qty) qty "
@@ -325,6 +331,7 @@ def refresh_inbound(mcp):
     res = mcp.run_query(sql)
     rows = res["rows"]
 
+    # 날짜별 그룹
     WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
     by_date = {}
     for r in rows:
@@ -344,12 +351,17 @@ def refresh_inbound(mcp):
         by_date[d_str]["items"].append({"name": name, "qty": qty, "foc": False})
 
     dates = [by_date[k] for k in sorted(by_date.keys())]
-    parsed = {"sheetName": f"auto-{today.isoformat()}", "dates": dates}
+    parsed = {
+        "sheetName": f"auto-{today.isoformat()}",
+        "dates": dates,
+    }
+
     body = {
         "filename": f"[자동] oa_ops.mart_purchase_incoming ({today.isoformat()})",
         "updated_at": dt.datetime.now().isoformat(),
         "parsed": parsed,
     }
+
     r = requests.post(
         "https://coupang-po.pages.dev/api/inbound-state",
         json=body, timeout=30,
@@ -371,12 +383,8 @@ def git_push():
     msg = f"판매 데이터 자동 갱신 ({today})"
     subprocess.run(["git", "commit", "-m", msg], check=True)
     # untracked 파일 때문에 rebase 실패하지 않도록 stash 처리
-    stash = subprocess.run(
-        ["git", "stash", "-u"],
-        capture_output=True, text=True,
-        encoding="utf-8", errors="replace",
-    )
-    stashed = "No local changes" not in (stash.stdout or "")
+    stash = subprocess.run(["git", "stash", "-u"], capture_output=True, text=True)
+    stashed = "No local changes" not in stash.stdout
     try:
         subprocess.run(["git", "pull", "--rebase"], check=False)
         subprocess.run(["git", "push"], check=True)
@@ -393,7 +401,7 @@ def main():
     # 1) 대시보드 — 항상 갱신
     refresh_sales_dash(mcp)
 
-    # 2) 입고리스트 — mart_purchase_incoming → KV
+    # 2) 입고리스트 — mart_purchase_incoming
     refresh_inbound(mcp)
 
     # 3) sales-sku — DB에 새 데이터가 있을 때만
