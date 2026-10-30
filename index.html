@@ -568,8 +568,8 @@
   document.querySelectorAll('.card-link').forEach(el => {
     el.addEventListener('click', () => showTarget(el.dataset.link));
   });
-  document.getElementById('brand-home').addEventListener('click', () => showTarget(null));
-  document.getElementById('nav-home').addEventListener('click', (e) => { e.stopPropagation(); showTarget(null); });
+  document.getElementById('brand-home').addEventListener('click', () => { closeSubbar(); showTarget(null); });
+  document.getElementById('nav-home').addEventListener('click', (e) => { e.stopPropagation(); closeSubbar(); showTarget(null); });
 
   const hash = (location.hash || '').replace('#','');
   showTarget(frames[hash] ? hash : null);
