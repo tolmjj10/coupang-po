@@ -43,18 +43,26 @@ python scripts\refresh_sales.py
 
 ### 3. Windows 작업 스케줄러 등록
 
-**방법 A: PowerShell 1줄로 등록 (관리자 권한 필요 없음)**
+**PowerShell로 등록** (경로에 공백 있으면 `schtasks` CLI가 못 다루니 반드시 아래 방식 사용):
 
 ```powershell
-schtasks /create /tn "쿠팡 판매 데이터 갱신" /tr "C:\Users\admin\Desktop\17. claude\po\scripts\refresh_sales.bat" /sc daily /st 09:00 /f
+$action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument '/c ""C:\Users\admin\Desktop\17. claude\po\scripts\refresh_sales.bat""'
+$trigger = New-ScheduledTaskTrigger -Daily -At 9:00am
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 1)
+Register-ScheduledTask -TaskName "쿠팡 판매 데이터 갱신" -Action $action -Trigger $trigger -Settings $settings -Force
 ```
 
-**방법 B: GUI**
-1. `작업 스케줄러` 열기 → `기본 작업 만들기`
-2. 이름: `쿠팡 판매 데이터 갱신`
-3. 트리거: **매일**, 시작 **09:00**
-4. 동작: **프로그램 시작**, 프로그램: `C:\Users\admin\Desktop\17. claude\po\scripts\refresh_sales.bat`
-5. 마침
+- `StartWhenAvailable`: PC가 09:00에 꺼져 있었다면 켜졌을 때 자동 실행
+- `ExecutionTimeLimit 1시간`: 1시간 넘으면 강제 종료 (hang 방지)
+
+**지금 바로 테스트:**
+```powershell
+Start-ScheduledTask -TaskName "쿠팡 판매 데이터 갱신"
+# 20초 대기 후:
+Get-ScheduledTaskInfo -TaskName "쿠팡 판매 데이터 갱신" | fl LastRunTime, LastTaskResult
+Get-Content scripts\refresh_sales.log -Encoding utf8 -Tail 20
+```
+`LastTaskResult: 0` 이면 성공.
 
 ### 4. 작동 확인
 
