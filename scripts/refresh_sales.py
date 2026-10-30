@@ -316,21 +316,51 @@ def update_index():
 
 
 def refresh_inbound(mcp):
-    """mart_purchase_incoming → 오아/보아르 + 하이픈≤1 필터 + 날짜별 집계 → /api/inbound-state 저장."""
+    """mart_purchase_incoming → 오아/보아르 + 마진(≠단종)/신제품 등록 상품만 → 날짜별 집계 → /api/inbound-state."""
+    def norm(s):
+        return (s or "").strip().replace(" ", "").lower()
+
+    # 1) 허용 상품명 세팅: 마진테이블(단종 제외) + 신제품
+    allowed = set()
+    try:
+        mg = requests.get("https://coupang-po.pages.dev/api/margin-state", timeout=15).json()
+        mg_rows = mg if isinstance(mg, list) else mg.get("rows", [])
+        for r in mg_rows:
+            nm = (r.get("name") or "").strip()
+            status = (r.get("status") or "").strip()
+            if nm and status != "단종":
+                allowed.add(norm(nm))
+    except Exception as e:
+        print(f"[inbound] 마진테이블 로드 실패: {e}")
+    try:
+        ns = requests.get("https://coupang-po.pages.dev/api/new-state", timeout=15).json()
+        ns_rows = ns if isinstance(ns, list) else ns.get("rows", [])
+        for r in ns_rows:
+            for key in ("realName", "regName"):
+                nm = (r.get(key) or "").strip()
+                if nm:
+                    allowed.add(norm(nm))
+    except Exception as e:
+        print(f"[inbound] 신제품 로드 실패: {e}")
+    print(f"[inbound] 허용 상품명 {len(allowed)}개 (마진 단종제외 + 신제품)")
+
+    # 2) DB 쿼리 (오아/보아르 전체 — 부속품도 가져옴, 매칭으로 필터)
     today = dt.date.today()
-    # 오늘 이후 90일치
     end = today + dt.timedelta(days=90)
     sql = (
         "SELECT eta_warehouse, product_name, SUM(qty) qty "
         "FROM mart_purchase_incoming "
         f"WHERE eta_warehouse BETWEEN '{today}' AND '{end}' "
         "  AND (product_name LIKE '오아%' OR product_name LIKE '보아르%') "
-        "  AND product_name NOT LIKE '%-%-%' "
         "GROUP BY eta_warehouse, product_name "
         "ORDER BY eta_warehouse, qty DESC"
     )
     res = mcp.run_query(sql)
     rows = res["rows"]
+    before = len(rows)
+    if allowed:
+        rows = [r for r in rows if norm(r["product_name"]) in allowed]
+    print(f"[inbound] 매칭 필터: {before} → {len(rows)}건")
 
     # 날짜별 그룹
     WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
