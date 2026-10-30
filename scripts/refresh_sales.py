@@ -383,8 +383,12 @@ def git_push():
     msg = f"판매 데이터 자동 갱신 ({today})"
     subprocess.run(["git", "commit", "-m", msg], check=True)
     # untracked 파일 때문에 rebase 실패하지 않도록 stash 처리
-    stash = subprocess.run(["git", "stash", "-u"], capture_output=True, text=True)
-    stashed = "No local changes" not in stash.stdout
+    stash = subprocess.run(
+        ["git", "stash", "-u"],
+        capture_output=True, text=True,
+        encoding="utf-8", errors="replace",
+    )
+    stashed = "No local changes" not in (stash.stdout or "")
     try:
         subprocess.run(["git", "pull", "--rebase"], check=False)
         subprocess.run(["git", "push"], check=True)
