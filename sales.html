@@ -257,7 +257,7 @@
 
   function loadMonth(ym) {
     if (cache[ym]) return Promise.resolve(cache[ym]);
-    return fetch(`data/sales-sku-${ym}.json`, { cache: 'no-cache' })
+    return fetch(`data/sales-sku/${ym}.json`, { cache: 'no-cache' })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(d => { cache[ym] = d; return d; });
   }
@@ -612,9 +612,9 @@
   });
 
   Promise.all([
-    fetch('data/sales-sku-index.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+    fetch('data/sales-sku/index.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : Promise.reject(r.status)),
     fetch('/api/margin-state', { cache: 'no-cache' }).then(r => r.ok ? r.json() : { rows: [] }).catch(() => ({ rows: [] })),
-    fetch('data/sales-sku-master.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : { skus: {} }).catch(() => ({ skus: {} }))
+    fetch('data/sales-sku/master.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : { skus: {} }).catch(() => ({ skus: {} }))
   ]).then(([m, ms, mm]) => {
     manifest = m;
     availableMonths = m.months.slice().sort();
