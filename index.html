@@ -500,23 +500,27 @@
     });
   }
 
+  function closeSubbar() {
+    if (!visibleGroup) return;
+    visibleGroup = null;
+    renderSubbar(null);
+    document.querySelectorAll('.nav-group.subbar-open').forEach(g => g.classList.remove('subbar-open'));
+  }
+
   function showTarget(target) {
     // 상단바 상위 nav-item active 토글
     document.querySelectorAll('.topbar > .nav-item[data-target]').forEach(i =>
       i.classList.toggle('active', i.dataset.target === target));
     document.getElementById('nav-home').classList.toggle('active', !target);
 
-    // 그룹 밑줄 (상단바 트리거에도) — 실제 자식 선택 시에만
+    // 그룹 밑줄 — 실제 자식이 선택된 상태 유지
     const targetGroup = groupOfTarget(target);
     document.querySelectorAll('.nav-group').forEach(g => {
       g.classList.toggle('active-group', g.dataset.group === targetGroup);
     });
 
-    // 서브바: 네비 대상이 그룹 내 항목이면 그 그룹 표시, 아니면 숨김
-    visibleGroup = targetGroup;
-    document.querySelectorAll('.nav-group').forEach(g =>
-      g.classList.toggle('subbar-open', g.dataset.group === visibleGroup));
-    renderSubbar(visibleGroup, target);
+    // 네비게이션 발생 시 서브바는 항상 닫음
+    closeSubbar();
 
     if (target) ensureLoaded(target);
     Object.entries(frames).forEach(([k, f]) => f.classList.toggle('active', k === target));
@@ -535,29 +539,31 @@
     });
   });
 
-  // 그룹 트리거(상품/판매) — 서브바 토글만 하고 네비게이션은 안 함
+  // 그룹 트리거(상품/발주/판매) — 서브바 토글만 하고 네비게이션은 안 함
   document.querySelectorAll('.nav-group').forEach(group => {
     const trigger = group.querySelector('.nav-trigger');
     trigger.addEventListener('click', (e) => {
       e.stopPropagation();
       const name = group.dataset.group;
       if (visibleGroup === name) {
-        // 이미 열려있는 상태에서 다시 누르면: 현재 선택된 항목이 이 그룹 안에 있으면 유지, 아니면 닫기
-        const currentHash = (location.hash || '').replace('#','');
-        if (groupOfTarget(currentHash) !== name) {
-          visibleGroup = null;
-          renderSubbar(null);
-        }
+        closeSubbar();
       } else {
         visibleGroup = name;
         const currentHash = (location.hash || '').replace('#','');
         renderSubbar(name, currentHash);
+        document.querySelectorAll('.nav-group').forEach(g =>
+          g.classList.toggle('subbar-open', g.dataset.group === visibleGroup));
       }
-      // 서브바 열림 상태 → 캐럿 회전만. 밑줄(active-group)은 자식이 실제 선택된 상태에서만.
-      document.querySelectorAll('.nav-group').forEach(g =>
-        g.classList.toggle('subbar-open', g.dataset.group === visibleGroup));
     });
   });
+
+  // 서브바 외부(상단바/서브바 아닌 곳) 클릭 시 서브바 닫기
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.topbar') || e.target.closest('.subbar')) return;
+    closeSubbar();
+  });
+  // iframe 내부 클릭은 부모 창에서 blur 로 감지됨 → 서브바 닫기
+  window.addEventListener('blur', closeSubbar);
 
   document.querySelectorAll('.card-link').forEach(el => {
     el.addEventListener('click', () => showTarget(el.dataset.link));
