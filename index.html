@@ -23,6 +23,10 @@
     --accent-light: #f2ede9;
     --sage: #b1c0b2;
     --sage-soft: #e6ece6;
+    /* 기능색 (상태 신호 — 베이스 어스톤과 조화) */
+    --ok: #6e8a6a;        --ok-soft:   #e8efe6;
+    --warn: #c9995a;      --warn-soft: #f5ead7;
+    --neg: #b05858;       --neg-soft:  #f2dede;
   }
   html, body {
     margin: 0; padding: 0; height: 100%;
@@ -74,14 +78,14 @@
     display: flex; align-items: center; gap: 7px;
     padding: 7px 14px;
     border-radius: 8px;
-    font-size: 13px; font-weight: 600;
+    font-size: 14px; font-weight: 600;
     color: var(--text);
     cursor: pointer; user-select: none;
-    transition: color .12s ease;
+    transition: color .12s ease, font-weight .12s ease;
     white-space: nowrap;
   }
-  .nav-item:hover { color: var(--accent-dark); }
-  .nav-item.active { color: var(--accent-dark); }
+  .nav-item:hover { color: #000; font-weight: 700; }
+  .nav-item.active { color: #000; font-weight: 700; }
   /* 상단바 직속 항목만 밑줄 표시 (드롭다운 내부는 제외) */
   .topbar > .nav-item.active::after,
   .topbar > .nav-group.active-group .nav-trigger::after {
@@ -100,25 +104,37 @@
     width: 10px; height: 10px; opacity: 0.55;
     transition: transform .15s;
   }
-  .nav-group.open .nav-caret { transform: rotate(180deg); }
+  .nav-group.subbar-open .nav-caret { transform: rotate(180deg); }
 
   .nav-group { position: relative; }
-  .nav-dropdown {
-    position: absolute; top: calc(100% + 6px); left: 0;
-    background: #fff; border: 1px solid var(--border);
-    border-radius: 10px; padding: 5px;
-    min-width: 160px;
-    box-shadow: 0 10px 28px rgba(42,26,21,0.08);
+  /* 하위 항목은 숨겨서 데이터 소스로만 사용 (서브바가 대신 렌더) */
+  .nav-dropdown { display: none; }
+
+  /* 두 번째 가로줄: 그룹 선택 시 보여주는 서브바 (배경 없음) */
+  .subbar {
     display: none;
-    z-index: 200;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border-bottom: 1px solid var(--border);
+    padding: 6px 20px;
+    position: relative;
+    z-index: 90;
   }
-  .nav-group.open .nav-dropdown { display: block; }
-  .nav-dropdown .nav-item {
-    padding: 8px 12px; width: 100%; font-size: 12.5px;
-    transition: background .12s ease, color .12s ease;
+  .subbar.show { display: flex; }
+  .sub-item {
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-hint);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    transition: color .12s ease, font-weight .12s ease;
+    border-radius: 6px;
   }
-  .nav-dropdown .nav-item:hover { background: var(--accent-light); }
-  .nav-dropdown .nav-item.active { background: var(--accent-light); }
+  .sub-item:hover { color: #000; font-weight: 700; }
+  .sub-item.active { color: #000; font-weight: 700; }
 
   .content {
     flex: 1;
@@ -204,9 +220,12 @@
   .promo-type.gold { background: #efe4ea; color: #6a4a5a; }
   .promo-type.time { background: #e6ece6; color: #4a5748; }
   .promo-date { font-size: 11.5px; color: var(--text-hint); font-variant-numeric: tabular-nums; min-width: 92px; flex-shrink: 0; }
-  .promo-dday { font-size: 10.5px; font-weight: 700; color: var(--accent-dark); min-width: 32px; text-align: right; flex-shrink: 0; }
+  .promo-dday { font-size: 10.5px; font-weight: 700; color: var(--text-hint); min-width: 36px; text-align: right; flex-shrink: 0; }
+  .promo-dday.urgent { color: var(--neg); }
+  .promo-dday.soon   { color: var(--warn); }
   .promo-name, .new-name { flex: 1; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .new-days { font-size: 10.5px; font-weight: 700; color: var(--neg, #b05858); flex-shrink: 0; }
+  .new-days { font-size: 10.5px; font-weight: 700; color: var(--warn); flex-shrink: 0; }
+  .new-days.critical { color: var(--neg); }
   .empty-state {
     flex: 1; display: flex; align-items: center; justify-content: center;
     color: var(--text-hint); font-size: 12px; padding: 24px 0;
@@ -226,6 +245,10 @@
   .sales-kpi .k-sub { font-size: 10.5px; color: var(--text-hint); margin-top: 2px; font-variant-numeric: tabular-nums; }
   .sales-kpi.ly { background: #fff; }
   .sales-kpi.ly .k-value { color: var(--text-hint); font-size: 14px; }
+  .k-delta { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; vertical-align: 2px; }
+  .k-delta.up   { color: var(--ok);  background: var(--ok-soft); }
+  .k-delta.down { color: var(--neg); background: var(--neg-soft); }
+  .k-delta.flat { color: var(--text-hint); background: var(--accent-light); }
 
   /* 차트 */
   .chart-wrap { position: relative; width: 100%; height: 220px; }
@@ -253,6 +276,9 @@
     .brand { margin-right: 6px; }
     .brand .title { font-size: 13px; }
     .nav-item { padding: 6px 10px; font-size: 12.5px; }
+    .subbar { padding: 6px 10px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .subbar::-webkit-scrollbar { display: none; }
+    .sub-item { padding: 6px 10px; font-size: 12px; }
 
     .content { height: auto; min-height: calc(100vh - 50px); }
     .landing { padding: 16px 14px 24px; }
@@ -317,6 +343,9 @@
     <!-- 정산 -->
     <div class="nav-item" data-target="settlement"><span>정산</span></div>
   </nav>
+
+  <!-- 그룹 선택 시 나타나는 하위 서브바 -->
+  <div class="subbar" id="subbar"></div>
 
   <main class="content">
     <div id="landing" class="landing">
@@ -413,47 +442,111 @@
     if (!f.src && f.dataset.src) f.src = f.dataset.src;
   }
 
+  // 그룹별 하위 항목 데이터 (HTML .nav-dropdown에서 추출)
+  const GROUPS = {};
+  document.querySelectorAll('.nav-group').forEach(g => {
+    const name = g.dataset.group;
+    const items = [...g.querySelectorAll('.nav-dropdown .nav-item[data-target]')]
+      .map(el => ({ target: el.dataset.target, label: el.textContent.trim() }));
+    GROUPS[name] = items;
+  });
+  const groupOfTarget = (t) => {
+    for (const [g, items] of Object.entries(GROUPS)) {
+      if (items.some(it => it.target === t)) return g;
+    }
+    return null;
+  };
+
+  // 현재 서브바에 표시 중인 그룹 (사용자가 트리거만 눌러 열어둔 경우 포함)
+  let visibleGroup = null;
+  const subbar = document.getElementById('subbar');
+
+  function renderSubbar(groupName, activeTarget) {
+    if (!groupName) {
+      subbar.classList.remove('show');
+      subbar.innerHTML = '';
+      subbar.style.paddingLeft = '';
+      return;
+    }
+    const items = GROUPS[groupName] || [];
+    subbar.innerHTML = items.map(it =>
+      `<div class="sub-item ${it.target === activeTarget ? 'active' : ''}" data-target="${it.target}">${it.label}</div>`
+    ).join('');
+    subbar.classList.add('show');
+    // 트리거 버튼의 가로 위치에 맞춰 좌측 패딩 설정 → 서브 항목이 상단 트리거 바로 아래 정렬
+    const trigger = document.querySelector(`.nav-group[data-group="${groupName}"] .nav-trigger`);
+    if (trigger) {
+      const topbar = document.querySelector('.topbar');
+      const tRect = trigger.getBoundingClientRect();
+      const bRect = topbar.getBoundingClientRect();
+      subbar.style.paddingLeft = Math.max(0, tRect.left - bRect.left) + 'px';
+    }
+    subbar.querySelectorAll('.sub-item').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showTarget(el.dataset.target);
+      });
+    });
+  }
+
   function showTarget(target) {
-    document.querySelectorAll('.nav-item[data-target]').forEach(i =>
+    // 상단바 상위 nav-item active 토글
+    document.querySelectorAll('.topbar > .nav-item[data-target]').forEach(i =>
       i.classList.toggle('active', i.dataset.target === target));
     document.getElementById('nav-home').classList.toggle('active', !target);
+
+    // 그룹 밑줄 (상단바 트리거에도) — 실제 자식 선택 시에만
+    const targetGroup = groupOfTarget(target);
     document.querySelectorAll('.nav-group').forEach(g => {
-      const hasActive = !!g.querySelector('.nav-item[data-target].active');
-      g.classList.toggle('active-group', hasActive);
+      g.classList.toggle('active-group', g.dataset.group === targetGroup);
     });
+
+    // 서브바: 네비 대상이 그룹 내 항목이면 그 그룹 표시, 아니면 숨김
+    visibleGroup = targetGroup;
+    document.querySelectorAll('.nav-group').forEach(g =>
+      g.classList.toggle('subbar-open', g.dataset.group === visibleGroup));
+    renderSubbar(visibleGroup, target);
+
     if (target) ensureLoaded(target);
     Object.entries(frames).forEach(([k, f]) => f.classList.toggle('active', k === target));
     landing.classList.toggle('active', !target);
-    closeAllGroups();
     if (!target && typeof window.__redrawDashChart === 'function') {
       requestAnimationFrame(() => window.__redrawDashChart());
     }
     try { history.replaceState(null, '', target ? '#' + target : location.pathname); } catch(e) {}
   }
 
-  // 리프 nav-item (data-target 가진 것들)
-  document.querySelectorAll('.nav-item[data-target]').forEach(el => {
+  // 리프(직접 네비게이션하는) 항목
+  document.querySelectorAll('.topbar > .nav-item[data-target]').forEach(el => {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       showTarget(el.dataset.target);
     });
   });
 
-  // 드롭다운 토글
-  function closeAllGroups() {
-    document.querySelectorAll('.nav-group.open').forEach(g => g.classList.remove('open'));
-  }
+  // 그룹 트리거(상품/판매) — 서브바 토글만 하고 네비게이션은 안 함
   document.querySelectorAll('.nav-group').forEach(group => {
     const trigger = group.querySelector('.nav-trigger');
     trigger.addEventListener('click', (e) => {
       e.stopPropagation();
-      const wasOpen = group.classList.contains('open');
-      closeAllGroups();
-      if (!wasOpen) group.classList.add('open');
+      const name = group.dataset.group;
+      if (visibleGroup === name) {
+        // 이미 열려있는 상태에서 다시 누르면: 현재 선택된 항목이 이 그룹 안에 있으면 유지, 아니면 닫기
+        const currentHash = (location.hash || '').replace('#','');
+        if (groupOfTarget(currentHash) !== name) {
+          visibleGroup = null;
+          renderSubbar(null);
+        }
+      } else {
+        visibleGroup = name;
+        const currentHash = (location.hash || '').replace('#','');
+        renderSubbar(name, currentHash);
+      }
+      // 서브바 열림 상태 → 캐럿 회전만. 밑줄(active-group)은 자식이 실제 선택된 상태에서만.
+      document.querySelectorAll('.nav-group').forEach(g =>
+        g.classList.toggle('subbar-open', g.dataset.group === visibleGroup));
     });
   });
-  // 외부 클릭 시 닫기
-  document.addEventListener('click', closeAllGroups);
 
   document.querySelectorAll('.card-link').forEach(el => {
     el.addEventListener('click', () => showTarget(el.dataset.link));
@@ -539,6 +632,7 @@
         const dd = diffDays(p.date) * -1; // 미래이므로 양수
         const cls = p.type === '골드박스' ? 'gold' : 'time';
         const ddLabel = dd === 0 ? '오늘' : `D-${dd}`;
+        const urgCls = dd <= 1 ? 'urgent' : (dd <= 3 ? 'soon' : '');
         const timeLabel = (p.type === '타임특가' && p.time) ? ` ${p.time}시` : '';
         const name = nameOf[String(p.skuId)] || p.title || (p.skuId ? `SKU ${p.skuId}` : '(이름 없음)');
         return `
@@ -546,7 +640,7 @@
             <span class="promo-type ${cls}">${p.type}</span>
             <span class="promo-date">${p.date.slice(5)}${timeLabel}</span>
             <span class="promo-name" title="${name.replace(/"/g,'&quot;')}">${name}</span>
-            <span class="promo-dday">${ddLabel}</span>
+            <span class="promo-dday ${urgCls}">${ddLabel}</span>
           </div>`;
       }).join('');
     }).catch(() => {
@@ -575,11 +669,14 @@
           newList.innerHTML = '<div class="empty-state">주의할 신제품이 없습니다</div>';
           return;
         }
-        newList.innerHTML = stuck.slice(0, 8).map(n => `
+        newList.innerHTML = stuck.slice(0, 8).map(n => {
+          const critCls = n.days >= 15 ? 'critical' : '';
+          return `
           <div class="new-row">
             <span class="new-name" title="${n.name.replace(/"/g,'&quot;')}">${n.name}</span>
-            <span class="new-days">${n.days}일째</span>
-          </div>`).join('');
+            <span class="new-days ${critCls}">${n.days}일째</span>
+          </div>`;
+        }).join('');
       });
 
     /* ───────── ③ 판매 요약 (실데이터) ─────────
@@ -596,8 +693,15 @@
           return;
         }
         const k = dash.kpi || {};
-        document.getElementById('kpi-out').textContent    = fmtWon(k.sales_this);
-        document.getElementById('kpi-in').textContent     = fmtWon(k.cost_this);
+        const deltaBadge = (now, ly) => {
+          if (!now || !ly) return '';
+          const pct = ((now - ly) / ly) * 100;
+          const cls = pct > 0.5 ? 'up' : (pct < -0.5 ? 'down' : 'flat');
+          const sign = pct > 0 ? '+' : '';
+          return ` <span class="k-delta ${cls}">${sign}${pct.toFixed(1)}%</span>`;
+        };
+        document.getElementById('kpi-out').innerHTML    = fmtWon(k.sales_this) + deltaBadge(k.sales_this, k.sales_ly);
+        document.getElementById('kpi-in').innerHTML     = fmtWon(k.cost_this)  + deltaBadge(k.cost_this,  k.cost_ly);
         document.getElementById('kpi-out-ly').textContent = fmtWon(k.sales_ly);
         document.getElementById('kpi-in-ly').textContent  = fmtWon(k.cost_ly);
 
@@ -692,7 +796,14 @@
     let rT;
     window.addEventListener('resize', () => {
       clearTimeout(rT);
-      rT = setTimeout(() => drawChart(data), 120);
+      rT = setTimeout(() => {
+        drawChart(data);
+        // 서브바가 열려 있으면 트리거 위치에 맞춰 재정렬
+        if (visibleGroup) {
+          const currentHash = (location.hash || '').replace('#','');
+          renderSubbar(visibleGroup, currentHash);
+        }
+      }, 120);
     });
 
     // 랜딩이 보일 때 재렌더 (iframe 전환 → 홈 복귀 등)
