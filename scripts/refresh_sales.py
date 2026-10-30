@@ -65,6 +65,7 @@ class McpSession:
             headers["mcp-session-id"] = self._sid
         r = self.sess.post(self.url, json=payload, headers=headers, timeout=120)
         r.raise_for_status()
+        r.encoding = "utf-8"  # 서버가 charset 안 보내면 requests가 Latin-1으로 디코딩해 한글 깨짐
         sid = r.headers.get("mcp-session-id")
         if sid:
             self._sid = sid
@@ -362,9 +363,12 @@ def refresh_inbound(mcp):
         "parsed": parsed,
     }
 
+    # json= 대신 UTF-8 명시 바이트로 전송 (한글 이중 인코딩 방지)
     r = requests.post(
         "https://coupang-po.pages.dev/api/inbound-state",
-        json=body, timeout=30,
+        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json; charset=utf-8"},
+        timeout=30,
     )
     r.raise_for_status()
     total_items = sum(len(d["items"]) for d in dates)
