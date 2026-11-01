@@ -1,18 +1,14 @@
 {
-  "updated_at": "2026-10-30",
+  "updated_at": "2026-11-02",
   "source": "oa_ops.mart_sales_daily · partner_name=쿠팡",
-  "current_month": "2026-10",
+  "current_month": "2026-11",
   "kpi": {
-    "sales_this": 1781526582,
-    "cost_this": 1167900306,
-    "sales_ly": 1362780131,
-    "cost_ly": 784638264
+    "sales_this": 301823,
+    "cost_this": 133968,
+    "sales_ly": 1358595942,
+    "cost_ly": 800256521
   },
   "trend_6m": [
-    {
-      "ym": "2026-05",
-      "cost": 1124518546
-    },
     {
       "ym": "2026-06",
       "cost": 943531278
@@ -31,7 +27,11 @@
     },
     {
       "ym": "2026-10",
-      "cost": 1167900306
+      "cost": 1173591660
+    },
+    {
+      "ym": "2026-11",
+      "cost": 133968
     }
   ]
 }
