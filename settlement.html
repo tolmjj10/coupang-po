@@ -269,26 +269,40 @@ function parseCoupon(file) {
 
 /* ─────────── 집계 ─────────── */
 const VAT_RATE = 1.1;
+const BRAND_CATS = new Set(['삼대오백', '온살']);
+const UNMATCHED_CATS = new Set(['오아 미매칭', '보아르 미매칭', '기타']);
+
+/* Largest Remainder Method: raw(float) 배열 합이 total(int)과 정확히 같도록 floor+잉여 분배. */
+function distributeRound(entries, total) {
+  const items = entries.map(([k, v]) => ({ k, floor: Math.floor(v), rem: v - Math.floor(v) }));
+  let diff = total - items.reduce((s, x) => s + x.floor, 0);
+  // 잉여를 remainder 큰 순으로 +1 (diff<0이면 작은 순으로 -1)
+  items.sort((a, b) => diff >= 0 ? b.rem - a.rem : a.rem - b.rem);
+  for (let i = 0; i < Math.abs(diff); i++) items[i].floor += Math.sign(diff);
+  const out = {};
+  for (const x of items) out[x.k] = x.floor;
+  return out;
+}
 
 function aggregate() {
   if (!maps || !cpcData || !couponData) return;
 
-  const byCat = {}; // cat → { cpc, coupon }
+  const byCat = {}; // cat → { cpc(float), coupon(int) }
   const bump = (cat, key, val) => {
     if (!byCat[cat]) byCat[cat] = { cpc: 0, coupon: 0 };
     byCat[cat][key] += val;
   };
 
-  // CPC: 캠페인ID → camp2viid → viid2sku → 카테. 광고비는 VAT 포함(×1.1).
-  let cpcMatched = 0, cpcUnmatched = 0;
+  // CPC: 캠페인ID → camp2viid → viid2sku → 카테. 광고비는 raw 기준으로 누적(VAT는 마지막에).
+  let cpcMatched = 0, cpcUnmatched = 0, totalRawCost = 0;
   for (const row of cpcData) {
     const cat = catForCamp(row.camp_id, row.camp_name);
-    const costVat = row.cost * VAT_RATE;
-    bump(cat, 'cpc', costVat);
-    if (cat === '기타') cpcUnmatched++; else cpcMatched++;
+    bump(cat, 'cpc', row.cost);
+    totalRawCost += row.cost;
+    if (UNMATCHED_CATS.has(cat)) cpcUnmatched++; else cpcMatched++;
   }
 
-  // 쿠폰: SKU → 카테
+  // 쿠폰: SKU → 카테 (정수)
   let cpnMatched = 0, cpnUnmatched = 0;
   for (const row of couponData) {
     const skuMeta = maps.sku2cat[row.sku];
@@ -307,20 +321,29 @@ function aggregate() {
     bump(cat, 'coupon', row.amount);
   }
 
-  render(byCat, { cpcMatched, cpcUnmatched, cpnMatched, cpnUnmatched });
+  // VAT 포함 전체 총액 = round(raw × 1.1) → 각 카테 분배도 이 합을 정확히 맞추도록 재조정
+  const totalCpcInt = Math.round(totalRawCost * VAT_RATE);
+  const perCatVat = Object.fromEntries(
+    Object.entries(byCat).map(([k, v]) => [k, v.cpc * VAT_RATE])
+  );
+  const roundedCpc = distributeRound(Object.entries(perCatVat), totalCpcInt);
+  for (const k of Object.keys(byCat)) byCat[k].cpc = roundedCpc[k] ?? 0;
+
+  render(byCat, { cpcMatched, cpcUnmatched, cpnMatched, cpnUnmatched, totalCpcInt });
 }
 
 /* ─────────── 렌더 ─────────── */
 function render(byCat, stats) {
   const cats = Object.entries(byCat);
-  const totalCpc = cats.reduce((s,[,v]) => s + v.cpc, 0);
+  const totalCpc = stats.totalCpcInt;
   const totalCpn = cats.reduce((s,[,v]) => s + v.coupon, 0);
   const totalAll = totalCpc + totalCpn;
 
-  // 정렬: 합계 내림차순. '기타'는 맨 아래
+  // 정렬 그룹: 0=오아/보아르 세분 카테, 1=브랜드(삼대오백/온살), 2=미매칭/기타
+  const groupOf = k => UNMATCHED_CATS.has(k) ? 2 : (BRAND_CATS.has(k) ? 1 : 0);
   const sorted = cats.sort((a,b) => {
-    if (a[0] === '기타') return 1;
-    if (b[0] === '기타') return -1;
+    const g = groupOf(a[0]) - groupOf(b[0]);
+    if (g !== 0) return g;
     return (b[1].cpc + b[1].coupon) - (a[1].cpc + a[1].coupon);
   });
 
