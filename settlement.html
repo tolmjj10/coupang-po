@@ -200,6 +200,7 @@ function classify(sku, brand, campName) {
   const text = `${campName || ''} ${nameHint}`;
   if (b === '삼대오백' || text.includes('삼대오백') || text.includes('뉴트리커먼')) return '삼대오백';
   if (text.includes('온살') || text.includes('루메어카이브') || text.includes('루메아카이브')) return '온살';
+  if (text.includes('올리미') || text.includes('히팅뷰러')) return '뷰티가전';
   if (sku && maps.sku2cat[sku] && (b === '오아' || b === '보아르' || nameHint.startsWith('오아') || nameHint.startsWith('보아르'))) {
     return maps.sku2cat[sku].cat;
   }
@@ -311,6 +312,7 @@ function aggregate() {
       const nm = skuMeta.name || '';
       if (nm.includes('삼대오백') || nm.includes('뉴트리커먼')) cat = '삼대오백';
       else if (nm.includes('온살') || nm.includes('루메어카이브') || nm.includes('루메아카이브')) cat = '온살';
+      else if (nm.includes('올리미') || nm.includes('히팅뷰러')) cat = '뷰티가전';
       else if (nm.startsWith('오아') || nm.startsWith('보아르')) cat = skuMeta.cat;
       else cat = skuMeta.cat || '기타';
       cpnMatched++;
