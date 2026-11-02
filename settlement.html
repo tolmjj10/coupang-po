@@ -406,7 +406,7 @@ function catForCamp(campId, campName) {
     if (!best || tally[c] > tally[best]) best = c;
   }
   if (best && best !== '기타') return best;
-  return classify(null, null, campName);
+  return '기타';  // 매핑 전혀 없거나 '기타' → 전부 '기타' (삼대오백 미매핑 등 포함)
 }
 
 /* ─────────── 엑셀 파싱 ─────────── */
@@ -491,8 +491,8 @@ function parseCoupon(file) {
 
 /* ─────────── 집계 ─────────── */
 const VAT_RATE = 1.1;
-const BRAND_CATS = new Set(['삼대오백', '온살']);
-const UNMATCHED_CATS = new Set(['오아 미매칭', '보아르 미매칭', '기타']);
+const BRAND_CATS = new Set();  // (더 이상 사용 안 함 — 삼대오백/온살은 UNMATCHED_CATS로 이동)
+const UNMATCHED_CATS = new Set(['삼대오백', '온살', '오아 미매칭', '보아르 미매칭', '기타']);
 
 /* Largest Remainder Method: raw(float) 배열 합이 total(int)과 정확히 같도록 floor+잉여 분배. */
 function distributeRound(entries, total) {
@@ -507,7 +507,7 @@ function distributeRound(entries, total) {
 }
 
 /* 캠페인 광고비 → SKU별 분배. 수동 SKU 최우선, 다음 camp_viid_cost 비율, 다음 camp2viid 균등. */
-function distributeCampCost(campId, totalRawCost) {
+function distributeCampCost(campId, totalRawCost, campCat) {
   const out = {};
   const manual = maps.manual_camp_sku && maps.manual_camp_sku[campId];
   const manualSkus = manual ? (manual.skus || (Array.isArray(manual) ? manual : [])) : [];
@@ -535,7 +535,9 @@ function distributeCampCost(campId, totalRawCost) {
   const viids = maps.camp2viid[campId] || [];
   const skus = [...new Set(viids.map(v => maps.viid2sku[v] && maps.viid2sku[v].sku).filter(Boolean))];
   if (skus.length === 0) {
-    out['__nocamp__'] = totalRawCost;
+    // 매핑 전혀 없음 → 캠페인별 가상 SKU로 카테에 귀속 (__nocamp__ 몰빵 방지)
+    const safeCat = campCat || '기타';
+    out[`__cat_${safeCat}_${campId}`] = totalRawCost;
     return out;
   }
   const per = totalRawCost / skus.length;
@@ -605,7 +607,7 @@ function aggregate() {
     totalRawCost += row.cost;
     if (UNMATCHED_CATS.has(cat)) cpcUnmatched++; else cpcMatched++;
     // SKU 분배
-    const dist = distributeCampCost(row.camp_id, row.cost);
+    const dist = distributeCampCost(row.camp_id, row.cost, cat);
     for (const [sku, cost] of Object.entries(dist)) {
       skuEnsure(sku).cpc += cost;
     }
@@ -732,7 +734,7 @@ function render(byCat, stats) {
 window.setFilterCat = (cat) => { filterCat = (filterCat === cat) ? '' : cat; renderSkuTable(); };
 window.setFilterSearch = (q) => { filterSearch = q || ''; renderSkuTable(); };
 window.clearSearch = () => { filterSearch = ''; renderSkuTable(); };
-let collapsedCats = new Set(['기타']);  // 기본 접힘
+let collapsedCats = new Set(['기타', '삼대오백', '온살', '오아 미매칭', '보아르 미매칭']);  // 기본 접힘
 window.toggleCat = (cat) => {
   if (collapsedCats.has(cat)) collapsedCats.delete(cat); else collapsedCats.add(cat);
   renderSkuTable();
