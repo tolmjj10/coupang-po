@@ -140,14 +140,14 @@
     <div class="drop cpc" id="drop-cpc">
       <div class="drop-tag">파일 1 · CPC 광고비</div>
       <div class="drop-title">광고 정산 엑셀</div>
-      <div class="drop-hint">pa_total_campaign…xlsx</div>
+      <div class="drop-hint">A00065399-dailySettlement-…xlsx</div>
       <div class="drop-file" id="file-cpc" hidden></div>
       <input type="file" accept=".xlsx,.xls" />
     </div>
     <div class="drop coupon" id="drop-coupon">
       <div class="drop-tag">파일 2 · 쿠폰비</div>
-      <div class="drop-title">쿠폰 정산 엑셀</div>
-      <div class="drop-hint">Coupang_Stocked_Data_List…xlsx</div>
+      <div class="drop-title">쿠폰 정산 파일</div>
+      <div class="drop-hint">coupon_YYYY_MM_DD (N).xls</div>
       <div class="drop-file" id="file-coupon" hidden></div>
       <input type="file" accept=".xlsx,.xls" />
     </div>
@@ -171,9 +171,9 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const fmtWon = n => (n==null||isNaN(n)) ? '—' : Number(n).toLocaleString('ko-KR');
 
 /* ─────────── 상태 ─────────── */
-let maps = null;             // { viid2sku: {viid: {sku, brand}}, sku2cat: {sku: {cat, name}} }
-let cpcData = null;          // [{camp_id, viid, cost, camp_name}]
-let couponData = null;       // [{sku, amount}]
+let maps = null;             // { viid2sku, sku2cat, camp2viid, camp_name }
+let cpcData = null;          // [{camp_id, cost, camp_name}]  (청구 소진 광고비 기준)
+let couponData = null;       // [{sku, amount}]  (|펀딩금액|)
 
 /* ─────────── 매핑 로드 ─────────── */
 async function loadMaps() {
@@ -181,13 +181,13 @@ async function loadMaps() {
   try {
     const res = await fetch('/api/settlement-maps', { cache: 'no-cache' });
     const data = await res.json();
-    if (!data || !data.viid2sku || !data.sku2cat) {
-      info.innerHTML = '<span class="bad">매핑 미설정</span> — 관리자가 /api/settlement-maps에 매핑을 올려야 합니다';
+    if (!data || !data.viid2sku || !data.sku2cat || !data.camp2viid) {
+      info.innerHTML = '<span class="bad">매핑 미설정</span> — viid2sku/sku2cat/camp2viid 필요';
       maps = null;
       return;
     }
     maps = data;
-    info.innerHTML = `<span class="ok">매핑 로드됨</span> · VIID→SKU ${Object.keys(maps.viid2sku).length.toLocaleString()}개 · SKU→카테 ${Object.keys(maps.sku2cat).length.toLocaleString()}개 · 갱신 ${esc(maps.updated_at || '')}`;
+    info.innerHTML = `<span class="ok">매핑 로드됨</span> · VIID→SKU ${Object.keys(maps.viid2sku).length.toLocaleString()} · SKU→카테 ${Object.keys(maps.sku2cat).length.toLocaleString()} · 캠페인→VIID ${Object.keys(maps.camp2viid).length.toLocaleString()} · 갱신 ${esc(maps.updated_at || '')}`;
   } catch (e) {
     info.innerHTML = '<span class="bad">매핑 로드 실패</span>';
   }
@@ -208,73 +208,87 @@ function classify(sku, brand, campName) {
   return '기타';
 }
 
-/* ─────────── 엑셀 파싱 ─────────── */
-function parseCPC(wb) {
-  // pa_total_campaign 구조: col 4=캠페인 ID, 5=캠페인명, 8=광고집행 옵션ID(VIID), 15=광고비
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-  const rows = [];
-  for (let i = 1; i < aoa.length; i++) {  // skip header
-    const r = aoa[i];
-    const campId = r[3];
-    const campName = r[4];
-    const viid = r[7];
-    const cost = Number(r[14]);
-    if (!campId || !cost) continue;
-    rows.push({
-      camp_id: String(campId).replace(/\.0$/,'').trim(),
-      camp_name: String(campName || '').trim(),
-      viid: viid ? String(viid).replace(/\.0$/,'').trim() : '',
-      cost,
-    });
+/* 캠페인 → 카테 (여러 VIID 중 다수 카테를 집계해 다수결, 없으면 캠페인명) */
+function catForCamp(campId, campName) {
+  const viids = maps.camp2viid[campId] || [];
+  const tally = {};
+  let best = null;
+  for (const v of viids) {
+    const m = maps.viid2sku[v];
+    if (!m) continue;
+    const c = classify(m.sku, m.brand, campName);
+    tally[c] = (tally[c] || 0) + 1;
+    if (!best || tally[c] > tally[best]) best = c;
   }
-  return rows;
+  if (best && best !== '기타') return best;
+  return classify(null, null, campName);
 }
 
-function parseCoupon(wb) {
-  // Coupang_Stocked_Data_List 구조: col 3=SKU번호, col 12=총단가
-  // 헤더 행: '구분','번호','SKU번호','SKU명','입고/반출시각','물류센터','세금타입','수량','단가','공급가액','세액','총단가',...
+/* ─────────── 엑셀 파싱 ─────────── */
+function parseCPC(wb) {
+  // dailySettlement 구조 (0-indexed):
+  //   col 7 = 캠페인 ID, col 8 = 캠페인명, col 16 = 청구 소진 광고비
+  // row 0 헤더, row 1 = '전체' 요약 (스킵), row 2+ 일별+캠페인별 상세.
   const ws = wb.Sheets[wb.SheetNames[0]];
   const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-  const rows = [];
-  // 1열(col 0) 구분이 있는 행만 (헤더 이후)
+  const byCamp = {}; // camp_id → { cost, camp_name }
   for (let i = 1; i < aoa.length; i++) {
     const r = aoa[i];
-    const gubun = r[0];                                  // '발주' / '반출'
-    const sku = r[2];
-    const totalUnit = r[11];                             // 총단가
-    if (!sku) continue;
-    const amount = Number(String(totalUnit).replace(/,/g,''));
-    if (!amount) continue;
-    const sign = gubun === '반출' ? -1 : 1;
-    rows.push({ sku: String(sku).trim(), amount: amount * sign });
+    const campId = r[7];
+    if (!campId || typeof campId !== 'number') continue;  // 요약행/일별소계 스킵
+    const cid = String(Math.round(campId));
+    const campName = String(r[8] || '').trim();
+    const cost = Number(r[16]) || 0;
+    if (!cost) continue;
+    if (!byCamp[cid]) byCamp[cid] = { cost: 0, camp_name: campName };
+    byCamp[cid].cost += cost;
+    if (campName && !byCamp[cid].camp_name) byCamp[cid].camp_name = campName;
   }
-  return rows;
+  return Object.entries(byCamp).map(([camp_id, v]) => ({ camp_id, cost: v.cost, camp_name: v.camp_name }));
+}
+
+function parseCoupon(file) {
+  // HTML xls 포맷: SKU 번호 (col 3), 펀딩 금액 (col 12, 음수가 유출). 절댓값 집계.
+  return file.text().then(html => {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const trs = doc.querySelectorAll('tr');
+    const rows = [];
+    trs.forEach((tr, idx) => {
+      if (idx === 0) return; // header
+      const tds = tr.querySelectorAll('td');
+      if (tds.length < 13) return;
+      const sku = tds[3].textContent.trim();
+      const raw = tds[12].textContent.trim().replace(/,/g, '');
+      const amt = Number(raw);
+      if (!sku || !amt) return;
+      rows.push({ sku, amount: Math.abs(amt) });
+    });
+    return rows;
+  });
 }
 
 /* ─────────── 집계 ─────────── */
+const VAT_RATE = 1.1;
+
 function aggregate() {
   if (!maps || !cpcData || !couponData) return;
 
-  // 카테고리별 집계
   const byCat = {}; // cat → { cpc, coupon }
   const bump = (cat, key, val) => {
     if (!byCat[cat]) byCat[cat] = { cpc: 0, coupon: 0 };
     byCat[cat][key] += val;
   };
 
-  // CPC: 캠페인→VIID→SKU→카테
+  // CPC: 캠페인ID → camp2viid → viid2sku → 카테. 광고비는 VAT 포함(×1.1).
   let cpcMatched = 0, cpcUnmatched = 0;
   for (const row of cpcData) {
-    const mapped = row.viid && maps.viid2sku[row.viid];
-    const sku = mapped ? mapped.sku : '';
-    const brand = mapped ? mapped.brand : '';
-    const cat = classify(sku, brand, row.camp_name);
-    bump(cat, 'cpc', row.cost);
+    const cat = catForCamp(row.camp_id, row.camp_name);
+    const costVat = row.cost * VAT_RATE;
+    bump(cat, 'cpc', costVat);
     if (cat === '기타') cpcUnmatched++; else cpcMatched++;
   }
 
-  // 쿠폰: SKU→카테 (VIID 안 거침)
+  // 쿠폰: SKU → 카테
   let cpnMatched = 0, cpnUnmatched = 0;
   for (const row of couponData) {
     const skuMeta = maps.sku2cat[row.sku];
@@ -371,26 +385,26 @@ function setupDrop(id, kind) {
   const title = zone.querySelector('.drop-title');
   const hint = zone.querySelector('.drop-hint');
 
-  const handle = (file) => {
+  const handle = async (file) => {
     if (!file) return;
     label.textContent = file.name;
     label.hidden = false;
     zone.classList.add('loaded');
     title.hidden = true; hint.hidden = true;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const wb = XLSX.read(e.target.result, { type: 'array' });
-        if (kind === 'cpc') cpcData = parseCPC(wb);
-        else couponData = parseCoupon(wb);
-        aggregate();
-      } catch (err) {
-        label.textContent = '파싱 오류: ' + err.message;
-        label.style.color = 'var(--neg)';
-        console.error(err);
+    try {
+      if (kind === 'cpc') {
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        cpcData = parseCPC(wb);
+      } else {
+        couponData = await parseCoupon(file);
       }
-    };
-    reader.readAsArrayBuffer(file);
+      aggregate();
+    } catch (err) {
+      label.textContent = '파싱 오류: ' + err.message;
+      label.style.color = 'var(--neg)';
+      console.error(err);
+    }
   };
 
   zone.addEventListener('click', () => input.click());
