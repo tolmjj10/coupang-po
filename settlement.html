@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   :root {
@@ -18,6 +19,8 @@
     --neg: #b05858; --ok: #6e8a6a;
     --cpc: #8b756c;         /* 광고비 색 (어스브라운) */
     --coupon: #c4875c;      /* 쿠폰 색 (테라코타) */
+    --sales: #6e8a6a;       /* 매출 색 (올리브) */
+    --profit: #556b7a;      /* 순수익 색 (스틸블루) */
   }
   html, body { height: 100%; margin: 0; padding: 0; }
   body {
@@ -36,7 +39,7 @@
 
   /* 드롭존 */
   .drops {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;
     margin-bottom: 18px;
   }
   .drop {
@@ -62,6 +65,8 @@
   }
   .drop.cpc .drop-tag    { background: #e8e1dc; color: var(--cpc); }
   .drop.coupon .drop-tag { background: #f3e2d2; color: var(--coupon); }
+  .drop.sales .drop-tag  { background: #e0e8df; color: var(--sales); }
+  .drop.sales.loaded     { border-color: var(--sales); }
   .drop-title { font-size: 14px; font-weight: 700; margin-top: 6px; }
   .drop-hint  { font-size: 11.5px; color: var(--text-hint); margin-top: 4px; }
   .drop-file  { font-size: 12px; font-weight: 600; color: var(--accent-dark); margin-top: 8px; word-break: break-all; }
@@ -127,6 +132,44 @@
     gap: 8px;
   }
   .empty svg { width: 36px; height: 36px; opacity: 0.4; }
+
+  /* SKU 상세 테이블 */
+  #result-sku { margin-top: 14px; }
+  table.sku {
+    width: 100%; border-collapse: collapse;
+    font-size: 12.5px; font-variant-numeric: tabular-nums;
+  }
+  table.sku th {
+    position: sticky; top: 0; z-index: 1;
+    background: #faf7f3; font-weight: 700; font-size: 11px;
+    color: var(--text-hint); padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: right; letter-spacing: 0.02em;
+  }
+  table.sku th.left { text-align: left; }
+  table.sku td {
+    padding: 7px 10px; border-bottom: 1px solid var(--border);
+    text-align: right; white-space: nowrap;
+  }
+  table.sku td.left { text-align: left; }
+  table.sku td.name { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+  table.sku td.neg { color: var(--neg); }
+  table.sku td.pos { color: var(--ok); }
+  table.sku tr.group td {
+    background: var(--accent-light); color: var(--accent-dark);
+    font-weight: 700; font-size: 11.5px; letter-spacing: 0.02em;
+    padding: 6px 10px; text-align: left;
+  }
+  table.sku tr.group .m { color: var(--text-hint); font-weight: 500; margin-left: 10px; }
+  table.sku tr.subsum td {
+    font-weight: 700; background: #fdfbf9;
+    border-top: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong);
+  }
+  table.sku td.cpc    { color: var(--cpc); }
+  table.sku td.coupon { color: var(--coupon); }
+  table.sku td.gmv    { color: var(--sales); font-weight: 600; }
+  table.sku td.profit { color: var(--profit); font-weight: 700; }
+  table.sku td.profit.neg { color: var(--neg); }
 </style>
 </head>
 <body>
@@ -151,6 +194,13 @@
       <div class="drop-file" id="file-coupon" hidden></div>
       <input type="file" accept=".xlsx,.xls" />
     </div>
+    <div class="drop sales" id="drop-sales">
+      <div class="drop-tag">파일 3 · 매출/원가</div>
+      <div class="drop-title">SALES_ANALYSIS (월치)</div>
+      <div class="drop-hint">A00065399_SALES_ANALYSIS…csv</div>
+      <div class="drop-file" id="file-sales" hidden></div>
+      <input type="file" accept=".csv" />
+    </div>
   </div>
 
   <div class="result-box" id="result">
@@ -160,9 +210,10 @@
         <line x1="9" y1="3" x2="9" y2="21"/>
         <line x1="3" y1="9" x2="21" y2="9"/>
       </svg>
-      <div>CPC·쿠폰 두 파일을 모두 업로드하면 카테고리별 집계가 표시됩니다.</div>
+      <div>CPC·쿠폰을 올리면 카테고리별 집계가 뜨고, SALES_ANALYSIS도 올리면 SKU별 순수익이 추가로 표시됩니다.</div>
     </div>
   </div>
+  <div class="result-box" id="result-sku" hidden></div>
 </div>
 
 <script>
@@ -171,9 +222,10 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const fmtWon = n => (n==null||isNaN(n)) ? '—' : Number(n).toLocaleString('ko-KR');
 
 /* ─────────── 상태 ─────────── */
-let maps = null;             // { viid2sku, sku2cat, camp2viid, camp_name }
+let maps = null;             // { viid2sku, sku2cat, camp2viid, camp_name, camp_viid_cost }
 let cpcData = null;          // [{camp_id, cost, camp_name}]  (청구 소진 광고비 기준)
 let couponData = null;       // [{sku, amount}]  (|펀딩금액|)
+let salesData = null;        // { sku: {gmv, cogs, qty, name, brand} }  (SALES_ANALYSIS 월치)
 
 /* ─────────── 매핑 로드 ─────────── */
 async function loadMaps() {
@@ -248,6 +300,37 @@ function parseCPC(wb) {
   return Object.entries(byCamp).map(([camp_id, v]) => ({ camp_id, cost: v.cost, camp_name: v.camp_name }));
 }
 
+function parseSales(file) {
+  // SALES_ANALYSIS CSV: col 3=SKU ID, 4=SKU명, 11=브랜드, 12=매출(GMV), 13=판매수량, 15=매입원가(COGS)
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: false,
+      skipEmptyLines: true,
+      complete: (res) => {
+        const rows = res.data;
+        const bySku = {};
+        for (let i = 1; i < rows.length; i++) {  // skip header
+          const r = rows[i];
+          if (!r || r.length < 16) continue;
+          const sku = String(r[3] || '').trim();
+          if (!sku) continue;
+          const name = String(r[4] || '').trim();
+          const brand = String(r[11] || '').trim();
+          const gmv = Number(r[12]) || 0;
+          const qty = Number(r[13]) || 0;
+          const cogs = Number(r[15]) || 0;
+          const d = bySku[sku] || (bySku[sku] = { gmv:0, cogs:0, qty:0, name, brand });
+          d.gmv += gmv; d.cogs += cogs; d.qty += qty;
+          if (name && !d.name) d.name = name;
+          if (brand && !d.brand) d.brand = brand;
+        }
+        resolve(bySku);
+      },
+      error: reject,
+    });
+  });
+}
+
 function parseCoupon(file) {
   // HTML xls 포맷: SKU 번호 (col 3), 펀딩 금액 (col 12, 음수가 유출). 절댓값 집계.
   return file.text().then(html => {
@@ -285,6 +368,41 @@ function distributeRound(entries, total) {
   return out;
 }
 
+/* 캠페인 광고비 → SKU별 분배. camp_viid_cost에 비율 있으면 그걸로, 없으면 camp2viid 균등. */
+function distributeCampCost(campId, totalRawCost) {
+  const out = {};
+  const costMap = maps.camp_viid_cost && maps.camp_viid_cost[campId];
+  if (costMap) {
+    const sum = Object.values(costMap).reduce((s, v) => s + v, 0);
+    if (sum > 0) {
+      for (const [viid, c] of Object.entries(costMap)) {
+        const sku = (maps.viid2sku[viid] && maps.viid2sku[viid].sku) || `__viid_${viid}`;
+        out[sku] = (out[sku] || 0) + totalRawCost * (c / sum);
+      }
+      return out;
+    }
+  }
+  const viids = maps.camp2viid[campId] || [];
+  const skus = [...new Set(viids.map(v => maps.viid2sku[v] && maps.viid2sku[v].sku).filter(Boolean))];
+  if (skus.length === 0) {
+    out['__nocamp__'] = totalRawCost;
+    return out;
+  }
+  const per = totalRawCost / skus.length;
+  for (const s of skus) out[s] = per;
+  return out;
+}
+
+/* SKU → 카테 (쿠폰 분류 로직과 동일) */
+function catForSku(sku, meta) {
+  const nm = (meta && meta.name) || '';
+  if (nm.includes('삼대오백') || nm.includes('뉴트리커먼')) return '삼대오백';
+  if (nm.includes('온살') || nm.includes('루메어카이브') || nm.includes('루메아카이브')) return '온살';
+  if (nm.includes('올리미') || nm.includes('히팅뷰러')) return '뷰티가전';
+  if (nm.startsWith('오아') || nm.startsWith('보아르')) return meta.cat;
+  return (meta && meta.cat) || '기타';
+}
+
 function aggregate() {
   if (!maps || !cpcData || !couponData) return;
 
@@ -294,36 +412,62 @@ function aggregate() {
     byCat[cat][key] += val;
   };
 
-  // CPC: 캠페인ID → camp2viid → viid2sku → 카테. 광고비는 raw 기준으로 누적(VAT는 마지막에).
+  const bySku = {}; // sku → {cpc(raw), coupon, gmv, cogs, qty, name, brand, cat}
+  const skuEnsure = (sku, extra) => {
+    if (!bySku[sku]) {
+      const sm = maps.sku2cat[sku];
+      bySku[sku] = {
+        cpc: 0, coupon: 0, gmv: 0, cogs: 0, qty: 0,
+        name: (sm && sm.name) || (extra && extra.name) || '',
+        brand: (extra && extra.brand) || '',
+        cat: catForSku(sku, sm || extra),
+      };
+    } else if (extra) {
+      if (extra.name && !bySku[sku].name) bySku[sku].name = extra.name;
+      if (extra.brand && !bySku[sku].brand) bySku[sku].brand = extra.brand;
+    }
+    return bySku[sku];
+  };
+
+  // CPC: 카테별 + SKU별 동시 집계
   let cpcMatched = 0, cpcUnmatched = 0, totalRawCost = 0;
   for (const row of cpcData) {
     const cat = catForCamp(row.camp_id, row.camp_name);
     bump(cat, 'cpc', row.cost);
     totalRawCost += row.cost;
     if (UNMATCHED_CATS.has(cat)) cpcUnmatched++; else cpcMatched++;
+    // SKU 분배
+    const dist = distributeCampCost(row.camp_id, row.cost);
+    for (const [sku, cost] of Object.entries(dist)) {
+      skuEnsure(sku).cpc += cost;
+    }
   }
 
-  // 쿠폰: SKU → 카테 (정수)
+  // 쿠폰
   let cpnMatched = 0, cpnUnmatched = 0;
   for (const row of couponData) {
     const skuMeta = maps.sku2cat[row.sku];
     let cat;
     if (skuMeta) {
-      const nm = skuMeta.name || '';
-      if (nm.includes('삼대오백') || nm.includes('뉴트리커먼')) cat = '삼대오백';
-      else if (nm.includes('온살') || nm.includes('루메어카이브') || nm.includes('루메아카이브')) cat = '온살';
-      else if (nm.includes('올리미') || nm.includes('히팅뷰러')) cat = '뷰티가전';
-      else if (nm.startsWith('오아') || nm.startsWith('보아르')) cat = skuMeta.cat;
-      else cat = skuMeta.cat || '기타';
+      cat = catForSku(row.sku, skuMeta);
       cpnMatched++;
     } else {
       cat = '기타';
       cpnUnmatched++;
     }
     bump(cat, 'coupon', row.amount);
+    skuEnsure(row.sku).coupon += row.amount;
   }
 
-  // VAT 포함 전체 총액 = round(raw × 1.1) → 각 카테 분배도 이 합을 정확히 맞추도록 재조정
+  // 매출/원가 (sales 있을 때만)
+  if (salesData) {
+    for (const [sku, s] of Object.entries(salesData)) {
+      const d = skuEnsure(sku, s);
+      d.gmv += s.gmv; d.cogs += s.cogs; d.qty += s.qty;
+    }
+  }
+
+  // 카테 광고비 반올림 분배 (전체 합 = 189,413,014 정확히 맞춤)
   const totalCpcInt = Math.round(totalRawCost * VAT_RATE);
   const perCatVat = Object.fromEntries(
     Object.entries(byCat).map(([k, v]) => [k, v.cpc * VAT_RATE])
@@ -331,7 +475,14 @@ function aggregate() {
   const roundedCpc = distributeRound(Object.entries(perCatVat), totalCpcInt);
   for (const k of Object.keys(byCat)) byCat[k].cpc = roundedCpc[k] ?? 0;
 
+  // SKU 광고비도 VAT ×1.1 후 반올림 (카테 합과 정확 일치시키려면 더 복잡 — 지금은 각각 round)
+  for (const d of Object.values(bySku)) {
+    d.cpcVat = Math.round(d.cpc * VAT_RATE);
+    d.profit = Math.round(d.gmv - d.cogs - d.cpcVat - d.coupon);
+  }
+
   render(byCat, { cpcMatched, cpcUnmatched, cpnMatched, cpnUnmatched, totalCpcInt });
+  renderSkuTable(bySku);
 }
 
 /* ─────────── 렌더 ─────────── */
@@ -402,6 +553,97 @@ function render(byCat, stats) {
   `;
 }
 
+/* ─────────── SKU 상세 테이블 ─────────── */
+function renderSkuTable(bySku) {
+  const box = document.getElementById('result-sku');
+  const hasSales = !!salesData;
+  const skus = Object.entries(bySku);
+  if (skus.length === 0) { box.hidden = true; return; }
+  box.hidden = false;
+
+  // 카테 그룹핑 + 그룹 정렬 (오아 세분 → 삼대오백/온살/뷰티가전 → 미매칭/기타)
+  const groups = {};
+  for (const [sku, d] of skus) {
+    const cat = d.cat || '기타';
+    (groups[cat] = groups[cat] || []).push([sku, d]);
+  }
+  const groupOf = k => UNMATCHED_CATS.has(k) ? 2 : (BRAND_CATS.has(k) || k === '뷰티가전' ? 1 : 0);
+  const catOrder = Object.keys(groups).sort((a,b) => {
+    const g = groupOf(a) - groupOf(b);
+    if (g !== 0) return g;
+    const sa = groups[a].reduce((s,[,d]) => s + d.gmv, 0);
+    const sb = groups[b].reduce((s,[,d]) => s + d.gmv, 0);
+    return sb - sa;
+  });
+
+  // 전체 합계
+  let TG=0, TC=0, TP=0, TCPC=0, TCPN=0;
+  for (const [,d] of skus) { TG+=d.gmv; TC+=d.cogs; TCPC+=d.cpcVat; TCPN+=d.coupon; TP+=d.profit; }
+
+  const header = `
+    <tr>
+      <th class="left">SKU</th>
+      <th class="left">SKU명</th>
+      <th>수량</th>
+      ${hasSales ? '<th>매출</th><th>원가</th>' : ''}
+      <th>광고비(VAT)</th>
+      <th>쿠폰</th>
+      ${hasSales ? '<th>순수익</th><th>마진%</th>' : ''}
+    </tr>`;
+
+  const bodyParts = [];
+  const colspan = hasSales ? 9 : 5;
+  for (const cat of catOrder) {
+    const items = groups[cat].sort((a,b) => b[1].gmv - a[1].gmv || b[1].cpcVat - a[1].cpcVat);
+    let g=0,c=0,cp=0,cpn=0,p=0,qty=0;
+    for (const [,d] of items) { g+=d.gmv; c+=d.cogs; cp+=d.cpcVat; cpn+=d.coupon; p+=d.profit; qty+=d.qty; }
+    const marginPct = g > 0 ? (p / g * 100).toFixed(1) : '—';
+    bodyParts.push(`<tr class="group"><td colspan="${colspan}">${esc(cat)}
+      <span class="m">SKU ${items.length}개 · 매출 ${fmtWon(g)} · 광고 ${fmtWon(cp)} · 순수익 ${fmtWon(p)} ${hasSales?`(${marginPct}%)`:''}</span></td></tr>`);
+    for (const [sku, d] of items) {
+      const mPct = d.gmv > 0 ? (d.profit / d.gmv * 100).toFixed(1) : '—';
+      const profitCls = d.profit < 0 ? 'profit neg' : 'profit';
+      bodyParts.push(`
+        <tr>
+          <td class="left">${esc(sku)}</td>
+          <td class="left name" title="${esc(d.name)}">${esc(d.name || '')}</td>
+          <td>${d.qty ? d.qty.toLocaleString() : '—'}</td>
+          ${hasSales ? `<td class="gmv">${fmtWon(d.gmv)}</td><td>${fmtWon(d.cogs)}</td>` : ''}
+          <td class="cpc">${fmtWon(d.cpcVat)}</td>
+          <td class="coupon">${fmtWon(d.coupon)}</td>
+          ${hasSales ? `<td class="${profitCls}">${fmtWon(d.profit)}</td><td>${mPct}${mPct==='—'?'':'%'}</td>` : ''}
+        </tr>`);
+    }
+  }
+
+  const totalMargin = TG > 0 ? (TP / TG * 100).toFixed(1) : '—';
+  const sumRow = `
+    <tr class="subsum">
+      <td class="left" colspan="2">전체 합계 (${skus.length} SKU)</td>
+      <td>—</td>
+      ${hasSales ? `<td class="gmv">${fmtWon(TG)}</td><td>${fmtWon(TC)}</td>` : ''}
+      <td class="cpc">${fmtWon(TCPC)}</td>
+      <td class="coupon">${fmtWon(TCPN)}</td>
+      ${hasSales ? `<td class="${TP<0?'profit neg':'profit'}">${fmtWon(TP)}</td><td>${totalMargin}${totalMargin==='—'?'':'%'}</td>` : ''}
+    </tr>`;
+
+  box.innerHTML = `
+    <div class="result-head">
+      <div class="title">SKU 상세</div>
+      <div class="sub">
+        ${hasSales
+          ? `매출 ${fmtWon(TG)} · 원가 ${fmtWon(TC)} · 광고 ${fmtWon(TCPC)} · 쿠폰 ${fmtWon(TCPN)} → <strong style="color:var(--profit)">순수익 ${fmtWon(TP)} (${totalMargin}%)</strong>`
+          : `SALES_ANALYSIS를 올리면 매출/순수익이 추가로 계산됩니다.`}
+      </div>
+    </div>
+    <div style="max-height: 70vh; overflow-y: auto;">
+      <table class="sku">
+        <thead>${header}</thead>
+        <tbody>${bodyParts.join('')}${sumRow}</tbody>
+      </table>
+    </div>`;
+}
+
 /* ─────────── 드롭존 핸들러 ─────────── */
 function setupDrop(id, kind) {
   const zone = document.getElementById(id);
@@ -421,8 +663,10 @@ function setupDrop(id, kind) {
         const buf = await file.arrayBuffer();
         const wb = XLSX.read(buf, { type: 'array' });
         cpcData = parseCPC(wb);
-      } else {
+      } else if (kind === 'coupon') {
         couponData = await parseCoupon(file);
+      } else if (kind === 'sales') {
+        salesData = await parseSales(file);
       }
       aggregate();
     } catch (err) {
@@ -445,6 +689,7 @@ function setupDrop(id, kind) {
 
 setupDrop('drop-cpc', 'cpc');
 setupDrop('drop-coupon', 'coupon');
+setupDrop('drop-sales', 'sales');
 window.addEventListener('dragover', e => { if (!e.target.closest('.drop')) e.preventDefault(); });
 window.addEventListener('drop',     e => { if (!e.target.closest('.drop')) e.preventDefault(); });
 
