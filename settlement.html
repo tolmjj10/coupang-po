@@ -170,6 +170,54 @@
   table.sku td.gmv    { color: var(--sales); font-weight: 600; }
   table.sku td.profit { color: var(--profit); font-weight: 700; }
   table.sku td.profit.neg { color: var(--neg); }
+
+  /* 툴바 (검색/필터) */
+  .sku-toolbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: 4px 0 12px;
+  }
+  .sku-toolbar .chips {
+    display: flex; gap: 6px; flex-wrap: wrap; flex: 1;
+  }
+  .chip {
+    font: 600 11.5px 'Pretendard',sans-serif; letter-spacing: -0.01em;
+    padding: 5px 11px; border-radius: 999px;
+    background: #fff; border: 1px solid var(--border-strong);
+    color: var(--text-hint); cursor: pointer;
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  .chip:hover { color: var(--text); border-color: var(--accent); }
+  .chip.active {
+    background: var(--text); color: #fff; border-color: var(--text);
+  }
+  .search-wrap {
+    position: relative; min-width: 220px;
+    margin-left: auto;
+  }
+  .search-wrap input {
+    width: 100%; padding: 7px 32px 7px 32px;
+    font: 500 12.5px 'Pretendard',sans-serif;
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    background: #fff; color: var(--text);
+    outline: none; transition: border-color .12s;
+  }
+  .search-wrap input:focus { border-color: var(--accent-dark); }
+  .search-wrap .icon {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    width: 14px; height: 14px; opacity: 0.5; pointer-events: none;
+  }
+  .search-wrap .clear {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    width: 18px; height: 18px; border: none; background: transparent;
+    color: var(--text-hint); cursor: pointer; font-size: 14px; line-height: 1;
+  }
+  .btn-reset-data {
+    font: 500 11px 'Pretendard',sans-serif;
+    padding: 4px 9px; border-radius: 6px;
+    background: #fff; border: 1px solid var(--border);
+    color: var(--text-hint); cursor: pointer;
+  }
+  .btn-reset-data:hover { color: var(--neg); border-color: var(--neg); }
 </style>
 </head>
 <body>
@@ -226,6 +274,50 @@ let maps = null;             // { viid2sku, sku2cat, camp2viid, camp_name, camp_
 let cpcData = null;          // [{camp_id, cost, camp_name}]  (청구 소진 광고비 기준)
 let couponData = null;       // [{sku, amount}]  (|펀딩금액|)
 let salesData = null;        // { sku: {gmv, cogs, qty, name, brand} }  (SALES_ANALYSIS 월치)
+let currentBySku = null;     // 집계된 SKU 상세 (필터링 재렌더용)
+let filterCat = '';          // '' = 전체
+let filterSearch = '';
+
+/* ─────────── localStorage ─────────── */
+const LS = {
+  cpc: 'settle_cpc', cpcName: 'settle_cpc_name',
+  coupon: 'settle_coupon', couponName: 'settle_coupon_name',
+  sales: 'settle_sales', salesName: 'settle_sales_name',
+};
+function lsSave(key, val) {
+  try { localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val)); }
+  catch (e) { console.warn('localStorage save fail:', e); }
+}
+function lsLoad(key, parse = true) {
+  const raw = localStorage.getItem(key);
+  if (!raw) return null;
+  if (!parse) return raw;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+function lsClearAll() {
+  for (const k of Object.values(LS)) localStorage.removeItem(k);
+}
+
+function restoreFromLs() {
+  cpcData = lsLoad(LS.cpc);
+  couponData = lsLoad(LS.coupon);
+  salesData = lsLoad(LS.sales);
+  // 드롭존 라벨 복원
+  for (const [kind, nameKey] of [['cpc', LS.cpcName], ['coupon', LS.couponName], ['sales', LS.salesName]]) {
+    const name = lsLoad(nameKey, false);
+    const data = kind === 'cpc' ? cpcData : kind === 'coupon' ? couponData : salesData;
+    if (name && data) {
+      const zone = document.getElementById(`drop-${kind}`);
+      const label = zone.querySelector('.drop-file');
+      const title = zone.querySelector('.drop-title');
+      const hint = zone.querySelector('.drop-hint');
+      label.textContent = name + ' · 저장됨';
+      label.hidden = false;
+      title.hidden = true; hint.hidden = true;
+      zone.classList.add('loaded');
+    }
+  }
+}
 
 /* ─────────── 매핑 로드 ─────────── */
 async function loadMaps() {
@@ -583,20 +675,51 @@ function render(byCat, stats) {
 }
 
 /* ─────────── SKU 상세 테이블 ─────────── */
+window.setFilterCat = (cat) => { filterCat = (filterCat === cat) ? '' : cat; renderSkuTable(); };
+window.setFilterSearch = (q) => { filterSearch = q || ''; renderSkuTable(); };
+window.clearSearch = () => { filterSearch = ''; renderSkuTable(); };
+window.resetSettleData = () => {
+  if (!confirm('저장된 파일 데이터 전부 삭제할까요? (매핑 KV는 유지)')) return;
+  lsClearAll();
+  location.reload();
+};
+
 function renderSkuTable(bySku) {
   const box = document.getElementById('result-sku');
+  if (bySku) currentBySku = bySku;
+  if (!currentBySku) { box.hidden = true; return; }
+
   const hasSales = !!salesData;
-  const skus = Object.entries(bySku);
-  if (skus.length === 0) { box.hidden = true; return; }
+  const allEntries = Object.entries(currentBySku);
+  if (allEntries.length === 0) { box.hidden = true; return; }
   box.hidden = false;
 
-  // 카테 그룹핑 + 그룹 정렬 (오아 세분 → 삼대오백/온살/뷰티가전 → 미매칭/기타)
+  // 전체 카테 수집 (chip용) — 필터 적용 전 기준
+  const allCats = {};
+  for (const [,d] of allEntries) {
+    const c = d.cat || '기타';
+    allCats[c] = (allCats[c] || 0) + 1;
+  }
+  const groupOf = k => UNMATCHED_CATS.has(k) ? 2 : (BRAND_CATS.has(k) || k === '뷰티가전' ? 1 : 0);
+  const chipCats = Object.keys(allCats).sort((a,b) => groupOf(a) - groupOf(b) || a.localeCompare(b));
+
+  // 필터링 (카테 + 검색)
+  const q = filterSearch.trim().toLowerCase();
+  const filtered = allEntries.filter(([sku, d]) => {
+    if (filterCat && d.cat !== filterCat) return false;
+    if (q) {
+      const hay = (sku + ' ' + (d.name || '') + ' ' + (d.brand || '')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  // 카테 그룹핑
   const groups = {};
-  for (const [sku, d] of skus) {
+  for (const [sku, d] of filtered) {
     const cat = d.cat || '기타';
     (groups[cat] = groups[cat] || []).push([sku, d]);
   }
-  const groupOf = k => UNMATCHED_CATS.has(k) ? 2 : (BRAND_CATS.has(k) || k === '뷰티가전' ? 1 : 0);
   const catOrder = Object.keys(groups).sort((a,b) => {
     const g = groupOf(a) - groupOf(b);
     if (g !== 0) return g;
@@ -605,9 +728,9 @@ function renderSkuTable(bySku) {
     return sb - sa;
   });
 
-  // 전체 합계
+  // 필터된 합계
   let TG=0, TC=0, TP=0, TCPC=0, TCPN=0;
-  for (const [,d] of skus) { TG+=d.gmv; TC+=d.cogs; TCPC+=d.cpcVat; TCPN+=d.coupon; TP+=d.profit; }
+  for (const [,d] of filtered) { TG+=d.gmv; TC+=d.cogs; TCPC+=d.cpcVat; TCPN+=d.coupon; TP+=d.profit; }
 
   const header = `
     <tr>
@@ -646,9 +769,12 @@ function renderSkuTable(bySku) {
   }
 
   const totalMargin = TG > 0 ? (TP / TG * 100).toFixed(1) : '—';
+  const sumLabel = filterCat || q
+    ? `필터 합계 (${filtered.length} / ${allEntries.length} SKU)`
+    : `전체 합계 (${filtered.length} SKU)`;
   const sumRow = `
     <tr class="subsum">
-      <td class="left" colspan="2">전체 합계 (${skus.length} SKU)</td>
+      <td class="left" colspan="2">${sumLabel}</td>
       <td>—</td>
       ${hasSales ? `<td class="gmv">${fmtWon(TG)}</td><td>${fmtWon(TC)}</td>` : ''}
       <td class="cpc">${fmtWon(TCPC)}</td>
@@ -656,6 +782,15 @@ function renderSkuTable(bySku) {
       ${hasSales ? `<td class="${TP<0?'profit neg':'profit'}">${fmtWon(TP)}</td><td>${totalMargin}${totalMargin==='—'?'':'%'}</td>` : ''}
     </tr>`;
 
+  const emptyMsg = filtered.length === 0
+    ? `<tr><td colspan="${colspan}" style="text-align:center; padding:40px; color:var(--text-hint);">일치하는 SKU가 없습니다.</td></tr>`
+    : '';
+
+  const chipHtml = ['<button class="chip ' + (filterCat === '' ? 'active' : '') + '" onclick="setFilterCat(\'\')">전체</button>']
+    .concat(chipCats.map(c => `<button class="chip ${filterCat === c ? 'active' : ''}" onclick="setFilterCat('${c}')">${esc(c)} <span style="opacity:.6">${allCats[c]}</span></button>`))
+    .join('');
+
+  const searchVal = esc(filterSearch);
   box.innerHTML = `
     <div class="result-head">
       <div class="title">SKU 상세</div>
@@ -664,13 +799,28 @@ function renderSkuTable(bySku) {
           ? `매출 ${fmtWon(TG)} · 원가 ${fmtWon(TC)} · 광고 ${fmtWon(TCPC)} · 쿠폰 ${fmtWon(TCPN)} → <strong style="color:var(--profit)">순수익 ${fmtWon(TP)} (${totalMargin}%)</strong>`
           : `SALES_ANALYSIS를 올리면 매출/순수익이 추가로 계산됩니다.`}
       </div>
+      <div class="search-wrap">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" id="sku-search" placeholder="SKU/상품명/브랜드 검색" value="${searchVal}" oninput="setFilterSearch(this.value)">
+        ${filterSearch ? '<button class="clear" onclick="clearSearch()" title="지우기">×</button>' : ''}
+      </div>
+      <button class="btn-reset-data" onclick="resetSettleData()" title="저장된 파일 데이터 초기화">저장 초기화</button>
+    </div>
+    <div class="sku-toolbar">
+      <div class="chips">${chipHtml}</div>
     </div>
     <div style="max-height: 70vh; overflow-y: auto;">
       <table class="sku">
         <thead>${header}</thead>
-        <tbody>${bodyParts.join('')}${sumRow}</tbody>
+        <tbody>${bodyParts.join('')}${emptyMsg}${sumRow}</tbody>
       </table>
     </div>`;
+
+  // 포커스 유지 (타이핑 중 리렌더로 blur 되는 것 방지)
+  if (filterSearch) {
+    const inp = document.getElementById('sku-search');
+    if (inp) { inp.focus(); inp.setSelectionRange(filterSearch.length, filterSearch.length); }
+  }
 }
 
 /* ─────────── 드롭존 핸들러 ─────────── */
@@ -692,11 +842,15 @@ function setupDrop(id, kind) {
         const buf = await file.arrayBuffer();
         const wb = XLSX.read(buf, { type: 'array' });
         cpcData = parseCPC(wb);
+        lsSave(LS.cpc, cpcData); lsSave(LS.cpcName, file.name);
       } else if (kind === 'coupon') {
         couponData = await parseCoupon(file);
+        lsSave(LS.coupon, couponData); lsSave(LS.couponName, file.name);
       } else if (kind === 'sales') {
         salesData = await parseSales(file);
+        lsSave(LS.sales, salesData); lsSave(LS.salesName, file.name);
       }
+      label.textContent = file.name;
       aggregate();
     } catch (err) {
       label.textContent = '파싱 오류: ' + err.message;
@@ -722,7 +876,11 @@ setupDrop('drop-sales', 'sales');
 window.addEventListener('dragover', e => { if (!e.target.closest('.drop')) e.preventDefault(); });
 window.addEventListener('drop',     e => { if (!e.target.closest('.drop')) e.preventDefault(); });
 
-loadMaps();
+(async () => {
+  await loadMaps();
+  restoreFromLs();
+  if (cpcData && couponData) aggregate();
+})();
 </script>
 </body>
 </html>
