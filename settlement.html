@@ -261,8 +261,13 @@ function classify(sku, brand, campName) {
   return '기타';
 }
 
-/* 캠페인 → 카테 (여러 VIID 중 다수 카테를 집계해 다수결, 없으면 캠페인명) */
+/* 캠페인 → 카테: 수동 매핑 최우선, 다음 VIID 다수결, 없으면 캠페인명 */
 function catForCamp(campId, campName) {
+  const manual = maps.manual_camp_sku && maps.manual_camp_sku[campId];
+  if (manual && manual.length) {
+    const sm = maps.sku2cat[manual[0]];
+    if (sm) return catForSku(manual[0], sm);
+  }
   const viids = maps.camp2viid[campId] || [];
   const tally = {};
   let best = null;
@@ -368,9 +373,15 @@ function distributeRound(entries, total) {
   return out;
 }
 
-/* 캠페인 광고비 → SKU별 분배. camp_viid_cost에 비율 있으면 그걸로, 없으면 camp2viid 균등. */
+/* 캠페인 광고비 → SKU별 분배. 수동매핑 최우선, 다음 camp_viid_cost 비율, 다음 camp2viid 균등. */
 function distributeCampCost(campId, totalRawCost) {
   const out = {};
+  const manual = maps.manual_camp_sku && maps.manual_camp_sku[campId];
+  if (manual && manual.length) {
+    const per = totalRawCost / manual.length;
+    for (const s of manual) out[s] = (out[s] || 0) + per;
+    return out;
+  }
   const costMap = maps.camp_viid_cost && maps.camp_viid_cost[campId];
   if (costMap) {
     const sum = Object.values(costMap).reduce((s, v) => s + v, 0);
