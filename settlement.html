@@ -29,9 +29,9 @@
     -webkit-font-smoothing: antialiased; letter-spacing: -0.01em;
   }
   .wrap { max-width: 1720px; margin: 0 auto; width: 100%; box-sizing: border-box;
-          padding: 20px 24px 22px; min-height: 100vh; }
+          padding: 12px 24px 14px; min-height: 100vh; }
 
-  header.page { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+  header.page { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
   h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.024em; margin: 0; color: var(--text); line-height: 1.15; }
   .map-info { font-size: 11.5px; color: var(--text-hint); }
   .map-info .ok { color: var(--ok); font-weight: 700; }
@@ -39,14 +39,14 @@
 
   /* 드롭존 */
   .drops {
-    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;
-    margin-bottom: 18px;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+    margin-bottom: 12px;
   }
   .drop {
     background: var(--surface);
     border: 1.5px dashed var(--border-strong);
     border-radius: 14px;
-    padding: 22px 18px;
+    padding: 14px 16px;
     text-align: center;
     cursor: pointer;
     transition: border-color .15s, background .15s;
@@ -77,9 +77,10 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 14px;
-    padding: 18px 20px;
-    min-height: 320px;
+    padding: 14px 18px;
   }
+  .result-box#result { min-height: 0; }
+  .result-box#result:empty { display: none; }
   .result-head {
     display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
     margin-bottom: 12px;
@@ -809,7 +810,7 @@ function renderSkuTable(bySku) {
     <div class="sku-toolbar">
       <div class="chips">${chipHtml}</div>
     </div>
-    <div style="max-height: 70vh; overflow-y: auto;">
+    <div style="max-height: calc(100vh - 180px); overflow-y: auto;">
       <table class="sku">
         <thead>${header}</thead>
         <tbody>${bodyParts.join('')}${emptyMsg}${sumRow}</tbody>
