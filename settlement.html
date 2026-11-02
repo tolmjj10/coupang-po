@@ -160,8 +160,12 @@
     background: var(--accent-light); color: var(--accent-dark);
     font-weight: 700; font-size: 11.5px; letter-spacing: 0.02em;
     padding: 6px 10px; text-align: left;
+    cursor: pointer; user-select: none;
   }
+  table.sku tr.group td:hover { background: #e9e2db; }
   table.sku tr.group .m { color: var(--text-hint); font-weight: 500; margin-left: 10px; }
+  table.sku tr.group .caret { display: inline-block; width: 10px; margin-right: 4px; transition: transform .15s; }
+  table.sku tr.group.collapsed .caret { transform: rotate(-90deg); }
   table.sku tr.subsum td {
     font-weight: 700; background: #fdfbf9;
     border-top: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong);
@@ -429,9 +433,12 @@ function parseCPC(wb) {
 }
 
 function parseSales(file) {
-  // SALES_ANALYSIS CSV: col 3=SKU ID, 4=SKU명, 11=브랜드,
-  //                    col 28(AC)=판매수량(벤더아이템ID 기준, 반품 반영 — 음수 가능)
-  // 매출/원가는 쿠팡 GMV/COGS를 쓰지 않고 수량만 집계 → 마진테이블의 cost/origin 곱해 계산
+  // SALES_ANALYSIS CSV:
+  //   col 3=SKU ID, 4=SKU명, 11=브랜드,
+  //   col 15=매입원가(COGS) = 쿠팡이 집계한 "수량 × 공급가(VAT제외)" 정수
+  //   col 28(AC)=판매수량(벤더아이템ID, 반품 반영 — 음수 가능)
+  // → 매출 = col 15 합계 (쿠팡 집계 그대로, 매출파일과 100% 일치)
+  //    원가 = qty × margin.originN (aggregate에서 처리)
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
       header: false,
@@ -446,9 +453,11 @@ function parseSales(file) {
           if (!sku) continue;
           const name = String(r[4] || '').trim();
           const brand = String(r[11] || '').trim();
-          const qty = Number(r[28]) || 0;  // AC열 (0-indexed 28) - 반품 반영 수량
-          const d = bySku[sku] || (bySku[sku] = { qty:0, name, brand });
+          const gmvCogs = Number(r[15]) || 0;  // col 15 매입원가 (= 벤더 매출 VAT제외)
+          const qty = Number(r[28]) || 0;      // col 28 판매수량 (반품 반영)
+          const d = bySku[sku] || (bySku[sku] = { qty:0, gmvCogs:0, name, brand });
           d.qty += qty;
+          d.gmvCogs += gmvCogs;
           if (name && !d.name) d.name = name;
           if (brand && !d.brand) d.brand = brand;
         }
@@ -547,6 +556,18 @@ function catForSku(sku, meta) {
 function aggregate() {
   if (!maps || !cpcData || !couponData) return;
 
+  // 수동 매핑 역색인: SKU → cat (manual에서 cat 지정된 캠페인의 SKU에 적용)
+  const manualSkuCat = {};
+  for (const [cid, mm] of Object.entries(maps.manual_camp_sku || {})) {
+    if (!mm) continue;
+    const skus = mm.skus || (Array.isArray(mm) ? mm : []);
+    const cat = (mm && typeof mm === 'object') ? mm.cat : '';
+    if (!cat || !skus.length) continue;
+    for (const s of skus) {
+      if (!manualSkuCat[s]) manualSkuCat[s] = cat;
+    }
+  }
+
   const byCat = {}; // cat → { cpc(float), coupon(int) }
   const bump = (cat, key, val) => {
     if (!byCat[cat]) byCat[cat] = { cpc: 0, coupon: 0 };
@@ -557,13 +578,17 @@ function aggregate() {
   const skuEnsure = (sku, extra) => {
     if (!bySku[sku]) {
       const sm = maps.sku2cat[sku];
-      // 가상 SKU (수동 cat만 지정): __cat_<카테>_<campId>
       const vMatch = String(sku).match(/^__cat_(.+?)_([0-9]+)$/);
+      // cat 우선순위: 가상SKU > manual에서 지정된 cat > sku2cat > fallback
+      let cat;
+      if (vMatch) cat = vMatch[1];
+      else if (manualSkuCat[sku]) cat = manualSkuCat[sku];
+      else cat = catForSku(sku, sm || extra);
       bySku[sku] = {
         cpc: 0, coupon: 0, gmv: 0, cogs: 0, qty: 0,
         name: (sm && sm.name) || (extra && extra.name) || (vMatch ? `(캠페인 ${vMatch[2]})` : ''),
         brand: (extra && extra.brand) || '',
-        cat: vMatch ? vMatch[1] : catForSku(sku, sm || extra),
+        cat,
       };
     } else if (extra) {
       if (extra.name && !bySku[sku].name) bySku[sku].name = extra.name;
@@ -612,11 +637,8 @@ function aggregate() {
       const d = skuEnsure(sku, s);
       const mg = marginMap && marginMap[sku];
       d.qty += s.qty;
-      if (mg) {
-        d.gmv  += s.qty * mg.supply;  // 매출 = 수량 × 공급가(VAT 제외) = cost/1.1
-        d.cogs += s.qty * mg.origin;  // 원가 = 수량 × 원가(NEW)
-      }
-      // mg가 없으면 매출/원가 0 (마진테이블에 미등록 SKU)
+      d.gmv += s.gmvCogs;              // 매출 = SALES col 15 (쿠팡 집계 "수량×공급가VAT제외", 정수)
+      if (mg) d.cogs += s.qty * mg.origin;  // 원가 = 수량 × 마진.originN
     }
   }
 
@@ -710,6 +732,11 @@ function render(byCat, stats) {
 window.setFilterCat = (cat) => { filterCat = (filterCat === cat) ? '' : cat; renderSkuTable(); };
 window.setFilterSearch = (q) => { filterSearch = q || ''; renderSkuTable(); };
 window.clearSearch = () => { filterSearch = ''; renderSkuTable(); };
+let collapsedCats = new Set(['기타']);  // 기본 접힘
+window.toggleCat = (cat) => {
+  if (collapsedCats.has(cat)) collapsedCats.delete(cat); else collapsedCats.add(cat);
+  renderSkuTable();
+};
 window.resetSettleData = () => {
   if (!confirm('저장된 파일 데이터 전부 삭제할까요? (매핑 KV는 유지)')) return;
   lsClearAll();
@@ -782,21 +809,25 @@ function renderSkuTable(bySku) {
     let g=0,c=0,cp=0,cpn=0,p=0,qty=0;
     for (const [,d] of items) { g+=d.gmv; c+=d.cogs; cp+=d.cpcVat; cpn+=d.coupon; p+=d.profit; qty+=d.qty; }
     const marginPct = g > 0 ? (p / g * 100).toFixed(1) : '—';
-    bodyParts.push(`<tr class="group"><td colspan="${colspan}">${esc(cat)}
+    const isCollapsed = collapsedCats.has(cat);
+    bodyParts.push(`<tr class="group ${isCollapsed?'collapsed':''}"><td colspan="${colspan}" onclick="toggleCat('${cat.replace(/'/g, "\\'")}')">
+      <span class="caret">▼</span>${esc(cat)}
       <span class="m">SKU ${items.length}개 · 매출 ${fmtWon(g)} · 광고 ${fmtWon(cp)} · 순수익 ${fmtWon(p)} ${hasSales?`(${marginPct}%)`:''}</span></td></tr>`);
-    for (const [sku, d] of items) {
-      const mPct = d.gmv > 0 ? (d.profit / d.gmv * 100).toFixed(1) : '—';
-      const profitCls = d.profit < 0 ? 'profit neg' : 'profit';
-      bodyParts.push(`
-        <tr>
-          <td class="left">${esc(sku)}</td>
-          <td class="left name" title="${esc(d.name)}">${esc(d.name || '')}</td>
-          <td>${d.qty ? d.qty.toLocaleString() : '—'}</td>
-          ${hasSales ? `<td class="gmv">${fmtWon(d.gmv)}</td><td>${fmtWon(d.cogs)}</td>` : ''}
-          <td class="cpc">${fmtWon(d.cpcVat)}</td>
-          <td class="coupon">${fmtWon(d.coupon)}</td>
-          ${hasSales ? `<td class="${profitCls}">${fmtWon(d.profit)}</td><td>${mPct}${mPct==='—'?'':'%'}</td>` : ''}
-        </tr>`);
+    if (!isCollapsed) {
+      for (const [sku, d] of items) {
+        const mPct = d.gmv > 0 ? (d.profit / d.gmv * 100).toFixed(1) : '—';
+        const profitCls = d.profit < 0 ? 'profit neg' : 'profit';
+        bodyParts.push(`
+          <tr>
+            <td class="left">${esc(sku)}</td>
+            <td class="left name" title="${esc(d.name)}">${esc(d.name || '')}</td>
+            <td>${d.qty ? d.qty.toLocaleString() : '—'}</td>
+            ${hasSales ? `<td class="gmv">${fmtWon(d.gmv)}</td><td>${fmtWon(d.cogs)}</td>` : ''}
+            <td class="cpc">${fmtWon(d.cpcVat)}</td>
+            <td class="coupon">${fmtWon(d.coupon)}</td>
+            ${hasSales ? `<td class="${profitCls}">${fmtWon(d.profit)}</td><td>${mPct}${mPct==='—'?'':'%'}</td>` : ''}
+          </tr>`);
+      }
     }
   }
 
