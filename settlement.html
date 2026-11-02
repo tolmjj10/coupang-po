@@ -347,10 +347,12 @@ async function loadMargin() {
     marginMap = {};
     for (const r of data.rows) {
       if (!r.sku) continue;
+      const cost = Number(r.cost) || 0;             // 매입가 (VAT 포함, 쿠팡 입금 전)
+      const supply = cost ? cost / 1.1 : 0;         // 공급가 (VAT 제외) — 벤더 실매출
       marginMap[String(r.sku).trim()] = {
-        cost: Number(r.cost) || 0,      // 공급가 (VAT 제외) — 매출 계산용
-        origin: Number(r.origin) || 0,  // 원가
-        price: Number(r.price) || 0,    // 소비자가
+        supply,                                      // 공급가 VAT제외
+        origin: Number(r.originN) || Number(r.origin) || 0,  // 원가 (NEW 우선)
+        price: Number(r.price) || 0,                // 소비자가
         name: r.name || '',
         cat: r.cat || '',
       };
@@ -611,8 +613,8 @@ function aggregate() {
       const mg = marginMap && marginMap[sku];
       d.qty += s.qty;
       if (mg) {
-        d.gmv  += s.qty * mg.cost;    // 매출 = 수량 × 공급가(VAT 제외)
-        d.cogs += s.qty * mg.origin;  // 원가 = 수량 × 원가
+        d.gmv  += s.qty * mg.supply;  // 매출 = 수량 × 공급가(VAT 제외) = cost/1.1
+        d.cogs += s.qty * mg.origin;  // 원가 = 수량 × 원가(NEW)
       }
       // mg가 없으면 매출/원가 0 (마진테이블에 미등록 SKU)
     }
