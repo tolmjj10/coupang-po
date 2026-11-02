@@ -261,12 +261,17 @@ function classify(sku, brand, campName) {
   return '기타';
 }
 
-/* 캠페인 → 카테: 수동 매핑 최우선, 다음 VIID 다수결, 없으면 캠페인명 */
+/* 캠페인 → 카테: 수동 cat 최우선, 다음 수동 sku, 다음 VIID 다수결, 없으면 캠페인명 */
 function catForCamp(campId, campName) {
   const manual = maps.manual_camp_sku && maps.manual_camp_sku[campId];
-  if (manual && manual.length) {
-    const sm = maps.sku2cat[manual[0]];
-    if (sm) return catForSku(manual[0], sm);
+  if (manual) {
+    // 신규 구조: {skus, cat}
+    if (manual.cat) return manual.cat;
+    const skus = manual.skus || (Array.isArray(manual) ? manual : []);
+    if (skus.length) {
+      const sm = maps.sku2cat[skus[0]];
+      if (sm) return catForSku(skus[0], sm);
+    }
   }
   const viids = maps.camp2viid[campId] || [];
   const tally = {};
@@ -337,20 +342,21 @@ function parseSales(file) {
 }
 
 function parseCoupon(file) {
-  // HTML xls 포맷: SKU 번호 (col 3), 펀딩 금액 (col 12, 음수가 유출). 절댓값 집계.
+  // HTML xls 포맷: SKU 번호 (col 3), SKU명 (col 4), 펀딩 금액 (col 12)
   return file.text().then(html => {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const trs = doc.querySelectorAll('tr');
     const rows = [];
     trs.forEach((tr, idx) => {
-      if (idx === 0) return; // header
+      if (idx === 0) return;
       const tds = tr.querySelectorAll('td');
       if (tds.length < 13) return;
       const sku = tds[3].textContent.trim();
+      const name = tds[4].textContent.trim();
       const raw = tds[12].textContent.trim().replace(/,/g, '');
       const amt = Number(raw);
       if (!sku || !amt) return;
-      rows.push({ sku, amount: Math.abs(amt) });
+      rows.push({ sku, name, amount: Math.abs(amt) });
     });
     return rows;
   });
@@ -373,13 +379,19 @@ function distributeRound(entries, total) {
   return out;
 }
 
-/* 캠페인 광고비 → SKU별 분배. 수동매핑 최우선, 다음 camp_viid_cost 비율, 다음 camp2viid 균등. */
+/* 캠페인 광고비 → SKU별 분배. 수동 SKU 최우선, 다음 camp_viid_cost 비율, 다음 camp2viid 균등. */
 function distributeCampCost(campId, totalRawCost) {
   const out = {};
   const manual = maps.manual_camp_sku && maps.manual_camp_sku[campId];
-  if (manual && manual.length) {
-    const per = totalRawCost / manual.length;
-    for (const s of manual) out[s] = (out[s] || 0) + per;
+  const manualSkus = manual ? (manual.skus || (Array.isArray(manual) ? manual : [])) : [];
+  if (manualSkus.length) {
+    const per = totalRawCost / manualSkus.length;
+    for (const s of manualSkus) out[s] = (out[s] || 0) + per;
+    return out;
+  }
+  // cat만 지정됐고 SKU 없으면 가상 SKU로 묶기
+  if (manual && manual.cat && !manualSkus.length) {
+    out[`__cat_${manual.cat}_${campId}`] = totalRawCost;
     return out;
   }
   const costMap = maps.camp_viid_cost && maps.camp_viid_cost[campId];
@@ -427,11 +439,13 @@ function aggregate() {
   const skuEnsure = (sku, extra) => {
     if (!bySku[sku]) {
       const sm = maps.sku2cat[sku];
+      // 가상 SKU (수동 cat만 지정): __cat_<카테>_<campId>
+      const vMatch = String(sku).match(/^__cat_(.+?)_([0-9]+)$/);
       bySku[sku] = {
         cpc: 0, coupon: 0, gmv: 0, cogs: 0, qty: 0,
-        name: (sm && sm.name) || (extra && extra.name) || '',
+        name: (sm && sm.name) || (extra && extra.name) || (vMatch ? `(캠페인 ${vMatch[2]})` : ''),
         brand: (extra && extra.brand) || '',
-        cat: catForSku(sku, sm || extra),
+        cat: vMatch ? vMatch[1] : catForSku(sku, sm || extra),
       };
     } else if (extra) {
       if (extra.name && !bySku[sku].name) bySku[sku].name = extra.name;
@@ -454,7 +468,7 @@ function aggregate() {
     }
   }
 
-  // 쿠폰
+  // 쿠폰 — sku2cat 없을 때는 쿠폰 파일의 SKU명에서 브랜드 추론
   let cpnMatched = 0, cpnUnmatched = 0;
   for (const row of couponData) {
     const skuMeta = maps.sku2cat[row.sku];
@@ -463,11 +477,15 @@ function aggregate() {
       cat = catForSku(row.sku, skuMeta);
       cpnMatched++;
     } else {
-      cat = '기타';
-      cpnUnmatched++;
+      // SKU명 fallback (sku2cat에 없을 때 쿠폰명에서 브랜드 추론)
+      const nm = row.name || '';
+      if (nm.includes('삼대오백') || nm.includes('뉴트리커먼')) { cat = '삼대오백'; cpnMatched++; }
+      else if (nm.includes('온살') || nm.includes('루메어카이브') || nm.includes('루메아카이브')) { cat = '온살'; cpnMatched++; }
+      else if (nm.includes('올리미') || nm.includes('히팅뷰러')) { cat = '뷰티가전'; cpnMatched++; }
+      else { cat = '기타'; cpnUnmatched++; }
     }
     bump(cat, 'coupon', row.amount);
-    skuEnsure(row.sku).coupon += row.amount;
+    skuEnsure(row.sku, { name: row.name }).coupon += row.amount;
   }
 
   // 매출/원가 (sales 있을 때만)
