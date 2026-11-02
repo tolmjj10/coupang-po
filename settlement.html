@@ -272,9 +272,10 @@ const fmtWon = n => (n==null||isNaN(n)) ? '—' : Number(n).toLocaleString('ko-K
 
 /* ─────────── 상태 ─────────── */
 let maps = null;             // { viid2sku, sku2cat, camp2viid, camp_name, camp_viid_cost }
+let marginMap = null;        // { sku: {cost, origin, price, name, cat} }  (/api/margin-state)
 let cpcData = null;          // [{camp_id, cost, camp_name}]  (청구 소진 광고비 기준)
 let couponData = null;       // [{sku, amount}]  (|펀딩금액|)
-let salesData = null;        // { sku: {gmv, cogs, qty, name, brand} }  (SALES_ANALYSIS 월치)
+let salesData = null;        // { sku: {qty, name, brand} }  (SALES_ANALYSIS 월치, col 28 벤더아이템ID 수량)
 let currentBySku = null;     // 집계된 SKU 상세 (필터링 재렌더용)
 let filterCat = '';          // '' = 전체
 let filterSearch = '';
@@ -335,6 +336,28 @@ async function loadMaps() {
     info.innerHTML = `<span class="ok">매핑 로드됨</span> · VIID→SKU ${Object.keys(maps.viid2sku).length.toLocaleString()} · SKU→카테 ${Object.keys(maps.sku2cat).length.toLocaleString()} · 캠페인→VIID ${Object.keys(maps.camp2viid).length.toLocaleString()} · 갱신 ${esc(maps.updated_at || '')}`;
   } catch (e) {
     info.innerHTML = '<span class="bad">매핑 로드 실패</span>';
+  }
+}
+
+async function loadMargin() {
+  try {
+    const res = await fetch('/api/margin-state', { cache: 'no-cache' });
+    const data = await res.json();
+    if (!data || !Array.isArray(data.rows)) { marginMap = {}; return; }
+    marginMap = {};
+    for (const r of data.rows) {
+      if (!r.sku) continue;
+      marginMap[String(r.sku).trim()] = {
+        cost: Number(r.cost) || 0,      // 공급가 (VAT 제외) — 매출 계산용
+        origin: Number(r.origin) || 0,  // 원가
+        price: Number(r.price) || 0,    // 소비자가
+        name: r.name || '',
+        cat: r.cat || '',
+      };
+    }
+  } catch (e) {
+    console.warn('margin-state 로드 실패:', e);
+    marginMap = {};
   }
 }
 
@@ -404,7 +427,9 @@ function parseCPC(wb) {
 }
 
 function parseSales(file) {
-  // SALES_ANALYSIS CSV: col 3=SKU ID, 4=SKU명, 11=브랜드, 12=매출(GMV), 13=판매수량, 15=매입원가(COGS)
+  // SALES_ANALYSIS CSV: col 3=SKU ID, 4=SKU명, 11=브랜드,
+  //                    col 28(AC)=판매수량(벤더아이템ID 기준, 반품 반영 — 음수 가능)
+  // 매출/원가는 쿠팡 GMV/COGS를 쓰지 않고 수량만 집계 → 마진테이블의 cost/origin 곱해 계산
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
       header: false,
@@ -412,18 +437,16 @@ function parseSales(file) {
       complete: (res) => {
         const rows = res.data;
         const bySku = {};
-        for (let i = 1; i < rows.length; i++) {  // skip header
+        for (let i = 1; i < rows.length; i++) {
           const r = rows[i];
-          if (!r || r.length < 16) continue;
+          if (!r || r.length < 29) continue;
           const sku = String(r[3] || '').trim();
           if (!sku) continue;
           const name = String(r[4] || '').trim();
           const brand = String(r[11] || '').trim();
-          const gmv = Number(r[12]) || 0;
-          const qty = Number(r[13]) || 0;
-          const cogs = Number(r[15]) || 0;
-          const d = bySku[sku] || (bySku[sku] = { gmv:0, cogs:0, qty:0, name, brand });
-          d.gmv += gmv; d.cogs += cogs; d.qty += qty;
+          const qty = Number(r[28]) || 0;  // AC열 (0-indexed 28) - 반품 반영 수량
+          const d = bySku[sku] || (bySku[sku] = { qty:0, name, brand });
+          d.qty += qty;
           if (name && !d.name) d.name = name;
           if (brand && !d.brand) d.brand = brand;
         }
@@ -581,11 +604,17 @@ function aggregate() {
     skuEnsure(row.sku, { name: row.name }).coupon += row.amount;
   }
 
-  // 매출/원가 (sales 있을 때만)
+  // 매출/원가 (sales 있을 때만) — qty × 마진테이블 cost/origin
   if (salesData) {
     for (const [sku, s] of Object.entries(salesData)) {
       const d = skuEnsure(sku, s);
-      d.gmv += s.gmv; d.cogs += s.cogs; d.qty += s.qty;
+      const mg = marginMap && marginMap[sku];
+      d.qty += s.qty;
+      if (mg) {
+        d.gmv  += s.qty * mg.cost;    // 매출 = 수량 × 공급가(VAT 제외)
+        d.cogs += s.qty * mg.origin;  // 원가 = 수량 × 원가
+      }
+      // mg가 없으면 매출/원가 0 (마진테이블에 미등록 SKU)
     }
   }
 
@@ -878,7 +907,7 @@ window.addEventListener('dragover', e => { if (!e.target.closest('.drop')) e.pre
 window.addEventListener('drop',     e => { if (!e.target.closest('.drop')) e.preventDefault(); });
 
 (async () => {
-  await loadMaps();
+  await Promise.all([loadMaps(), loadMargin()]);
   restoreFromLs();
   if (cpcData && couponData) aggregate();
 })();
