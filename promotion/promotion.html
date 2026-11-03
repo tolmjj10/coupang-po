@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   :root {
@@ -917,10 +918,15 @@ function renderTabs() {
       ${t}<span class="count">${counts[t]||0}</span>
     </button>`);
   });
+  if (activeTab === '체험단') {
+    parts.push(`<button id="expDlBtn" class="tab" title="체험단 리스트 엑셀 다운로드" style="margin-left:6px;padding:0 10px;">⬇ 다운로드</button>`);
+  }
   $('tabs').innerHTML = parts.join('');
   $('tabs').querySelectorAll('.tab[data-tab]').forEach(el => {
     el.addEventListener('click', () => { activeTab = el.dataset.tab; render(); });
   });
+  const dlBtn = document.getElementById('expDlBtn');
+  if (dlBtn) dlBtn.addEventListener('click', downloadExperienceList);
   const ub = document.getElementById('undoBtn');
   const rb = document.getElementById('redoBtn');
   if (ub) { ub.disabled = undoStack.length === 0; }
@@ -1068,6 +1074,26 @@ function restoreFocus(info) {
   if (info.tag !== 'SELECT' && info.start != null) {
     try { el.setSelectionRange(info.start, info.end); } catch(_) {}
   }
+}
+
+/* ═══════════════════════ 체험단 리스트 엑셀 다운로드 ═══════════════════════ */
+function downloadExperienceList() {
+  const rows = data.filter(r => r.type === '체험단' && rowInMonth(r, activeMonth));
+  if (!rows.length) { alert('현재 월에 체험단 항목이 없습니다.'); return; }
+  const aoa = [['sku id', 'sku 명', '수량', '']];
+  rows.forEach(r => {
+    const sku = r.skuId || '';
+    const m = marginMap[String(sku).trim()] || null;
+    const name = m ? m.name : '';
+    const qty = parseN(r.qty) || '';
+    aoa.push([sku ? Number(sku) || sku : '', name, qty, '']);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:12},{wch:38},{wch:8},{wch:4}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet2');
+  const ym = (activeMonth || '').replace('-', '');
+  XLSX.writeFile(wb, `체험단리스트_${ym || 'all'}.xlsx`);
 }
 
 /* ═══════════════════════ 체험단 뷰 ═══════════════════════ */
