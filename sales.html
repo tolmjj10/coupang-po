@@ -161,6 +161,8 @@
   .month-view .col-total { right: 0px !important; }
   .col-date.wk { background: #fcfaf6; }
   thead .col-date.wk { background: #f6f1e9; }
+  .col-date.prev-month { background: #f6f2ec; color: var(--text-hint); }
+  thead .col-date.prev-month { background: #ede6dc; color: var(--text-hint); font-weight: 500; }
   td.col-date.zero { color: #cfc6bf; }
   td.col-days.danger { color: var(--neg); font-weight: 700; }
   td.col-stock.low { background: #f8d9d6 !important; color: var(--neg); font-weight: 700; }
@@ -309,26 +311,53 @@
     return r;
   }
 
+  // 교차 월 윈도우: visibleDays=7/14일 때 전월 꼬리까지 포함
+  function getCrossWindow(data, days) {
+    const end = lastDataIndex(data, currentMetric);
+    const curr = [];
+    for (let i = 0; i <= end; i++) curr.push({ ym: data.month, idx: i, date: data.dates[i] });
+    if (!days) return curr;  // '전체'는 현재 월만
+    if (curr.length >= days) return curr.slice(-days);
+    const pmYm = prevMonthOf(data.month);
+    const pm = cache[pmYm];
+    if (!pm) return curr;
+    const need = days - curr.length;
+    const start = Math.max(0, pm.dates.length - need);
+    const prev = [];
+    for (let i = start; i < pm.dates.length; i++) prev.push({ ym: pmYm, idx: i, date: pm.dates[i] });
+    return prev.concat(curr);
+  }
+
+  function qtyAt(skuId, entry) {
+    const pack = cache[entry.ym];
+    if (!pack) return 0;
+    const arr = pack.metrics[currentMetric] || [];
+    const s = arr.find(x => x.id === skuId);
+    return s ? (s.qty[entry.idx] || 0) : 0;
+  }
+
   function sumQty(sku, fromIdx, toIdx) {
     let s = 0;
     for (let i = fromIdx; i <= toIdx; i++) s += sku.qty[i] || 0;
     return s;
   }
 
+  function sumAcross(skuId, days, data) {
+    const win = getCrossWindow(data, days);
+    let s = 0;
+    for (const e of win) s += qtyAt(skuId, e);
+    return { sum: s, len: win.length };
+  }
+
   function computeExtras(sku, data) {
-    const lastIdx = lastDataIndex(data, 'out');
-    const outArr = data.metrics.out || [];
-    // find same sku in out metric for averages
-    const outSku = outArr.find(x => x.id === sku.id);
-    let avg7 = 0, avg14 = 0;
-    if (outSku) {
-      const start14 = Math.max(0, lastIdx - 13);
-      const start7  = Math.max(0, lastIdx - 6);
-      const n14 = lastIdx - start14 + 1;
-      const n7  = lastIdx - start7 + 1;
-      avg14 = n14 > 0 ? sumQty(outSku, start14, lastIdx) / n14 : 0;
-      avg7  = n7  > 0 ? sumQty(outSku, start7,  lastIdx) / n7  : 0;
-    }
+    // 교차 월(전월 꼬리까지 포함)로 7/14일 평균 계산
+    const savedMetric = currentMetric;
+    currentMetric = 'out';
+    const r14 = sumAcross(sku.id, 14, data);
+    const r7  = sumAcross(sku.id, 7,  data);
+    currentMetric = savedMetric;
+    const avg14 = r14.len > 0 ? r14.sum / r14.len : 0;
+    const avg7  = r7.len  > 0 ? r7.sum  / r7.len  : 0;
     // prev month total
     const pm = cache[prevMonthOf(data.month)];
     let prevTotal = 0;
@@ -386,7 +415,7 @@
     emptyEl.style.display = 'none';
 
     const dates = data.dates;
-    const idxList = getVisibleDateIndices(data);
+    const window = getCrossWindow(data, visibleDays);
     const lastIdx = lastDataIndex(data, currentMetric);
     skus.sort((a,b) => ((b.qty[lastIdx]||0) - (a.qty[lastIdx]||0)) || (b.total - a.total));
 
@@ -407,11 +436,12 @@
       parts.push('<th class="col-a14">14일<br>평균</th>');
       parts.push('<th class="col-a7">7일<br>평균</th>');
     }
-    for (const i of idxList) {
-      const d = dates[i];
-      const day = Number(d.slice(-2));
-      const wkCls = isWeekend(d) ? ' wk' : '';
-      parts.push(`<th class="col-date${wkCls}" title="${d} (${DOW[dowOf(d)]})">${day}</th>`);
+    for (const e of window) {
+      const day = Number(e.date.slice(-2));
+      const wkCls = isWeekend(e.date) ? ' wk' : '';
+      const otherCls = e.ym !== data.month ? ' prev-month' : '';
+      const label = e.ym !== data.month ? `${Number(e.ym.split('-')[1])}/${day}` : day;
+      parts.push(`<th class="col-date${wkCls}${otherCls}" title="${e.date} (${DOW[dowOf(e.date)]})">${label}</th>`);
     }
     parts.push('<th class="col-total">월합계</th>');
     parts.push('<th class="col-amt">매출</th>');
@@ -431,15 +461,16 @@
         const daysCls = (ex.sellableDays !== null && ex.sellableDays < 7) ? 'danger' : '';
         parts.push(`<td class="col-days ${daysCls}">${daysLabel}</td>`);
         parts.push(`<td class="col-pm">${ex.prevTotal ? fmtInt(ex.prevTotal) : '—'}</td>`);
-        parts.push(`<td class="col-pma">${ex.prevAvg > 0 ? fmtNum1(ex.prevAvg) : '—'}</td>`);
+        parts.push(`<td class="col-pma">${ex.prevAvg > 0 ? fmtInt(Math.round(ex.prevAvg)) : '—'}</td>`);
         parts.push(`<td class="col-a14">${ex.avg14 > 0 ? fmtNum1(ex.avg14) : '—'}</td>`);
         parts.push(`<td class="col-a7">${ex.avg7 > 0 ? fmtNum1(ex.avg7) : '—'}</td>`);
       }
-      for (const i of idxList) {
-        const v = s.qty[i] || 0;
-        const wkCls = isWeekend(dates[i]) ? ' wk' : '';
-        if (v === 0) parts.push(`<td class="col-date zero${wkCls}">·</td>`);
-        else parts.push(`<td class="col-date${wkCls}">${fmtInt(v)}</td>`);
+      for (const e of window) {
+        const v = e.ym === data.month ? (s.qty[e.idx] || 0) : qtyAt(s.id, e);
+        const wkCls = isWeekend(e.date) ? ' wk' : '';
+        const otherCls = e.ym !== data.month ? ' prev-month' : '';
+        if (v === 0) parts.push(`<td class="col-date zero${wkCls}${otherCls}">·</td>`);
+        else parts.push(`<td class="col-date${wkCls}${otherCls}">${fmtInt(v)}</td>`);
       }
       parts.push(`<td class="col-total">${fmtInt(s.total)}</td>`);
       parts.push(`<td class="col-amt" title="단가 ${fmtInt(s.unitPrice)}원">${s.revenue ? fmtWon(s.revenue) : '—'}</td>`);
