@@ -442,17 +442,30 @@ def main():
     # 2) 입고리스트 — mart_purchase_incoming
     refresh_inbound(mcp)
 
-    # 3) sales-sku — DB에 새 데이터가 있을 때만
+    # 3) sales-sku — 당월 + (전월 지연 보고 백필)
     today = dt.date.today()
     cm = today.strftime("%Y-%m")
     db_latest = db_latest_coupang_date(mcp)
     file_latest = file_latest_nonzero_date(cm)
     print(f"[check] DB 최신 {db_latest}  로컬 최신 {file_latest}")
+
+    did = False
     if file_latest is None or (db_latest and str(db_latest) > str(file_latest)):
         refresh_sales_sku_month(mcp, cm)
-        update_index()
+        did = True
     else:
-        print("[sku] 새 데이터 없음 — 생략")
+        print("[sku] 당월 새 데이터 없음 — 생략")
+
+    # 전월 백필: 매월 1~10일엔 매일, 그 외엔 11일/21일 등 주기적으로. 간단히 10일 이내면 항상 재생성.
+    pm_first = (today.replace(day=1) - dt.timedelta(days=1)).replace(day=1)
+    pm = pm_first.strftime("%Y-%m")
+    if today.day <= 10:
+        print(f"[sku] 전월({pm}) 지연 보고 백필")
+        refresh_sales_sku_month(mcp, pm)
+        did = True
+
+    if did:
+        update_index()
 
     # 3) git push
     git_push()
