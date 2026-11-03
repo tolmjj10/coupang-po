@@ -681,7 +681,8 @@ function aggregate() {
       const mg = marginMap && marginMap[sku];
       d.qty += s.qty;
       d.gmv += s.gmvCogs;              // 매출 = SALES col 15 (쿠팡 집계 "수량×공급가VAT제외", 정수)
-      if (mg) d.cogs += s.qty * mg.origin;  // 원가 = 수량 × 마진.originN
+      // 수량이 양수(실판매)일 때만 원가 계산. 반품건(net 음수)은 원가 미포함.
+      if (mg && s.qty > 0) d.cogs += s.qty * mg.origin;
     }
   }
 
