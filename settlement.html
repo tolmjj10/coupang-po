@@ -281,12 +281,12 @@
       <input type="file" accept=".xlsx,.xls" />
     </div>
     <div class="drop sales" id="drop-sales">
-      <div class="drop-tag">파일 3 · 매출/원가</div>
-      <div class="drop-title">SALES_ANALYSIS (월치)</div>
-      <div class="drop-hint">A00065399_SALES_ANALYSIS…csv</div>
-      <div class="drop-path">허브 › 애널리틱스 › 프리미엄 데이터 › 판매 분석 › 일간종합성과지표</div>
+      <div class="drop-tag">파일 3 · 실입고수량</div>
+      <div class="drop-title">실입고 (발주/반출)</div>
+      <div class="drop-hint">Coupang_Stocked_Data_List…xlsx</div>
+      <div class="drop-path">허브 › 발주 › 발주/반출 › 실입고 데이터 다운로드</div>
       <div class="drop-file" id="file-sales" hidden></div>
-      <input type="file" accept=".csv" />
+      <input type="file" accept=".xlsx,.xls" />
     </div>
   </div>
 
@@ -499,48 +499,35 @@ function parseCPC(wb) {
   return Object.entries(byCamp).map(([camp_id, v]) => ({ camp_id, cost: v.cost, camp_name: v.camp_name }));
 }
 
-function parseSales(file) {
-  // SALES_ANALYSIS CSV:
-  //   col 3=SKU ID, 4=SKU명, 11=브랜드,
-  //   col 13=판매수량(SKU ID, gross), 14=반품수량,
-  //   col 15=매입원가(COGS) = 쿠팡 집계 "col13 × 공급가(VAT제외)"
-  //   col 28=판매수량(벤더아이템ID, gross) — col13과 유사하나 벤더아이템 묶임 차이로 소폭 다름
-  // → 수량(net) = col13 - col14  (실제 net 판매, 벤더 입금 기준)
-  //    매출(net) = col15 × (col13 - col14) / col13  — 쿠팡 공급가 × net 수량
-  //    원가 = qty × margin.originN (aggregate에서 처리)
-  return new Promise((resolve, reject) => {
-    Papa.parse(file, {
-      header: false,
-      skipEmptyLines: true,
-      complete: (res) => {
-        const rows = res.data;
-        const bySku = {};
-        for (let i = 1; i < rows.length; i++) {
-          const r = rows[i];
-          if (!r || r.length < 29) continue;
-          const sku = String(r[3] || '').trim();
-          if (!sku) continue;
-          const name = String(r[4] || '').trim();
-          const brand = String(r[11] || '').trim();
-          const gmvCogsGross = Number(r[15]) || 0;  // col 15 (gross, col13 × 공급가)
-          const qtyGross = Number(r[13]) || 0;      // col 13 판매수량 (gross)
-          const qtyReturn = Number(r[14]) || 0;     // col 14 반품수량
-          const qty = qtyGross - qtyReturn;         // 실 net 수량
-          // 실입금 매출 = 쿠팡 공급가 × net 수량 = col15 × (col13 - col14) / col13
-          const gmvCogs = qtyGross > 0
-            ? gmvCogsGross * qty / qtyGross
-            : gmvCogsGross;
-          const d = bySku[sku] || (bySku[sku] = { qty:0, gmvCogs:0, name, brand });
-          d.qty += qty;
-          d.gmvCogs += gmvCogs;
-          if (name && !d.name) d.name = name;
-          if (brand && !d.brand) d.brand = brand;
-        }
-        resolve(bySku);
-      },
-      error: reject,
-    });
-  });
+async function parseSales(file) {
+  // 실입고수량 xlsx (Coupang_Stocked_Data_List):
+  //   col 0=구분(발주/반출), 2=SKU번호, 3=SKU명,
+  //   col 7=수량(항상 양수), col 9=공급가액 per-unit(VAT제외, 반출은 음수)
+  // → 수량(net) = 발주합 - 반출합
+  //   매출(net) = Σ (col9 × col7)  — 공급가 × 수량 (반출의 col9가 음수라 자동 차감)
+  //   원가 = qty × margin.originN (aggregate에서 처리)
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  const bySku = {};
+  const num = v => Number(String(v).replace(/,/g, '')) || 0;
+  for (let i = 1; i < aoa.length; i++) {
+    const r = aoa[i];
+    const kind = r[0];
+    if (kind !== '발주' && kind !== '반출') continue;
+    const sku = String(r[2] || '').trim();
+    if (!sku) continue;
+    const name = String(r[3] || '').trim();
+    const q = num(r[7]);
+    const unitSupply = num(r[9]);  // col 9 공급가액 (반출은 음수)
+    const sign = kind === '반출' ? -1 : 1;
+    const d = bySku[sku] || (bySku[sku] = { qty: 0, gmvCogs: 0, name, brand: '' });
+    d.qty += sign * q;
+    d.gmvCogs += unitSupply * q;   // col9 × col7 (col9 부호가 발주/반출 반영)
+    if (name && !d.name) d.name = name;
+  }
+  return bySku;
 }
 
 function parseCoupon(file) {
