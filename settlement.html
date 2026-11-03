@@ -227,10 +227,15 @@
   .btn-reset-data:hover { color: var(--neg); border-color: var(--neg); }
 
   /* 브랜드 요약 패널 */
+  .brand-panel-label {
+    font-size: 11px; font-weight: 700; color: var(--text-hint);
+    letter-spacing: 0.04em; text-transform: uppercase;
+    margin: 10px 0 4px;
+  }
+  .brand-panel-label:first-of-type { margin-top: 0; }
   .brand-panel {
     display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
-    margin-top: 14px; padding-top: 14px;
-    border-top: 1px solid var(--border);
+    margin-bottom: 6px;
   }
   .brand-card {
     background: #fdfbf9; border: 1px solid var(--border);
@@ -1054,7 +1059,7 @@ window.resetSettleData = () => {
 };
 
 function renderBrandPanel(allEntries, hasSales) {
-  // 오아/보아르만 집계. SKU명 접두 기준. 삼대오백/온살/뷰티가전/기타 모두 제외.
+  // 발주만 (현재와 동일)
   const agg = { '오아': {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,p:0,qty:0}, '보아르': {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,p:0,qty:0} };
   for (const [sku, d] of allEntries) {
     const b = brandOf(sku, d);
@@ -1066,12 +1071,29 @@ function renderBrandPanel(allEntries, hasSales) {
   const total = { cnt: agg['오아'].cnt + agg['보아르'].cnt, gmv:0,cogs:0,cpc:0,cpn:0,p:0,qty:0 };
   for (const k of ['gmv','cogs','cpc','cpn','p','qty']) total[k] = agg['오아'][k] + agg['보아르'][k];
 
-  const card = (label, key, a) => {
+  // 반출 포함: 반출의 gmvCogs(음수)와 qty(양수→음수)를 각 브랜드에 더함
+  const hasReturns = returnsData && Object.keys(returnsData).length > 0;
+  const aggR = JSON.parse(JSON.stringify(agg));
+  const totalR = { ...total };
+  if (hasReturns) {
+    for (const [sku, r] of Object.entries(returnsData)) {
+      const b = brandOf(sku, r);
+      if (!b) continue;
+      aggR[b].gmv += r.gmvCogs;    // 음수 반영
+      aggR[b].qty += -r.qty;        // 반출 수량만큼 감소
+      aggR[b].p += r.gmvCogs;       // 매출 감소 → 순수익도 그만큼 감소 (원가는 환입 없음)
+    }
+    for (const k of ['gmv','qty','p']) totalR[k] = aggR['오아'][k] + aggR['보아르'][k];
+  }
+
+  const card = (label, key, a, variant) => {
     const mg = a.gmv > 0 ? (a.p / a.gmv * 100).toFixed(1) + '%' : '—';
-    const activeCls = filterBrand === key ? ' active' : '';
-    const onclick = `onclick="setFilterBrand('${key}')"`;
+    const clickable = variant === 'base';  // 발주만 카드만 필터 토글
+    const activeCls = clickable && filterBrand === key ? ' active' : '';
+    const onclick = clickable ? `onclick="setFilterBrand('${key}')"` : '';
+    const cursor = clickable ? '' : ' style="cursor:default;"';
     return `
-      <div class="brand-card${activeCls}" ${onclick}>
+      <div class="brand-card${activeCls}"${cursor} ${onclick}>
         <div class="b-title">${esc(label)} <span class="b-count">${a.cnt} SKU${a.qty?` · ${a.qty.toLocaleString()}개`:''}</span></div>
         <div class="b-rows">
           ${hasSales ? `<span class="b-k">매출</span><span class="b-v gmv">${fmtWon(a.gmv)}</span>
@@ -1084,12 +1106,23 @@ function renderBrandPanel(allEntries, hasSales) {
       </div>`;
   };
 
-  return `
+  const panelBase = `
+    <div class="brand-panel-label">발주 기준</div>
     <div class="brand-panel">
-      ${card('오아', '오아', agg['오아'])}
-      ${card('보아르', '보아르', agg['보아르'])}
-      ${card('오아+보아르 합계', '오아+보아르', total)}
+      ${card('오아', '오아', agg['오아'], 'base')}
+      ${card('보아르', '보아르', agg['보아르'], 'base')}
+      ${card('오아+보아르 합계', '오아+보아르', total, 'base')}
     </div>`;
+
+  const panelWithReturns = hasReturns ? `
+    <div class="brand-panel-label">반출 포함 (순 입금 기준)</div>
+    <div class="brand-panel">
+      ${card('오아', '오아', aggR['오아'], 'returns')}
+      ${card('보아르', '보아르', aggR['보아르'], 'returns')}
+      ${card('오아+보아르 합계', '오아+보아르', totalR, 'returns')}
+    </div>` : '';
+
+  return panelBase + panelWithReturns;
 }
 
 function renderSkuTable(bySku) {
@@ -1231,13 +1264,13 @@ function renderSkuTable(bySku) {
     <div class="sku-toolbar">
       <div class="chips">${chipHtml}</div>
     </div>
-    <div style="max-height: calc(100vh - 180px); overflow-y: auto;">
+    ${renderBrandPanel(allEntries, hasSales)}
+    <div style="max-height: calc(100vh - 180px); overflow-y: auto; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);">
       <table class="sku">
         <thead>${header}</thead>
         <tbody>${bodyParts.join('')}${emptyMsg}${sumRow}</tbody>
       </table>
-    </div>
-    ${renderBrandPanel(allEntries, hasSales)}`;
+    </div>`;
 
   // 포커스 유지 (타이핑 중 리렌더로 blur 되는 것 방지)
   if (filterSearch) {
