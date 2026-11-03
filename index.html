@@ -703,10 +703,10 @@
       });
 
     /* ───────── ③ 판매 요약 (실데이터) ─────────
-       데이터 소스: data/sales-dash.json (oa_ops.mart_sales_daily · partner_name=쿠팡)
+       데이터 소스: data/sales-sku/sales-dash.json (oa_ops.mart_sales_daily · partner_name=쿠팡)
        실매출 = sales_amount, 입고매출 = cost_amount */
     let data = []; // 차트에 쓸 6개월 시리즈 (fetch 뒤 채움)
-    fetch('data/sales-dash.json', { cache: 'no-cache' })
+    fetch('data/sales-sku/sales-dash.json', { cache: 'no-cache' })
       .then(r => r.ok ? r.json() : null)
       .catch(() => null)
       .then(dash => {

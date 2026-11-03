@@ -12,7 +12,7 @@
 
 | 파일 | 조건 |
 |---|---|
-| `data/sales-dash.json` | **매번** (대시보드 KPI/6개월 차트) |
+| `data/sales-sku/sales-dash.json` | **매번** (대시보드 KPI/6개월 차트) |
 | `data/sales-sku/{YYYY-MM}.json` | DB(`crawl_coupang_daily`)에 로컬보다 새 데이터가 있을 때만 |
 | `data/sales-sku/index.json` | 월별 totals 재계산 |
 

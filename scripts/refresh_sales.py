@@ -3,7 +3,7 @@
 refresh_sales.py — 사내 oa_ops DB에서 판매 데이터를 끌어와 JSON 파일을 갱신하고 git push.
 
 업데이트 대상:
-  data/sales-dash.json           ← 대시보드 KPI/6개월 차트 (매번 갱신)
+  data/sales-sku/sales-dash.json           ← 대시보드 KPI/6개월 차트 (매번 갱신)
   data/sales-sku/{YYYY-MM}.json  ← 판매 현황 상세 (DB에 새 데이터가 있을 때만)
   data/sales-sku/index.json      ← 월별 totals 인덱스
 
@@ -138,7 +138,7 @@ class McpSession:
 # ──────────────────────────────── 비즈니스 로직 ────────────────────────────────
 
 def refresh_sales_dash(mcp):
-    """매출/원가 집계 → data/sales-dash.json"""
+    """매출/원가 집계 → data/sales-sku/sales-dash.json"""
     today = dt.date.today()
     cm = today.strftime("%Y-%m")
     ly = f"{today.year - 1}-{today.month:02d}"
@@ -183,7 +183,7 @@ def refresh_sales_dash(mcp):
             for ym in trend
         ],
     }
-    out = REPO / "data" / "sales-dash.json"
+    out = REPO / "data" / "sales-sku" / "sales-dash.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(dash, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[dash] 당월 매출 {dash['kpi']['sales_this']:,}원  입고 {dash['kpi']['cost_this']:,}원  (작년 동월 {dash['kpi']['sales_ly']:,} / {dash['kpi']['cost_ly']:,})")
@@ -408,7 +408,7 @@ def refresh_inbound(mcp):
 
 def git_push():
     os.chdir(REPO)
-    subprocess.run(["git", "add", "data/sales-dash.json", "data/sales-sku/"], check=True)
+    subprocess.run(["git", "add", "data/sales-sku/"], check=True)
     r = subprocess.run(["git", "diff", "--cached", "--quiet"])
     if r.returncode == 0:
         print("[git] 변경 없음 — push 생략")
