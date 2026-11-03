@@ -254,6 +254,36 @@
   .brand-card .b-rows .b-v.profit { color: var(--profit); font-weight: 700; }
   .brand-card .b-rows .b-v.profit.neg { color: var(--neg); }
   .brand-card .b-rows .b-v.margin { color: var(--text); font-weight: 700; }
+
+  /* 반출 패널 */
+  .returns-panel {
+    margin-top: 14px; padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  .returns-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+  .returns-head .title { font-size: 14px; font-weight: 700; }
+  .returns-head .sum { font-size: 11.5px; color: var(--text-hint); }
+  .returns-head .sum strong { color: var(--neg); font-weight: 700; }
+  table.returns {
+    width: 100%; border-collapse: collapse;
+    font-size: 12.5px; font-variant-numeric: tabular-nums;
+  }
+  table.returns th {
+    background: #faf7f3; font-weight: 700; font-size: 11px;
+    color: var(--text-hint); padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: right; letter-spacing: 0.02em;
+  }
+  table.returns th.left { text-align: left; }
+  table.returns td {
+    padding: 7px 10px; border-bottom: 1px solid var(--border);
+    text-align: right; white-space: nowrap;
+  }
+  table.returns td.left { text-align: left; }
+  table.returns td.name { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+  table.returns td.neg { color: var(--neg); font-weight: 600; }
+  table.returns tr.subsum td { font-weight: 700; background: #fdfbf9; border-top: 1px solid var(--border-strong); }
 </style>
 </head>
 <body>
@@ -301,6 +331,7 @@
     </div>
   </div>
   <div class="result-box" id="result-sku" hidden></div>
+  <div id="result-returns"></div>
 </div>
 
 <script>
@@ -313,7 +344,8 @@ let maps = null;             // { viid2sku, sku2cat, camp2viid, camp_name, camp_
 let marginMap = null;        // { sku: {cost, origin, price, name, cat} }  (/api/margin-state)
 let cpcData = null;          // [{camp_id, cost, camp_name}]  (청구 소진 광고비 기준)
 let couponData = null;       // [{sku, amount}]  (|펀딩금액|)
-let salesData = null;        // { sku: {qty, name, brand} }  (SALES_ANALYSIS 월치, col 28 벤더아이템ID 수량)
+let salesData = null;        // { sku: {qty, gmvCogs, name, brand} }  (실입고=발주 전용)
+let returnsData = null;      // { sku: {qty, gmvCogs, name} }  (반출만 분리 집계)
 let currentBySku = null;     // 집계된 SKU 상세 (필터링 재렌더용)
 let filterCat = '';          // '' = 전체
 let filterSearch = '';
@@ -354,6 +386,7 @@ function restoreFromLs() {
   cpcData = lsLoad(LS.cpc);
   couponData = lsLoad(LS.coupon);
   salesData = lsLoad(LS.sales);
+  returnsData = lsLoad('settle_returns');
   for (const [kind, nameKey] of [['cpc', LS.cpcName], ['coupon', LS.couponName], ['sales', LS.salesName]]) {
     const name = lsLoad(nameKey, false);
     const data = kind === 'cpc' ? cpcData : kind === 'coupon' ? couponData : salesData;
@@ -370,6 +403,7 @@ async function restoreFromServer() {
     if (data.cpc) { cpcData = data.cpc; applyDropLabel('cpc', (data.cpcName || 'CPC') + ' · 공유'); any = true; }
     if (data.coupon) { couponData = data.coupon; applyDropLabel('coupon', (data.couponName || '쿠폰') + ' · 공유'); any = true; }
     if (data.sales) { salesData = data.sales; applyDropLabel('sales', (data.salesName || 'SALES') + ' · 공유'); any = true; }
+    if (data.returns) returnsData = data.returns;
     return any;
   } catch (e) { console.warn('settlement-data 로드 실패:', e); return false; }
 }
@@ -383,7 +417,7 @@ function queueServerSave() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cpc: cpcData, coupon: couponData, sales: salesData,
+          cpc: cpcData, coupon: couponData, sales: salesData, returns: returnsData,
           cpcName: lsLoad(LS.cpcName, false),
           couponName: lsLoad(LS.couponName, false),
           salesName: lsLoad(LS.salesName, false),
@@ -503,14 +537,12 @@ async function parseSales(file) {
   // 실입고수량 xlsx (Coupang_Stocked_Data_List):
   //   col 0=구분(발주/반출), 2=SKU번호, 3=SKU명,
   //   col 7=수량(항상 양수), col 9=공급가액 per-unit(VAT제외, 반출은 음수)
-  // → 수량(net) = 발주합 - 반출합
-  //   매출(net) = Σ (col9 × col7)  — 공급가 × 수량 (반출의 col9가 음수라 자동 차감)
-  //   원가 = qty × margin.originN (aggregate에서 처리)
+  // → 발주 → purchases 로, 반출 → returns 로 분리 (반출은 수량 양수/금액 음수로 저장)
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array' });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-  const bySku = {};
+  const purchases = {}, returns = {};
   const num = v => Number(String(v).replace(/,/g, '')) || 0;
   for (let i = 1; i < aoa.length; i++) {
     const r = aoa[i];
@@ -520,14 +552,14 @@ async function parseSales(file) {
     if (!sku) continue;
     const name = String(r[3] || '').trim();
     const q = num(r[7]);
-    const unitSupply = num(r[9]);  // col 9 공급가액 (반출은 음수)
-    const sign = kind === '반출' ? -1 : 1;
-    const d = bySku[sku] || (bySku[sku] = { qty: 0, gmvCogs: 0, name, brand: '' });
-    d.qty += sign * q;
-    d.gmvCogs += unitSupply * q;   // col9 × col7 (col9 부호가 발주/반출 반영)
+    const unitSupply = num(r[9]);
+    const bucket = kind === '발주' ? purchases : returns;
+    const d = bucket[sku] || (bucket[sku] = { qty: 0, gmvCogs: 0, name, brand: '' });
+    d.qty += q;                       // 두 버킷 모두 양수
+    d.gmvCogs += unitSupply * q;      // 반출은 unitSupply가 음수 → gmvCogs 음수 유지
     if (name && !d.name) d.name = name;
   }
-  return bySku;
+  return { purchases, returns };
 }
 
 function parseCoupon(file) {
@@ -730,6 +762,48 @@ function aggregate() {
 
   render(byCat, { cpcMatched, cpcUnmatched, cpnMatched, cpnUnmatched, totalCpcInt });
   renderSkuTable(bySku);
+  renderReturnsPanel();
+}
+
+function renderReturnsPanel() {
+  const box = document.getElementById('result-returns');
+  if (!returnsData || !Object.keys(returnsData).length) { box.innerHTML = ''; return; }
+  const rows = Object.entries(returnsData)
+    .map(([sku, d]) => ({ sku, ...d }))
+    .sort((a, b) => a.gmvCogs - b.gmvCogs);  // 음수 큰 순 (가장 많이 반출된 것부터)
+  const totalQty = rows.reduce((s, r) => s + r.qty, 0);
+  const totalAmt = rows.reduce((s, r) => s + r.gmvCogs, 0);
+  box.innerHTML = `
+    <div class="returns-panel">
+      <div class="returns-head">
+        <div class="title">반출 내역</div>
+        <div class="sum">${rows.length}건 · 수량 ${totalQty.toLocaleString()}개 · 반출금액 <strong>${fmtWon(totalAmt)}</strong></div>
+      </div>
+      <table class="returns">
+        <thead>
+          <tr>
+            <th class="left">SKU</th>
+            <th class="left">상품명</th>
+            <th>반출 수량</th>
+            <th>반출 금액(VAT제외)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td class="left">${esc(r.sku)}</td>
+              <td class="left name" title="${esc(r.name)}">${esc(r.name || '')}</td>
+              <td>${r.qty.toLocaleString()}</td>
+              <td class="neg">${fmtWon(r.gmvCogs)}</td>
+            </tr>`).join('')}
+          <tr class="subsum">
+            <td class="left" colspan="2">합계</td>
+            <td>${totalQty.toLocaleString()}</td>
+            <td class="neg">${fmtWon(totalAmt)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
 }
 
 /* ─────────── 렌더 ─────────── */
@@ -1075,8 +1149,11 @@ function setupDrop(id, kind) {
         couponData = await parseCoupon(file);
         lsSave(LS.coupon, couponData); lsSave(LS.couponName, file.name);
       } else if (kind === 'sales') {
-        salesData = await parseSales(file);
+        const parsed = await parseSales(file);
+        salesData = parsed.purchases;
+        returnsData = parsed.returns;
         lsSave(LS.sales, salesData); lsSave(LS.salesName, file.name);
+        lsSave('settle_returns', returnsData);
       }
       label.textContent = file.name;
       queueServerSave();
