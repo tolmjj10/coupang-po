@@ -533,7 +533,7 @@ function parseCoupon(file) {
 /* ─────────── 집계 ─────────── */
 const VAT_RATE = 1.1;
 const BRAND_CATS = new Set();  // (더 이상 사용 안 함 — 삼대오백/온살은 UNMATCHED_CATS로 이동)
-const UNMATCHED_CATS = new Set(['삼대오백', '온살', '오아 미매칭', '보아르 미매칭', '기타']);
+const UNMATCHED_CATS = new Set(['오아 미매칭', '보아르 미매칭']);
 
 /* Largest Remainder Method: raw(float) 배열 합이 total(int)과 정확히 같도록 floor+잉여 분배. */
 function distributeRound(entries, total) {
@@ -666,7 +666,9 @@ function aggregate() {
       // SKU명 fallback (sku2cat에 없을 때 쿠폰명에서 브랜드 추론)
       const nm = row.name || '';
       if (nm.includes('올리미') || nm.includes('히팅뷰러') || nm.includes('히팅마스크')) { cat = '뷰티가전'; cpnMatched++; }
-      else { cat = '기타'; cpnUnmatched++; }
+      else if (nm.startsWith('오아')) { cat = '오아 미매칭'; cpnUnmatched++; }
+      else if (nm.startsWith('보아르')) { cat = '보아르 미매칭'; cpnUnmatched++; }
+      else { cat = '기타'; cpnMatched++; }
     }
     bump(cat, 'coupon', row.amount);
     skuEnsure(row.sku, { name: row.name }).coupon += row.amount;
