@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <style>
   * { box-sizing: border-box; }
@@ -821,11 +821,12 @@ window.downloadReport = () => {
   }
   const total1 = {n:0,qty:0,gmv:0,cogs:0,cpc:0,cpn:0,p:0};
   for (const k of ['n','qty','gmv','cogs','cpc','cpn','p']) total1[k] = brandAgg['오아'][k] + brandAgg['보아르'][k];
+  const pctStr = (p, g) => g > 0 ? (p/g*100).toFixed(2) + '%' : '';
   const s1 = [
     ['브랜드','SKU 수','수량','매출','원가','광고(VAT포함)','쿠폰','순수익','마진%'],
-    ['오아', brandAgg['오아'].n, brandAgg['오아'].qty, brandAgg['오아'].gmv, brandAgg['오아'].cogs, brandAgg['오아'].cpc, brandAgg['오아'].cpn, brandAgg['오아'].p, brandAgg['오아'].gmv>0 ? +(brandAgg['오아'].p/brandAgg['오아'].gmv*100).toFixed(2) : null],
-    ['보아르', brandAgg['보아르'].n, brandAgg['보아르'].qty, brandAgg['보아르'].gmv, brandAgg['보아르'].cogs, brandAgg['보아르'].cpc, brandAgg['보아르'].cpn, brandAgg['보아르'].p, brandAgg['보아르'].gmv>0 ? +(brandAgg['보아르'].p/brandAgg['보아르'].gmv*100).toFixed(2) : null],
-    ['합계', total1.n, total1.qty, total1.gmv, total1.cogs, total1.cpc, total1.cpn, total1.p, total1.gmv>0 ? +(total1.p/total1.gmv*100).toFixed(2) : null],
+    ['오아', brandAgg['오아'].n, brandAgg['오아'].qty, brandAgg['오아'].gmv, brandAgg['오아'].cogs, brandAgg['오아'].cpc, brandAgg['오아'].cpn, brandAgg['오아'].p, pctStr(brandAgg['오아'].p, brandAgg['오아'].gmv)],
+    ['보아르', brandAgg['보아르'].n, brandAgg['보아르'].qty, brandAgg['보아르'].gmv, brandAgg['보아르'].cogs, brandAgg['보아르'].cpc, brandAgg['보아르'].cpn, brandAgg['보아르'].p, pctStr(brandAgg['보아르'].p, brandAgg['보아르'].gmv)],
+    ['합계', total1.n, total1.qty, total1.gmv, total1.cogs, total1.cpc, total1.cpn, total1.p, pctStr(total1.p, total1.gmv)],
     ...returnsBlock('brand'),
   ];
   const ws1 = XLSX.utils.aoa_to_sheet(s1);
@@ -847,22 +848,36 @@ window.downloadReport = () => {
   const s2 = [['[카테고리 요약]'], ['카테고리','SKU 수','수량','매출','원가','광고(VAT)','쿠폰','순수익','마진%']];
   for (const c of catOrder) {
     const a = catAgg[c];
-    s2.push([c, a.n, a.qty, a.gmv, a.cogs, a.cpc, a.cpn, a.p, a.gmv>0 ? +(a.p/a.gmv*100).toFixed(2) : null]);
+    s2.push([c, a.n, a.qty, a.gmv, a.cogs, a.cpc, a.cpn, a.p, pctStr(a.p, a.gmv)]);
   }
   s2.push([]);
   s2.push(['[카테고리별 SKU 상세]']);
+  const boldRows = [];  // 0-indexed row numbers to bold
   for (const c of catOrder) {
     s2.push([]);
     s2.push([`▶ ${c}`]);
+    boldRows.push(s2.length - 1);
     s2.push(['SKU','상품명','브랜드','수량','매출','원가','광고(VAT)','쿠폰','순수익','마진%']);
     const items = catAgg[c].skus.sort((a,b) => b.gmv - a.gmv);
     for (const r of items) {
-      s2.push([r.sku, r.name, r.brand || brandOf(r.sku, r) || '', r.qty, r.gmv, r.cogs, r.cpcVat, r.coupon, r.profit, r.gmv>0 ? +(r.profit/r.gmv*100).toFixed(2) : null]);
+      s2.push([r.sku, r.name, r.brand || brandOf(r.sku, r) || '', r.qty, r.gmv, r.cogs, r.cpcVat, r.coupon, r.profit, pctStr(r.profit, r.gmv)]);
     }
+    // 카테 소계 (볼드)
+    const a = catAgg[c];
+    s2.push(['소계', `${a.n} SKU`, '', a.qty, a.gmv, a.cogs, a.cpc, a.cpn, a.p, pctStr(a.p, a.gmv)]);
+    boldRows.push(s2.length - 1);
   }
   s2.push(...returnsBlock('cat'));
   const ws2 = XLSX.utils.aoa_to_sheet(s2);
   ws2['!cols'] = [{wch:12},{wch:38},{wch:8},{wch:8},{wch:14},{wch:14},{wch:12},{wch:12},{wch:14},{wch:8}];
+  // 소계/헤더 볼드 처리
+  for (const r of boldRows) {
+    for (let c = 0; c < 10; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      if (!ws2[addr]) ws2[addr] = { t: 's', v: '' };
+      ws2[addr].s = { font: { bold: true }, fill: { fgColor: { rgb: 'FDFBF9' } } };
+    }
+  }
   XLSX.utils.book_append_sheet(wb, ws2, '카테고리');
 
   // ─ 시트3: SKU 전체 (검색/필터용 평평한 테이블, 기타 제외) ─
@@ -871,7 +886,7 @@ window.downloadReport = () => {
     .filter(([, d]) => (d.cat || '기타') !== '기타')
     .sort((a,b) => (a[0]+'').localeCompare(b[0]+''));
   for (const [sku, d] of flat) {
-    s3.push([sku, d.name || '', d.brand || brandOf(sku, d) || '', d.cat || '기타', d.qty, d.gmv, d.cogs, d.cpcVat, d.coupon, d.profit, d.gmv>0 ? +(d.profit/d.gmv*100).toFixed(2) : null]);
+    s3.push([sku, d.name || '', d.brand || brandOf(sku, d) || '', d.cat || '기타', d.qty, d.gmv, d.cogs, d.cpcVat, d.coupon, d.profit, pctStr(d.profit, d.gmv)]);
   }
   s3.push(...returnsBlock('flat'));
   const ws3 = XLSX.utils.aoa_to_sheet(s3);
