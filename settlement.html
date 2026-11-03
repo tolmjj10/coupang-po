@@ -885,7 +885,9 @@ window.downloadReport = () => {
 };
 
 let filterReturnBrand = '';  // '' | '오아' | '보아르'
+let returnsCollapsed = true;  // 기본 접힘
 window.setFilterReturnBrand = (b) => { filterReturnBrand = (filterReturnBrand === b) ? '' : b; renderReturnsPanel(); };
+window.toggleReturns = () => { returnsCollapsed = !returnsCollapsed; renderReturnsPanel(); };
 
 function renderReturnsPanel() {
   const box = document.getElementById('result-returns');
@@ -907,14 +909,19 @@ function renderReturnsPanel() {
   box.innerHTML = `
     <div class="returns-panel">
       <div class="returns-head">
-        <div class="title">반출 내역</div>
+        <div class="title" onclick="toggleReturns()" style="cursor:pointer; user-select:none;">
+          <span style="display:inline-block; width:10px; transform:rotate(${returnsCollapsed?-90:0}deg); transition:transform .15s;">▼</span>
+          반출 내역
+        </div>
         <div class="sum">${rows.length}건 · 수량 ${totalQty.toLocaleString()}개 · 반출금액 <strong>${fmtWon(totalAmt)}</strong></div>
+        ${returnsCollapsed ? '' : `
         <div style="margin-left:auto; display:flex; gap:6px;">
           <button class="chip ${filterReturnBrand === '' ? 'active' : ''}" onclick="setFilterReturnBrand('')">전체</button>
           ${chip('오아', '오아')}
           ${chip('보아르', '보아르')}
-        </div>
+        </div>`}
       </div>
+      ${returnsCollapsed ? '' : `
       <table class="returns">
         <thead>
           <tr>
@@ -940,7 +947,7 @@ function renderReturnsPanel() {
             <td class="neg">${fmtWon(totalAmt)}</td>
           </tr>
         </tbody>
-      </table>
+      </table>`}
     </div>`;
 }
 
