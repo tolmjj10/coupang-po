@@ -768,10 +768,13 @@ window.downloadReport = () => {
   if (!currentBySku || !currentByCat) { alert('먼저 CPC/쿠폰(+실입고) 파일을 올려주세요.'); return; }
   const wb = XLSX.utils.book_new();
 
-  // 공통: 반출 블록 생성 (각 시트 하단에 붙임)
+  // 공통: 반출 블록 생성 (각 시트 하단에 붙임, 기타 제외)
   const returnsBlock = (groupBy) => {
     if (!returnsData || !Object.keys(returnsData).length) return [];
-    const rows = Object.entries(returnsData).map(([sku, d]) => ({ sku, ...d, cat: (currentBySku[sku]?.cat || '기타'), brand: brandOf(sku, {name:d.name}) || '기타' }));
+    const rows = Object.entries(returnsData)
+      .map(([sku, d]) => ({ sku, ...d, cat: (currentBySku[sku]?.cat || '기타'), brand: brandOf(sku, {name:d.name}) || '기타' }))
+      .filter(r => r.cat !== '기타' && r.brand !== '기타');
+    if (!rows.length) return [];
     rows.sort((a,b) => a.gmvCogs - b.gmvCogs);
     const out = [[], ['[반출 내역]']];
     if (groupBy === 'brand') {
@@ -829,10 +832,11 @@ window.downloadReport = () => {
   ws1['!cols'] = [{wch:10},{wch:8},{wch:10},{wch:14},{wch:14},{wch:14},{wch:12},{wch:14},{wch:8}];
   XLSX.utils.book_append_sheet(wb, ws1, '브랜드');
 
-  // ─ 시트2: 카테고리 (요약 + SKU 상세) ─
+  // ─ 시트2: 카테고리 (요약 + SKU 상세, 기타 제외) ─
   const catAgg = {};
   for (const [sku, d] of Object.entries(currentBySku)) {
     const c = d.cat || '기타';
+    if (c === '기타') continue;
     catAgg[c] = catAgg[c] || { n:0, qty:0, gmv:0, cogs:0, cpc:0, cpn:0, p:0, skus:[] };
     const a = catAgg[c];
     a.n++; a.qty += d.qty; a.gmv += d.gmv; a.cogs += d.cogs;
@@ -861,9 +865,11 @@ window.downloadReport = () => {
   ws2['!cols'] = [{wch:12},{wch:38},{wch:8},{wch:8},{wch:14},{wch:14},{wch:12},{wch:12},{wch:14},{wch:8}];
   XLSX.utils.book_append_sheet(wb, ws2, '카테고리');
 
-  // ─ 시트3: SKU 전체 (검색/필터용 평평한 테이블) ─
+  // ─ 시트3: SKU 전체 (검색/필터용 평평한 테이블, 기타 제외) ─
   const s3 = [['SKU','상품명','브랜드','카테고리','수량','매출','원가','광고(VAT)','쿠폰','순수익','마진%']];
-  const flat = Object.entries(currentBySku).sort((a,b) => (a[0]+'').localeCompare(b[0]+''));
+  const flat = Object.entries(currentBySku)
+    .filter(([, d]) => (d.cat || '기타') !== '기타')
+    .sort((a,b) => (a[0]+'').localeCompare(b[0]+''));
   for (const [sku, d] of flat) {
     s3.push([sku, d.name || '', d.brand || brandOf(sku, d) || '', d.cat || '기타', d.qty, d.gmv, d.cogs, d.cpcVat, d.coupon, d.profit, d.gmv>0 ? +(d.profit/d.gmv*100).toFixed(2) : null]);
   }
