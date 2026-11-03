@@ -224,6 +224,35 @@
     color: var(--text-hint); cursor: pointer;
   }
   .btn-reset-data:hover { color: var(--neg); border-color: var(--neg); }
+
+  /* 브랜드 요약 패널 */
+  .brand-panel {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+    margin-top: 14px; padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .brand-card {
+    background: #fdfbf9; border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+    cursor: pointer; transition: border-color .12s, background .12s;
+  }
+  .brand-card:hover { border-color: var(--accent); }
+  .brand-card.active { border-color: var(--accent-dark); background: var(--accent-light); }
+  .brand-card .b-title {
+    font-size: 12px; font-weight: 700; color: var(--text);
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 8px;
+  }
+  .brand-card .b-title .b-count { font-size: 10.5px; color: var(--text-hint); font-weight: 500; }
+  .brand-card .b-rows { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 11.5px; }
+  .brand-card .b-rows .b-k { color: var(--text-hint); }
+  .brand-card .b-rows .b-v { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .brand-card .b-rows .b-v.gmv    { color: var(--sales); }
+  .brand-card .b-rows .b-v.cpc    { color: var(--cpc); }
+  .brand-card .b-rows .b-v.coupon { color: var(--coupon); }
+  .brand-card .b-rows .b-v.profit { color: var(--profit); font-weight: 700; }
+  .brand-card .b-rows .b-v.profit.neg { color: var(--neg); }
+  .brand-card .b-rows .b-v.margin { color: var(--text); font-weight: 700; }
 </style>
 </head>
 <body>
@@ -494,7 +523,7 @@ function parseCoupon(file) {
       const raw = tds[12].textContent.trim().replace(/,/g, '');
       const amt = Number(raw);
       if (!sku || !amt) return;
-      rows.push({ sku, name, amount: Math.abs(amt) });
+      rows.push({ sku, name, amount: amt });  // 환불은 음수 그대로 → 합산 시 차감
     });
     return rows;
   });
@@ -745,6 +774,14 @@ window.setFilterCat = (cat) => { filterCat = (filterCat === cat) ? '' : cat; ren
 window.setFilterSearch = (q) => { filterSearch = q || ''; renderSkuTable(); };
 window.clearSearch = () => { filterSearch = ''; renderSkuTable(); };
 let collapsedCats = new Set(['기타', '삼대오백', '온살', '오아 미매칭', '보아르 미매칭']);  // 기본 접힘
+let filterBrand = '';  // '' | '오아' | '보아르'
+window.setFilterBrand = (b) => { filterBrand = (filterBrand === b) ? '' : b; renderSkuTable(); };
+function brandOf(sku, d) {
+  const nm = (d.name || '').trim();
+  if (nm.startsWith('오아')) return '오아';
+  if (nm.startsWith('보아르')) return '보아르';
+  return '';
+}
 window.toggleCat = (cat) => {
   if (collapsedCats.has(cat)) collapsedCats.delete(cat); else collapsedCats.add(cat);
   renderSkuTable();
@@ -763,6 +800,45 @@ window.resetSettleData = () => {
   lsClearAll();
   location.reload();
 };
+
+function renderBrandPanel(allEntries, hasSales) {
+  // 오아/보아르만 집계. SKU명 접두 기준. 삼대오백/온살/뷰티가전/기타 모두 제외.
+  const agg = { '오아': {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,p:0,qty:0}, '보아르': {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,p:0,qty:0} };
+  for (const [sku, d] of allEntries) {
+    const b = brandOf(sku, d);
+    if (!b) continue;
+    const a = agg[b];
+    a.cnt++; a.gmv += d.gmv; a.cogs += d.cogs; a.cpc += d.cpcVat;
+    a.cpn += d.coupon; a.p += d.profit; a.qty += d.qty;
+  }
+  const total = { cnt: agg['오아'].cnt + agg['보아르'].cnt, gmv:0,cogs:0,cpc:0,cpn:0,p:0,qty:0 };
+  for (const k of ['gmv','cogs','cpc','cpn','p','qty']) total[k] = agg['오아'][k] + agg['보아르'][k];
+
+  const card = (label, key, a) => {
+    const mg = a.gmv > 0 ? (a.p / a.gmv * 100).toFixed(1) + '%' : '—';
+    const activeCls = filterBrand === key ? ' active' : '';
+    const onclick = key ? `onclick="setFilterBrand('${key}')"` : '';
+    return `
+      <div class="brand-card${activeCls}" ${onclick}>
+        <div class="b-title">${esc(label)} <span class="b-count">${a.cnt} SKU${a.qty?` · ${a.qty.toLocaleString()}개`:''}</span></div>
+        <div class="b-rows">
+          ${hasSales ? `<span class="b-k">매출</span><span class="b-v gmv">${fmtWon(a.gmv)}</span>
+          <span class="b-k">원가</span><span class="b-v">${fmtWon(a.cogs)}</span>` : ''}
+          <span class="b-k">광고(VAT)</span><span class="b-v cpc">${fmtWon(a.cpc)}</span>
+          <span class="b-k">쿠폰</span><span class="b-v coupon">${fmtWon(a.cpn)}</span>
+          ${hasSales ? `<span class="b-k">순수익</span><span class="b-v profit${a.p<0?' neg':''}">${fmtWon(a.p)}</span>
+          <span class="b-k">마진</span><span class="b-v margin">${mg}</span>` : ''}
+        </div>
+      </div>`;
+  };
+
+  return `
+    <div class="brand-panel">
+      ${card('오아', '오아', agg['오아'])}
+      ${card('보아르', '보아르', agg['보아르'])}
+      ${card('오아+보아르 합계', '', total)}
+    </div>`;
+}
 
 function renderSkuTable(bySku) {
   const box = document.getElementById('result-sku');
@@ -787,6 +863,7 @@ function renderSkuTable(bySku) {
   const q = filterSearch.trim().toLowerCase();
   const filtered = allEntries.filter(([sku, d]) => {
     if (filterCat && d.cat !== filterCat) return false;
+    if (filterBrand && brandOf(sku, d) !== filterBrand) return false;
     if (q) {
       const hay = (sku + ' ' + (d.name || '') + ' ' + (d.brand || '')).toLowerCase();
       if (!hay.includes(q)) return false;
@@ -903,7 +980,8 @@ function renderSkuTable(bySku) {
         <thead>${header}</thead>
         <tbody>${bodyParts.join('')}${emptyMsg}${sumRow}</tbody>
       </table>
-    </div>`;
+    </div>
+    ${renderBrandPanel(allEntries, hasSales)}`;
 
   // 포커스 유지 (타이핑 중 리렌더로 blur 되는 것 방지)
   if (filterSearch) {
