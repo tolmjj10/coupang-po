@@ -882,8 +882,13 @@ window.downloadReport = () => {
 function renderReturnsPanel() {
   const box = document.getElementById('result-returns');
   if (!returnsData || !Object.keys(returnsData).length) { box.innerHTML = ''; return; }
+  const catOf = (sku, d) => {
+    if (currentBySku && currentBySku[sku]) return currentBySku[sku].cat || '기타';
+    const sm = maps && maps.sku2cat && maps.sku2cat[sku];
+    return catForSku(sku, sm || { name: d.name }) || '기타';
+  };
   const rows = Object.entries(returnsData)
-    .map(([sku, d]) => ({ sku, ...d }))
+    .map(([sku, d]) => ({ sku, ...d, cat: catOf(sku, d) }))
     .sort((a, b) => a.gmvCogs - b.gmvCogs);  // 음수 큰 순 (가장 많이 반출된 것부터)
   const totalQty = rows.reduce((s, r) => s + r.qty, 0);
   const totalAmt = rows.reduce((s, r) => s + r.gmvCogs, 0);
@@ -898,6 +903,7 @@ function renderReturnsPanel() {
           <tr>
             <th class="left">SKU</th>
             <th class="left">상품명</th>
+            <th class="left">카테고리</th>
             <th>반출 수량</th>
             <th>반출 금액(VAT제외)</th>
           </tr>
@@ -907,11 +913,12 @@ function renderReturnsPanel() {
             <tr>
               <td class="left">${esc(r.sku)}</td>
               <td class="left name" title="${esc(r.name)}">${esc(r.name || '')}</td>
+              <td class="left">${esc(r.cat)}</td>
               <td>${r.qty.toLocaleString()}</td>
               <td class="neg">${fmtWon(r.gmvCogs)}</td>
             </tr>`).join('')}
           <tr class="subsum">
-            <td class="left" colspan="2">합계</td>
+            <td class="left" colspan="3">합계</td>
             <td>${totalQty.toLocaleString()}</td>
             <td class="neg">${fmtWon(totalAmt)}</td>
           </tr>
