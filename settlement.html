@@ -925,8 +925,8 @@ function renderReturnsPanel() {
       <table class="returns">
         <thead>
           <tr>
-            <th class="left">SKU</th>
             <th class="left">카테고리</th>
+            <th class="left">SKU</th>
             <th class="left">상품명</th>
             <th>반출 수량</th>
             <th>반출 금액(VAT제외)</th>
@@ -935,8 +935,8 @@ function renderReturnsPanel() {
         <tbody>
           ${rows.map(r => `
             <tr>
-              <td class="left">${esc(r.sku)}</td>
               <td class="left">${esc(r.cat)}</td>
+              <td class="left">${esc(r.sku)}</td>
               <td class="left name" title="${esc(r.name)}">${esc(r.name || '')}</td>
               <td>${r.qty.toLocaleString()}</td>
               <td class="neg">${fmtWon(r.gmvCogs)}</td>
