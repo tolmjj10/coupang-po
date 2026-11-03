@@ -1187,10 +1187,10 @@ function renderBrands(allEntries, hasSales) {
         <div class="b-title">${esc(label)} <span class="b-count">${a.cnt} SKU${a.qty?` · ${a.qty.toLocaleString()}개`:''}</span></div>
         <div class="b-rows">
           ${hasSales ? `<span class="b-k">매출</span><span class="b-v gmv">${fmtWon(a.gmv)}</span>
-          <span class="b-k">원가</span><span class="b-v">${fmtWon(a.cogs)}</span>` : ''}
-          <span class="b-k">광고(VAT)</span><span class="b-v cpc">${fmtWon(a.cpc)}</span>
-          <span class="b-k">쿠폰</span><span class="b-v coupon">${fmtWon(a.cpn)}</span>
-          ${hasTrialBrand ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">${fmtWon(a.tr||0)}</span>` : ''}
+          <span class="b-k">원가</span><span class="b-v" style="color:var(--neg);">-${fmtWon(a.cogs)}</span>` : ''}
+          <span class="b-k">광고(VAT)</span><span class="b-v cpc">-${fmtWon(a.cpc)}</span>
+          <span class="b-k">쿠폰</span><span class="b-v coupon">-${fmtWon(a.cpn)}</span>
+          ${hasTrialBrand ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">-${fmtWon(a.tr||0)}</span>` : ''}
           ${hasReturns ? `<span class="b-k">반출</span><span class="b-v" style="color:var(--neg);font-weight:600;">${fmtWon(a.ret)}</span>` : ''}
           ${hasSales ? `<span class="b-k">순수익</span><span class="b-v profit${a.p<0?' neg':''}">${fmtWon(a.p)}</span>
           <span class="b-k">마진</span><span class="b-v margin">${mg}</span>` : ''}
