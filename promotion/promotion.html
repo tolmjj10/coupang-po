@@ -1088,14 +1088,23 @@ async function downloadPromotionList(type) {
   if (!sel.length) { alert('체크된 항목이 없습니다. 다운로드할 행을 체크해주세요.'); return; }
 
   let wb;
-  try {
-    const res = await fetch('/promotion/행사제안.xlsx', { cache: 'no-cache' });
-    const buf = await res.arrayBuffer();
-    wb = XLSX.read(buf, { type: 'array', cellStyles: true });
-  } catch (e) {
-    alert('템플릿 로드 실패: ' + e.message);
-    return;
+  const urls = [
+    '/promotion/' + encodeURIComponent('행사제안.xlsx'),
+    'https://raw.githubusercontent.com/tolmjj10/coupang-po/main/promotion/' + encodeURIComponent('행사제안.xlsx'),
+  ];
+  let lastErr = '';
+  for (const u of urls) {
+    try {
+      const res = await fetch(u, { cache: 'no-cache' });
+      if (!res.ok) { lastErr = `HTTP ${res.status}`; continue; }
+      const ct = res.headers.get('Content-Type') || '';
+      if (ct.includes('text/html')) { lastErr = '템플릿 아님 (HTML 반환)'; continue; }
+      const buf = await res.arrayBuffer();
+      wb = XLSX.read(buf, { type: 'array', cellStyles: true });
+      break;
+    } catch (e) { lastErr = e.message; }
   }
+  if (!wb) { alert('템플릿 로드 실패: ' + lastErr); return; }
   const ws = wb.Sheets[wb.SheetNames[0]];
   const range = XLSX.utils.decode_range(ws['!ref']);
   const dataStartRow = type === '골드박스' ? 3 : 14;  // 0-indexed
