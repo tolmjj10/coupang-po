@@ -69,6 +69,7 @@
   .drop.sales.loaded     { border-color: var(--sales); }
   .drop-title { font-size: 14px; font-weight: 700; margin-top: 6px; }
   .drop-hint  { font-size: 11.5px; color: var(--text-hint); margin-top: 4px; }
+  .drop-path  { font-size: 10.5px; color: var(--text-hint); opacity: 0.75; margin-top: 6px; letter-spacing: -0.005em; }
   .drop-file  { font-size: 12px; font-weight: 600; color: var(--accent-dark); margin-top: 8px; word-break: break-all; }
   input[type="file"] { display: none; }
 
@@ -237,6 +238,7 @@
       <div class="drop-tag">파일 1 · CPC 광고비</div>
       <div class="drop-title">광고 정산 엑셀</div>
       <div class="drop-hint">A00065399-dailySettlement-…xlsx</div>
+      <div class="drop-path">허브 › 광고 관리 › 일별 광고 › 일별 광고비 정산내역 보고서</div>
       <div class="drop-file" id="file-cpc" hidden></div>
       <input type="file" accept=".xlsx,.xls" />
     </div>
@@ -244,6 +246,7 @@
       <div class="drop-tag">파일 2 · 쿠폰비</div>
       <div class="drop-title">쿠폰 정산 파일</div>
       <div class="drop-hint">coupon_YYYY_MM_DD (N).xls</div>
+      <div class="drop-path">허브 › 정산 › 공제금액계정 › 쿠폰프로모션</div>
       <div class="drop-file" id="file-coupon" hidden></div>
       <input type="file" accept=".xlsx,.xls" />
     </div>
@@ -251,6 +254,7 @@
       <div class="drop-tag">파일 3 · 매출/원가</div>
       <div class="drop-title">SALES_ANALYSIS (월치)</div>
       <div class="drop-hint">A00065399_SALES_ANALYSIS…csv</div>
+      <div class="drop-path">허브 › 애널리틱스 › 프리미엄 데이터 › 판매 분석 › 일간종합성과지표</div>
       <div class="drop-file" id="file-sales" hidden></div>
       <input type="file" accept=".csv" />
     </div>
@@ -317,9 +321,10 @@ function restoreFromLs() {
       const label = zone.querySelector('.drop-file');
       const title = zone.querySelector('.drop-title');
       const hint = zone.querySelector('.drop-hint');
+      const path = zone.querySelector('.drop-path');
       label.textContent = name + ' · 저장됨';
       label.hidden = false;
-      title.hidden = true; hint.hidden = true;
+      title.hidden = true; hint.hidden = true; if (path) path.hidden = true;
       zone.classList.add('loaded');
     }
   }
@@ -898,13 +903,14 @@ function setupDrop(id, kind) {
   const label = zone.querySelector('.drop-file');
   const title = zone.querySelector('.drop-title');
   const hint = zone.querySelector('.drop-hint');
+  const path = zone.querySelector('.drop-path');
 
   const handle = async (file) => {
     if (!file) return;
     label.textContent = file.name;
     label.hidden = false;
     zone.classList.add('loaded');
-    title.hidden = true; hint.hidden = true;
+    title.hidden = true; hint.hidden = true; if (path) path.hidden = true;
     try {
       if (kind === 'cpc') {
         const buf = await file.arrayBuffer();
