@@ -1087,7 +1087,8 @@ async function downloadPromotionList(type) {
   const sel = data.filter(r => r.type === type && rowInMonth(r, activeMonth) && selectedRows.has(r.id));
   if (!sel.length) { alert('체크된 항목이 없습니다. 다운로드할 행을 체크해주세요.'); return; }
 
-  let wb;
+  // 템플릿 로드
+  let srcWb;
   const urls = [
     '/promotion/' + encodeURIComponent('행사제안.xlsx'),
     'https://raw.githubusercontent.com/tolmjj10/coupang-po/main/promotion/' + encodeURIComponent('행사제안.xlsx'),
@@ -1100,38 +1101,54 @@ async function downloadPromotionList(type) {
       const ct = res.headers.get('Content-Type') || '';
       if (ct.includes('text/html')) { lastErr = '템플릿 아님 (HTML 반환)'; continue; }
       const buf = await res.arrayBuffer();
-      wb = XLSX.read(buf, { type: 'array', cellStyles: true });
+      srcWb = XLSX.read(buf, { type: 'array', cellStyles: true });
       break;
     } catch (e) { lastErr = e.message; }
   }
-  if (!wb) { alert('템플릿 로드 실패: ' + lastErr); return; }
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const range = XLSX.utils.decode_range(ws['!ref']);
-  const dataStartRow = type === '골드박스' ? 3 : 14;  // 0-indexed
-  const templateDataRows = type === '골드박스' ? 3 : 1;
+  if (!srcWb) { alert('템플릿 로드 실패: ' + lastErr); return; }
+  const srcWs = srcWb.Sheets[srcWb.SheetNames[0]];
 
-  // 템플릿 데이터 행의 셀 스타일을 컬럼별로 캐시
-  const styleOfCol = {};
-  for (let c = range.s.c; c <= range.e.c; c++) {
-    const a = XLSX.utils.encode_cell({ r: dataStartRow, c });
-    if (ws[a] && ws[a].s) styleOfCol[c] = ws[a].s;
+  // 템플릿 섹션 좌표 (0-indexed 행, 열 B=1)
+  const section = type === '골드박스' ? {
+    labelRow: 2, headerRows: [3, 4], dataRow: 5, colStart: 1, colEnd: 19
+  } : {
+    labelRow: 12, headerRows: [14, 15], dataRow: 16, colStart: 1, colEnd: 18
+  };
+
+  // 새 워크시트 (활성 섹션만)
+  const newWs = {};
+  const copyRow = (srcR, dstR) => {
+    for (let c = section.colStart; c <= section.colEnd; c++) {
+      const srcA = XLSX.utils.encode_cell({ r: srcR, c });
+      if (srcWs[srcA]) {
+        newWs[XLSX.utils.encode_cell({ r: dstR, c })] = { ...srcWs[srcA] };
+      }
+    }
+  };
+  // 템플릿과 동일하게 B3 부터 시작 (dstR = 2)
+  copyRow(section.labelRow, 2);
+  section.headerRows.forEach((hr, i) => copyRow(hr, 3 + i));
+
+  // 데이터 행 스타일 캐시
+  const dataStyleOfCol = {};
+  for (let c = section.colStart; c <= section.colEnd; c++) {
+    const a = XLSX.utils.encode_cell({ r: section.dataRow, c });
+    if (srcWs[a]) dataStyleOfCol[c] = srcWs[a].s;
   }
 
-  // 데이터 ↔ 셀 변환
-  const promoDate = (iso) => {
-    // Excel date serial (1900-based)
+  const toExcelDate = (iso) => {
     if (!iso) return '';
     const d = new Date(iso + 'T00:00:00');
     const base = new Date(1899, 11, 30);
     return Math.round((d - base) / 86400000);
   };
-  const toNum = v => { const n = Number(v); return Number.isFinite(n) ? n : v; };
+  const toNum = v => { const n = Number(v); return Number.isFinite(n) && v !== '' ? n : (v == null ? '' : v); };
 
   const rowsOut = sel.map(r => {
     const d = derive(r);
     if (type === '골드박스') {
       return [
-        promoDate(r.date), r.time || '07시', '골드박스', 10, 'Retail', 'CE', 'andy',
+        toExcelDate(r.date), r.time || '07시', '골드박스', 10, 'Retail', 'CE', 'andy',
         toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
         '', '',
         toNum(d.priceBase), toNum(d.salePrice), toNum(d.promoPrice),
@@ -1139,45 +1156,54 @@ async function downloadPromotionList(type) {
         toNum(d.supply), toNum(r.qty)
       ];
     } else {
-      // 타임특가: 할인가 컬럼은 "N,000원" 포맷 (템플릿 참조)
       const discStr = r.discountRate ? (Number(r.discountRate).toLocaleString() + '원') : '';
       return [
-        promoDate(r.date), r.time || '15시', '타임특가', 10, 'Retail', 'CE', 'andy',
+        toExcelDate(r.date), r.time || '15시', '타임특가', 10, 'Retail', 'CE', 'andy',
         toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
         '', '',
         toNum(d.priceBase), toNum(d.promoPrice), discStr,
-        '', toNum(r.qty), ''
+        '', toNum(r.qty)
       ];
     }
   });
 
-  // 템플릿 데이터 영역에 쓰기 (스타일 유지)
-  const startC = range.s.c;  // 보통 1 (B열)
+  const dataStart = 2 + 1 + section.headerRows.length;  // B6 (0-indexed row 5)
   rowsOut.forEach((vals, i) => {
     vals.forEach((v, idx) => {
-      const c = startC + idx;
-      const a = XLSX.utils.encode_cell({ r: dataStartRow + i, c });
+      const c = section.colStart + idx;
       const t = typeof v === 'number' ? 'n' : 's';
-      ws[a] = { t, v: (v==null?'':v), s: styleOfCol[c] };
+      newWs[XLSX.utils.encode_cell({ r: dataStart + i, c })] = { t, v: v == null ? '' : v, s: dataStyleOfCol[c] };
     });
   });
-  // 템플릿의 남는 데이터 행은 비움 (스타일 유지)
-  for (let i = rowsOut.length; i < templateDataRows; i++) {
-    for (let c = startC; c <= range.e.c; c++) {
-      const a = XLSX.utils.encode_cell({ r: dataStartRow + i, c });
-      if (ws[a]) ws[a].v = '';
-    }
-  }
 
-  // 범위 확장 (추가 행이 템플릿 범위 초과 시)
-  const lastNewRow = dataStartRow + Math.max(rowsOut.length, templateDataRows) - 1;
-  if (lastNewRow > range.e.r) {
-    range.e.r = lastNewRow;
-    ws['!ref'] = XLSX.utils.encode_range(range);
-  }
+  // ref
+  newWs['!ref'] = XLSX.utils.encode_range({
+    s: { r: 2, c: section.colStart },
+    e: { r: Math.max(dataStart + rowsOut.length - 1, dataStart), c: section.colEnd }
+  });
 
+  // merges: 라벨/헤더 섹션에 걸린 것만 복사 (행 번호 매핑)
+  const rowMap = { [section.labelRow]: 2 };
+  section.headerRows.forEach((hr, i) => rowMap[hr] = 3 + i);
+  const srcMerges = srcWs['!merges'] || [];
+  const outMerges = [];
+  for (const m of srcMerges) {
+    if (rowMap[m.s.r] == null || rowMap[m.e.r] == null) continue;
+    if (m.s.c < section.colStart || m.e.c > section.colEnd) continue;
+    outMerges.push({
+      s: { r: rowMap[m.s.r], c: m.s.c },
+      e: { r: rowMap[m.e.r], c: m.e.c }
+    });
+  }
+  if (outMerges.length) newWs['!merges'] = outMerges;
+
+  if (srcWs['!cols']) newWs['!cols'] = srcWs['!cols'];
+  if (srcWs['!rows']) newWs['!rows'] = srcWs['!rows'].slice(0, dataStart + rowsOut.length);
+
+  const outWb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(outWb, newWs, '행사제안');
   const ym = (activeMonth || '').replace('-', '');
-  XLSX.writeFile(wb, `${type}_${ym || 'all'}.xlsx`);
+  XLSX.writeFile(outWb, `${type}_${ym || 'all'}.xlsx`);
 }
 
 /* ═══════════════════════ 체험단 리스트 엑셀 다운로드 ═══════════════════════ */
