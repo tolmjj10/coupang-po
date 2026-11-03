@@ -926,10 +926,10 @@ function renderTabs() {
   $('tabs').querySelectorAll('.tab[data-tab]').forEach(el => {
     el.addEventListener('click', () => { activeTab = el.dataset.tab; render(); });
   });
-  // 다운로드 아이콘: 체험단 / 골드박스 / 타임특가 에서만 표시
+  // 다운로드 아이콘: 골드박스 / 타임특가 에서만 (체험단은 그룹별로 분리)
   const dlBtn = document.getElementById('dlBtn');
   if (dlBtn) {
-    const show = ['체험단','골드박스','타임특가'].includes(activeTab);
+    const show = ['골드박스','타임특가'].includes(activeTab);
     dlBtn.style.display = show ? '' : 'none';
     dlBtn.title = activeTab + ' 엑셀 다운로드';
   }
@@ -1206,10 +1206,10 @@ async function downloadPromotionList(type) {
   XLSX.writeFile(outWb, `${type}_${ym || 'all'}.xlsx`);
 }
 
-/* ═══════════════════════ 체험단 리스트 엑셀 다운로드 ═══════════════════════ */
-function downloadExperienceList() {
-  const rows = data.filter(r => r.type === '체험단' && rowInMonth(r, activeMonth));
-  if (!rows.length) { alert('현재 월에 체험단 항목이 없습니다.'); return; }
+/* ═══════════════════════ 체험단 리스트 엑셀 다운로드 (그룹별) ═══════════════════════ */
+window.downloadExperienceGroup = (groupDate) => {
+  const rows = data.filter(r => r.type === '체험단' && (r.date || '(날짜 없음)') === groupDate);
+  if (!rows.length) { alert('이 그룹에 체험단 항목이 없습니다.'); return; }
   const aoa = [['sku id', 'sku 명', '수량', '']];
   rows.forEach(r => {
     const sku = r.skuId || '';
@@ -1222,9 +1222,9 @@ function downloadExperienceList() {
   ws['!cols'] = [{wch:12},{wch:38},{wch:8},{wch:4}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Sheet2');
-  const ym = (activeMonth || '').replace('-', '');
-  XLSX.writeFile(wb, `체험단리스트_${ym || 'all'}.xlsx`);
-}
+  const stamp = groupDate && groupDate !== '(날짜 없음)' ? groupDate.replace(/-/g,'') : 'nodate';
+  XLSX.writeFile(wb, `체험단리스트_${stamp}.xlsx`);
+};
 
 /* ═══════════════════════ 체험단 뷰 ═══════════════════════ */
 function renderExperience() {
@@ -1278,6 +1278,9 @@ function renderExperience() {
       <div class="exp-group-head">
         <input type="date" class="exp-date-input" value="${esc(dk==='(날짜 없음)'?'':dk)}" data-group-date="${esc(dk)}">
         <span class="exp-group-title${expMemo?' has-memo':''}" data-exp-date="${esc(dk)}" title="${expMemo?'📝 '+esc(expMemo):'우클릭하여 계약서 번호 등 메모'}">체험단</span>
+        <button class="btn icon-btn" onclick="downloadExperienceGroup('${esc(dk)}')" title="이 그룹 체험단 리스트 다운로드" aria-label="다운로드" style="margin-left:6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
         <span class="exp-ship"><span>실제 출고날짜</span><input type="date" class="exp-ship-input" value="${esc(groupShipDate)}" data-group-date="${esc(dk)}"></span>
         <span class="exp-group-total"><span class="label">총 비용</span>${fmtN(groupTotal)}원</span>
       </div>
@@ -2002,8 +2005,7 @@ $('addBtn').addEventListener('click', () => {
 $('saveBtn').addEventListener('click', () => { clearTimeout(_saveTimer); saveRemote({ force: true }); });
 $('undoBtn').addEventListener('click', doUndo);
 $('dlBtn').addEventListener('click', () => {
-  if (activeTab === '체험단') downloadExperienceList();
-  else if (activeTab === '골드박스' || activeTab === '타임특가') downloadPromotionList(activeTab);
+  if (activeTab === '골드박스' || activeTab === '타임특가') downloadPromotionList(activeTab);
 });
 $('redoBtn').addEventListener('click', doRedo);
 
