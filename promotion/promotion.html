@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   * { box-sizing: border-box; }
   :root {
@@ -679,6 +679,9 @@
   <div class="toolbar">
     <div class="tabs" id="tabs"></div>
     <div class="spacer"></div>
+    <button class="btn icon-btn" id="dlBtn" title="엑셀 다운로드" aria-label="엑셀 다운로드" style="display:none;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </button>
     <button class="btn icon-btn" id="undoBtn" title="되돌리기 (Ctrl+Z)" aria-label="되돌리기" disabled>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
     </button>
@@ -697,6 +700,7 @@
     <table id="tbl">
       <thead>
         <tr>
+          <th style="width:28px;text-align:center;"><input type="checkbox" id="promoSelAll" onclick="togglePromoSelectAll(this.checked)" title="보이는 항목 전체 선택"></th>
           <th style="width:206px" class="sortable" id="dateSortTh" title="클릭하여 정렬 방향 전환">날짜<span id="dateSortIcon" style="margin-left:4px; font-size:10px; opacity:.75;">▼</span></th>
           <th style="width:108px">프로모션</th>
           <th style="width:148px">SKU ID</th>
@@ -918,15 +922,17 @@ function renderTabs() {
       ${t}<span class="count">${counts[t]||0}</span>
     </button>`);
   });
-  if (activeTab === '체험단') {
-    parts.push(`<button id="expDlBtn" class="tab" title="체험단 리스트 엑셀 다운로드" style="margin-left:6px;padding:0 10px;">⬇ 다운로드</button>`);
-  }
   $('tabs').innerHTML = parts.join('');
   $('tabs').querySelectorAll('.tab[data-tab]').forEach(el => {
     el.addEventListener('click', () => { activeTab = el.dataset.tab; render(); });
   });
-  const dlBtn = document.getElementById('expDlBtn');
-  if (dlBtn) dlBtn.addEventListener('click', downloadExperienceList);
+  // 다운로드 아이콘: 체험단 / 골드박스 / 타임특가 에서만 표시
+  const dlBtn = document.getElementById('dlBtn');
+  if (dlBtn) {
+    const show = ['체험단','골드박스','타임특가'].includes(activeTab);
+    dlBtn.style.display = show ? '' : 'none';
+    dlBtn.title = activeTab + ' 엑셀 다운로드';
+  }
   const ub = document.getElementById('undoBtn');
   const rb = document.getElementById('redoBtn');
   if (ub) { ub.disabled = undoStack.length === 0; }
@@ -986,7 +992,7 @@ function render() {
 function buildMixedRows(rows) {
   // 전체 탭: 기획전 유형만 (date, endDate, title) 로 그룹핑, 그 외 유형은 개별 행 그대로
   // 기획전 탭과 동일한 collapsedPlans 상태를 공유해 접힘 상태 유지
-  const COLSPAN = 20;
+  const COLSPAN = 21;
   const planKey = r => `${r.date||''}~${r.endDate||''}|${r.title||''}`;
   let html = '';
   const emittedPlanKeys = new Set();
@@ -1038,7 +1044,7 @@ function buildGroupedRows(rows, tabType) {
     map.get(key).rows.push(r);
   });
   // 컬럼 수: 이 표는 총 20 컬럼 (날짜부터 삭제까지)
-  const COLSPAN = 20;
+  const COLSPAN = 21;
   return groups.map(g => {
     const rangeText = g.range === '~' ? '(날짜 미지정)' : g.range.replace(/^~/, '(시작일 없음) ~ ').replace(/~$/, ' ~ (종료일 없음)');
     const titlePart = (tabType === '기획전' && g.title) ? ` · <b>${esc(g.title)}</b>` : '';
@@ -1074,6 +1080,95 @@ function restoreFocus(info) {
   if (info.tag !== 'SELECT' && info.start != null) {
     try { el.setSelectionRange(info.start, info.end); } catch(_) {}
   }
+}
+
+/* ═══════════════════════ 골드박스 / 타임특가 엑셀 다운로드 (행사제안 양식) ═══════════════════════ */
+async function downloadPromotionList(type) {
+  const sel = data.filter(r => r.type === type && rowInMonth(r, activeMonth) && selectedRows.has(r.id));
+  if (!sel.length) { alert('체크된 항목이 없습니다. 다운로드할 행을 체크해주세요.'); return; }
+
+  let wb;
+  try {
+    const res = await fetch('/promotion/행사제안.xlsx', { cache: 'no-cache' });
+    const buf = await res.arrayBuffer();
+    wb = XLSX.read(buf, { type: 'array', cellStyles: true });
+  } catch (e) {
+    alert('템플릿 로드 실패: ' + e.message);
+    return;
+  }
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  const dataStartRow = type === '골드박스' ? 3 : 14;  // 0-indexed
+  const templateDataRows = type === '골드박스' ? 3 : 1;
+
+  // 템플릿 데이터 행의 셀 스타일을 컬럼별로 캐시
+  const styleOfCol = {};
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    const a = XLSX.utils.encode_cell({ r: dataStartRow, c });
+    if (ws[a] && ws[a].s) styleOfCol[c] = ws[a].s;
+  }
+
+  // 데이터 ↔ 셀 변환
+  const promoDate = (iso) => {
+    // Excel date serial (1900-based)
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00');
+    const base = new Date(1899, 11, 30);
+    return Math.round((d - base) / 86400000);
+  };
+  const toNum = v => { const n = Number(v); return Number.isFinite(n) ? n : v; };
+
+  const rowsOut = sel.map(r => {
+    const d = derive(r);
+    if (type === '골드박스') {
+      return [
+        promoDate(r.date), r.time || '07시', '골드박스', 10, 'Retail', 'CE', 'andy',
+        toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
+        '', '',
+        toNum(d.priceBase), toNum(d.salePrice), toNum(d.promoPrice),
+        toNum(r.discountRate),
+        toNum(d.supply), toNum(r.qty)
+      ];
+    } else {
+      // 타임특가: 할인가 컬럼은 "N,000원" 포맷 (템플릿 참조)
+      const discStr = r.discountRate ? (Number(r.discountRate).toLocaleString() + '원') : '';
+      return [
+        promoDate(r.date), r.time || '15시', '타임특가', 10, 'Retail', 'CE', 'andy',
+        toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
+        '', '',
+        toNum(d.priceBase), toNum(d.promoPrice), discStr,
+        '', toNum(r.qty), ''
+      ];
+    }
+  });
+
+  // 템플릿 데이터 영역에 쓰기 (스타일 유지)
+  const startC = range.s.c;  // 보통 1 (B열)
+  rowsOut.forEach((vals, i) => {
+    vals.forEach((v, idx) => {
+      const c = startC + idx;
+      const a = XLSX.utils.encode_cell({ r: dataStartRow + i, c });
+      const t = typeof v === 'number' ? 'n' : 's';
+      ws[a] = { t, v: (v==null?'':v), s: styleOfCol[c] };
+    });
+  });
+  // 템플릿의 남는 데이터 행은 비움 (스타일 유지)
+  for (let i = rowsOut.length; i < templateDataRows; i++) {
+    for (let c = startC; c <= range.e.c; c++) {
+      const a = XLSX.utils.encode_cell({ r: dataStartRow + i, c });
+      if (ws[a]) ws[a].v = '';
+    }
+  }
+
+  // 범위 확장 (추가 행이 템플릿 범위 초과 시)
+  const lastNewRow = dataStartRow + Math.max(rowsOut.length, templateDataRows) - 1;
+  if (lastNewRow > range.e.r) {
+    range.e.r = lastNewRow;
+    ws['!ref'] = XLSX.utils.encode_range(range);
+  }
+
+  const ym = (activeMonth || '').replace('-', '');
+  XLSX.writeFile(wb, `${type}_${ym || 'all'}.xlsx`);
 }
 
 /* ═══════════════════════ 체험단 리스트 엑셀 다운로드 ═══════════════════════ */
@@ -1578,6 +1673,25 @@ function dateCellHtml(r) {
   return dateInput;
 }
 
+const selectedRows = new Set();
+window.togglePromoSelect = (id, checked) => {
+  if (checked) selectedRows.add(id); else selectedRows.delete(id);
+  const headerCb = document.getElementById('promoSelAll');
+  if (headerCb) {
+    const all = [...document.querySelectorAll('tbody input[data-sel-id]')];
+    headerCb.checked = all.length > 0 && all.every(cb => cb.checked);
+    headerCb.indeterminate = !headerCb.checked && all.some(cb => cb.checked);
+  }
+};
+window.togglePromoSelectAll = (checked) => {
+  const cbs = [...document.querySelectorAll('tbody input[data-sel-id]')];
+  cbs.forEach(cb => {
+    cb.checked = checked;
+    const id = cb.dataset.selId;
+    if (checked) selectedRows.add(id); else selectedRows.delete(id);
+  });
+};
+
 function rowHtml(r, opts) {
   const d = derive(r);
   const typeCls = d ? (r.type||'') : '';
@@ -1586,7 +1700,10 @@ function rowHtml(r, opts) {
   const conflict = findConflict(r);
   const rowCls = r.type ? `row-${r.type}` : '';
   const hideDate = opts && opts.hideDate;
+  const showSel = r.type === '골드박스' || r.type === '타임특가';
+  const selCell = showSel ? `<td class="sel-cell" style="width:28px;text-align:center;"><input type="checkbox" data-sel-id="${esc(r.id)}" ${selectedRows.has(r.id)?'checked':''} onclick="togglePromoSelect('${esc(r.id)}', this.checked)"></td>` : '<td class="sel-cell" style="width:28px;"></td>';
   return `<tr data-id="${r.id}" class="${rowCls}">
+    ${selCell}
     <td class="date-cell">${hideDate ? '' : dateCellHtml(r)}</td>
     <td>
       <select data-k="type">
@@ -1849,6 +1966,10 @@ $('addBtn').addEventListener('click', () => {
 });
 $('saveBtn').addEventListener('click', () => { clearTimeout(_saveTimer); saveRemote({ force: true }); });
 $('undoBtn').addEventListener('click', doUndo);
+$('dlBtn').addEventListener('click', () => {
+  if (activeTab === '체험단') downloadExperienceList();
+  else if (activeTab === '골드박스' || activeTab === '타임특가') downloadPromotionList(activeTab);
+});
 $('redoBtn').addEventListener('click', doRedo);
 
 /* 날짜 input 클릭/포커스 시 캘린더 즉시 열기 (기본 동작: 첫 클릭은 드래그 선택, 두 번째만 열림) */
