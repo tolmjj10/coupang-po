@@ -338,26 +338,60 @@ function lsClearAll() {
   for (const k of Object.values(LS)) localStorage.removeItem(k);
 }
 
+function applyDropLabel(kind, text) {
+  const zone = document.getElementById(`drop-${kind}`);
+  const label = zone.querySelector('.drop-file');
+  const title = zone.querySelector('.drop-title');
+  const hint = zone.querySelector('.drop-hint');
+  const path = zone.querySelector('.drop-path');
+  label.textContent = text;
+  label.hidden = false;
+  title.hidden = true; hint.hidden = true; if (path) path.hidden = true;
+  zone.classList.add('loaded');
+}
+
 function restoreFromLs() {
   cpcData = lsLoad(LS.cpc);
   couponData = lsLoad(LS.coupon);
   salesData = lsLoad(LS.sales);
-  // 드롭존 라벨 복원
   for (const [kind, nameKey] of [['cpc', LS.cpcName], ['coupon', LS.couponName], ['sales', LS.salesName]]) {
     const name = lsLoad(nameKey, false);
     const data = kind === 'cpc' ? cpcData : kind === 'coupon' ? couponData : salesData;
-    if (name && data) {
-      const zone = document.getElementById(`drop-${kind}`);
-      const label = zone.querySelector('.drop-file');
-      const title = zone.querySelector('.drop-title');
-      const hint = zone.querySelector('.drop-hint');
-      const path = zone.querySelector('.drop-path');
-      label.textContent = name + ' · 저장됨';
-      label.hidden = false;
-      title.hidden = true; hint.hidden = true; if (path) path.hidden = true;
-      zone.classList.add('loaded');
-    }
+    if (name && data) applyDropLabel(kind, name + ' · 저장됨');
   }
+}
+
+async function restoreFromServer() {
+  try {
+    const res = await fetch('/api/settlement-data', { cache: 'no-cache' });
+    const data = await res.json();
+    if (!data) return false;
+    let any = false;
+    if (data.cpc) { cpcData = data.cpc; applyDropLabel('cpc', (data.cpcName || 'CPC') + ' · 공유'); any = true; }
+    if (data.coupon) { couponData = data.coupon; applyDropLabel('coupon', (data.couponName || '쿠폰') + ' · 공유'); any = true; }
+    if (data.sales) { salesData = data.sales; applyDropLabel('sales', (data.salesName || 'SALES') + ' · 공유'); any = true; }
+    return any;
+  } catch (e) { console.warn('settlement-data 로드 실패:', e); return false; }
+}
+
+let saveTimer = null;
+function queueServerSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      await fetch('/api/settlement-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cpc: cpcData, coupon: couponData, sales: salesData,
+          cpcName: lsLoad(LS.cpcName, false),
+          couponName: lsLoad(LS.couponName, false),
+          salesName: lsLoad(LS.salesName, false),
+          updated_at: new Date().toISOString().slice(0,19).replace('T',' '),
+        }),
+      });
+    } catch (e) { console.warn('공유 저장 실패:', e); }
+  }, 500);
 }
 
 /* ─────────── 매핑 로드 ─────────── */
@@ -1058,6 +1092,7 @@ function setupDrop(id, kind) {
         lsSave(LS.sales, salesData); lsSave(LS.salesName, file.name);
       }
       label.textContent = file.name;
+      queueServerSave();
       aggregate();
     } catch (err) {
       label.textContent = '파싱 오류: ' + err.message;
@@ -1085,7 +1120,9 @@ window.addEventListener('drop',     e => { if (!e.target.closest('.drop')) e.pre
 
 (async () => {
   await Promise.all([loadMaps(), loadMargin()]);
-  restoreFromLs();
+  // 서버(KV) 공유 데이터 우선, 없으면 로컬 캐시 사용
+  const hadServer = await restoreFromServer();
+  if (!hadServer) restoreFromLs();
   if (cpcData && couponData) aggregate();
 })();
 </script>
