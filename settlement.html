@@ -702,8 +702,11 @@ function aggregate() {
 
 /* ─────────── 렌더 ─────────── */
 function render(byCat, stats) {
-  const cats = Object.entries(byCat);
-  const totalCpc = stats.totalCpcInt;
+  currentByCat = byCat; currentStats = stats;
+  const BRAND_EXCLUDE = new Set(['뷰티가전', '기타']);
+  const brandFiltered = filterBrand !== '';
+  const cats = Object.entries(byCat).filter(([k]) => !brandFiltered || !BRAND_EXCLUDE.has(k));
+  const totalCpc = cats.reduce((s,[,v]) => s + v.cpc, 0);
   const totalCpn = cats.reduce((s,[,v]) => s + v.coupon, 0);
   const totalAll = totalCpc + totalCpn;
 
@@ -745,7 +748,7 @@ function render(byCat, stats) {
 
   document.getElementById('result').innerHTML = `
     <div class="result-head">
-      <div class="title">카테고리별 집계</div>
+      <div class="title">카테고리별 집계${brandFiltered ? ` <span style="font-weight:500;color:var(--accent-dark);">· ${esc(filterBrand)} 필터</span>` : ''}</div>
       <div class="sub">
         CPC 레코드 ${(stats.cpcMatched + stats.cpcUnmatched).toLocaleString()}건
         · 쿠폰 레코드 ${(stats.cpnMatched + stats.cpnUnmatched).toLocaleString()}건
@@ -774,8 +777,13 @@ window.setFilterCat = (cat) => { filterCat = (filterCat === cat) ? '' : cat; ren
 window.setFilterSearch = (q) => { filterSearch = q || ''; renderSkuTable(); };
 window.clearSearch = () => { filterSearch = ''; renderSkuTable(); };
 let collapsedCats = new Set(['기타', '삼대오백', '온살', '오아 미매칭', '보아르 미매칭']);  // 기본 접힘
-let filterBrand = '';  // '' | '오아' | '보아르'
-window.setFilterBrand = (b) => { filterBrand = (filterBrand === b) ? '' : b; renderSkuTable(); };
+let filterBrand = '';  // '' | '오아' | '보아르' | '오아+보아르'
+let currentByCat = null, currentStats = null;
+window.setFilterBrand = (b) => {
+  filterBrand = (filterBrand === b) ? '' : b;
+  if (currentByCat) render(currentByCat, currentStats);
+  renderSkuTable();
+};
 function brandOf(sku, d) {
   const nm = (d.name || '').trim();
   if (nm.startsWith('오아')) return '오아';
@@ -817,7 +825,7 @@ function renderBrandPanel(allEntries, hasSales) {
   const card = (label, key, a) => {
     const mg = a.gmv > 0 ? (a.p / a.gmv * 100).toFixed(1) + '%' : '—';
     const activeCls = filterBrand === key ? ' active' : '';
-    const onclick = key ? `onclick="setFilterBrand('${key}')"` : '';
+    const onclick = `onclick="setFilterBrand('${key}')"`;
     return `
       <div class="brand-card${activeCls}" ${onclick}>
         <div class="b-title">${esc(label)} <span class="b-count">${a.cnt} SKU${a.qty?` · ${a.qty.toLocaleString()}개`:''}</span></div>
@@ -836,7 +844,7 @@ function renderBrandPanel(allEntries, hasSales) {
     <div class="brand-panel">
       ${card('오아', '오아', agg['오아'])}
       ${card('보아르', '보아르', agg['보아르'])}
-      ${card('오아+보아르 합계', '', total)}
+      ${card('오아+보아르 합계', '오아+보아르', total)}
     </div>`;
 }
 
@@ -863,7 +871,11 @@ function renderSkuTable(bySku) {
   const q = filterSearch.trim().toLowerCase();
   const filtered = allEntries.filter(([sku, d]) => {
     if (filterCat && d.cat !== filterCat) return false;
-    if (filterBrand && brandOf(sku, d) !== filterBrand) return false;
+    if (filterBrand) {
+      const b = brandOf(sku, d);
+      if (filterBrand === '오아+보아르') { if (b !== '오아' && b !== '보아르') return false; }
+      else if (b !== filterBrand) return false;
+    }
     if (q) {
       const hay = (sku + ' ' + (d.name || '') + ' ' + (d.brand || '')).toLowerCase();
       if (!hay.includes(q)) return false;
