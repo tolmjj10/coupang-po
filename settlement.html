@@ -878,6 +878,9 @@ window.downloadReport = () => {
   XLSX.writeFile(wb, `정산_${stamp}.xlsx`);
 };
 
+let filterReturnBrand = '';  // '' | '오아' | '보아르'
+window.setFilterReturnBrand = (b) => { filterReturnBrand = (filterReturnBrand === b) ? '' : b; renderReturnsPanel(); };
+
 function renderReturnsPanel() {
   const box = document.getElementById('result-returns');
   if (!returnsData || !Object.keys(returnsData).length) { box.innerHTML = ''; return; }
@@ -886,23 +889,32 @@ function renderReturnsPanel() {
     const sm = maps && maps.sku2cat && maps.sku2cat[sku];
     return catForSku(sku, sm || { name: d.name }) || '기타';
   };
-  const rows = Object.entries(returnsData)
-    .map(([sku, d]) => ({ sku, ...d, cat: catOf(sku, d) }))
-    .sort((a, b) => a.gmvCogs - b.gmvCogs);  // 음수 큰 순 (가장 많이 반출된 것부터)
+  const allRows = Object.entries(returnsData)
+    .map(([sku, d]) => ({ sku, ...d, cat: catOf(sku, d), brand: brandOf(sku, d) }))
+    .filter(r => r.cat !== '기타');  // 기타 제외
+  const rows = allRows
+    .filter(r => !filterReturnBrand || r.brand === filterReturnBrand)
+    .sort((a, b) => a.gmvCogs - b.gmvCogs);
   const totalQty = rows.reduce((s, r) => s + r.qty, 0);
   const totalAmt = rows.reduce((s, r) => s + r.gmvCogs, 0);
+  const chip = (label, key) => `<button class="chip ${filterReturnBrand === key ? 'active' : ''}" onclick="setFilterReturnBrand('${key}')">${esc(label)}</button>`;
   box.innerHTML = `
     <div class="returns-panel">
       <div class="returns-head">
         <div class="title">반출 내역</div>
         <div class="sum">${rows.length}건 · 수량 ${totalQty.toLocaleString()}개 · 반출금액 <strong>${fmtWon(totalAmt)}</strong></div>
+        <div style="margin-left:auto; display:flex; gap:6px;">
+          <button class="chip ${filterReturnBrand === '' ? 'active' : ''}" onclick="setFilterReturnBrand('')">전체</button>
+          ${chip('오아', '오아')}
+          ${chip('보아르', '보아르')}
+        </div>
       </div>
       <table class="returns">
         <thead>
           <tr>
             <th class="left">SKU</th>
-            <th class="left">상품명</th>
             <th class="left">카테고리</th>
+            <th class="left">상품명</th>
             <th>반출 수량</th>
             <th>반출 금액(VAT제외)</th>
           </tr>
@@ -911,8 +923,8 @@ function renderReturnsPanel() {
           ${rows.map(r => `
             <tr>
               <td class="left">${esc(r.sku)}</td>
-              <td class="left name" title="${esc(r.name)}">${esc(r.name || '')}</td>
               <td class="left">${esc(r.cat)}</td>
+              <td class="left name" title="${esc(r.name)}">${esc(r.name || '')}</td>
               <td>${r.qty.toLocaleString()}</td>
               <td class="neg">${fmtWon(r.gmvCogs)}</td>
             </tr>`).join('')}
