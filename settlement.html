@@ -766,8 +766,7 @@ function render(byCat, stats) {
         · 쿠폰 레코드 ${(stats.cpnMatched + stats.cpnUnmatched).toLocaleString()}건
         ${stats.cpcUnmatched + stats.cpnUnmatched ? ` · <span style="color:var(--neg);font-weight:600;">미매칭 ${stats.cpcUnmatched + stats.cpnUnmatched}건</span>` : ''}
       </div>
-      <button class="btn-reset-data" onclick="resetSettleData()" title="저장된 파일 데이터 초기화">저장 초기화</button>
-      <button class="btn-reload" onclick="window.location.reload()">초기화</button>
+      <button class="btn-reload" onclick="resetSettleData()" title="저장된 파일 데이터 초기화">초기화</button>
     </div>
     <table class="cat">
       <thead>
