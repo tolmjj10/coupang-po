@@ -909,17 +909,15 @@ function renderReturnsPanel() {
   box.innerHTML = `
     <div class="returns-panel">
       <div class="returns-head">
-        <div class="title" onclick="toggleReturns()" style="cursor:pointer; user-select:none;">
-          <span style="display:inline-block; width:10px; transform:rotate(${returnsCollapsed?-90:0}deg); transition:transform .15s;">▼</span>
-          반출 내역
-        </div>
+        <div class="title">반출 내역</div>
         <div class="sum">${rows.length}건 · 수량 ${totalQty.toLocaleString()}개 · 반출금액 <strong>${fmtWon(totalAmt)}</strong></div>
         ${returnsCollapsed ? '' : `
-        <div style="margin-left:auto; display:flex; gap:6px;">
+        <div style="display:flex; gap:6px;">
           <button class="chip ${filterReturnBrand === '' ? 'active' : ''}" onclick="setFilterReturnBrand('')">전체</button>
           ${chip('오아', '오아')}
           ${chip('보아르', '보아르')}
         </div>`}
+        <button class="btn-reset-data" onclick="toggleReturns()" title="반출 내역 접기/펼치기" style="margin-left:auto;">${returnsCollapsed ? '모두 펼치기' : '모두 접기'}</button>
       </div>
       ${returnsCollapsed ? '' : `
       <table class="returns">
@@ -1066,16 +1064,15 @@ window.toggleAllCats = () => {
   if (!currentBySku) return;
   const allCats = new Set();
   for (const d of Object.values(currentBySku)) allCats.add(d.cat || '기타');
-  const anyExpanded = [...allCats].some(c => !collapsedCats.has(c)) || !returnsCollapsed;
+  // '기타'는 자동 토글에서 제외 — 수동으로만 펼침
+  const nonEtc = [...allCats].filter(c => c !== '기타');
+  const anyExpanded = nonEtc.some(c => !collapsedCats.has(c));
   if (anyExpanded) {
-    collapsedCats = new Set(allCats);
-    returnsCollapsed = true;
+    collapsedCats = new Set(allCats);  // 기타 포함 전부 접기
   } else {
-    collapsedCats = new Set();
-    returnsCollapsed = false;
+    collapsedCats = new Set(['기타']);  // 기타만 접힌 상태로 유지
   }
   renderSkuTable();
-  renderReturnsPanel();
 };
 window.resetSettleData = () => {
   if (!confirm('저장된 파일 데이터 전부 삭제할까요? (매핑 KV는 유지)')) return;
@@ -1267,10 +1264,11 @@ function renderSkuTable(bySku) {
         <input type="search" id="sku-search" placeholder="SKU/상품명/브랜드 검색" value="${searchVal}" oninput="setFilterSearch(this.value)" oncompositionstart="onSearchCompositionStart()" oncompositionend="onSearchCompositionEnd(this)">
         ${filterSearch ? '<button class="clear" onclick="clearSearch()" title="지우기">×</button>' : ''}
       </div>
-      <button class="btn-reset-data" onclick="toggleAllCats()" title="모두 접기/펼치기 (반출 포함)">${(() => {
+      <button class="btn-reset-data" onclick="toggleAllCats()" title="모두 접기/펼치기 (기타 제외)">${(() => {
         const allCats = new Set();
         for (const d of Object.values(currentBySku || {})) allCats.add(d.cat || '기타');
-        const anyExpanded = [...allCats].some(c => !collapsedCats.has(c)) || !returnsCollapsed;
+        const nonEtc = [...allCats].filter(c => c !== '기타');
+        const anyExpanded = nonEtc.some(c => !collapsedCats.has(c));
         return anyExpanded ? '모두 접기' : '모두 펼치기';
       })()}</button>
     </div>
