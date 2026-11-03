@@ -748,6 +748,15 @@ window.toggleCat = (cat) => {
   if (collapsedCats.has(cat)) collapsedCats.delete(cat); else collapsedCats.add(cat);
   renderSkuTable();
 };
+window.toggleAllCats = () => {
+  if (!currentBySku) return;
+  const allCats = new Set();
+  for (const d of Object.values(currentBySku)) allCats.add(d.cat || '기타');
+  const anyExpanded = [...allCats].some(c => !collapsedCats.has(c));
+  if (anyExpanded) collapsedCats = new Set(allCats);
+  else collapsedCats = new Set();
+  renderSkuTable();
+};
 window.resetSettleData = () => {
   if (!confirm('저장된 파일 데이터 전부 삭제할까요? (매핑 KV는 유지)')) return;
   lsClearAll();
@@ -878,6 +887,12 @@ function renderSkuTable(bySku) {
         <input type="search" id="sku-search" placeholder="SKU/상품명/브랜드 검색" value="${searchVal}" oninput="setFilterSearch(this.value)">
         ${filterSearch ? '<button class="clear" onclick="clearSearch()" title="지우기">×</button>' : ''}
       </div>
+      <button class="btn-reset-data" onclick="toggleAllCats()" title="모두 접기/펼치기">${(() => {
+        const allCats = new Set();
+        for (const d of Object.values(currentBySku || {})) allCats.add(d.cat || '기타');
+        const anyExpanded = [...allCats].some(c => !collapsedCats.has(c));
+        return anyExpanded ? '모두 접기' : '모두 펼치기';
+      })()}</button>
       <button class="btn-reset-data" onclick="resetSettleData()" title="저장된 파일 데이터 초기화">저장 초기화</button>
     </div>
     <div class="sku-toolbar">
