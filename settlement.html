@@ -774,7 +774,23 @@ function render(byCat, stats) {
 
 /* ─────────── SKU 상세 테이블 ─────────── */
 window.setFilterCat = (cat) => { filterCat = (filterCat === cat) ? '' : cat; renderSkuTable(); };
-window.setFilterSearch = (q) => { filterSearch = q || ''; renderSkuTable(); };
+let searchDebounceTimer = null;
+let searchIsComposing = false;
+window.setFilterSearch = (q) => {
+  if (searchIsComposing) { filterSearch = q || ''; return; }  // IME 조합 중엔 재렌더 안 함
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    filterSearch = q || '';
+    renderSkuTable();
+  }, 180);
+};
+window.onSearchCompositionStart = () => { searchIsComposing = true; };
+window.onSearchCompositionEnd = (el) => {
+  searchIsComposing = false;
+  clearTimeout(searchDebounceTimer);
+  filterSearch = el.value || '';
+  renderSkuTable();
+};
 window.clearSearch = () => { filterSearch = ''; renderSkuTable(); };
 let collapsedCats = new Set(['기타', '삼대오백', '온살', '오아 미매칭', '보아르 미매칭']);  // 기본 접힘
 let filterBrand = '';  // '' | '오아' | '보아르' | '오아+보아르'
@@ -974,7 +990,7 @@ function renderSkuTable(bySku) {
       </div>
       <div class="search-wrap">
         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="search" id="sku-search" placeholder="SKU/상품명/브랜드 검색" value="${searchVal}" oninput="setFilterSearch(this.value)">
+        <input type="search" id="sku-search" placeholder="SKU/상품명/브랜드 검색" value="${searchVal}" oninput="setFilterSearch(this.value)" oncompositionstart="onSearchCompositionStart()" oncompositionend="onSearchCompositionEnd(this)">
         ${filterSearch ? '<button class="clear" onclick="clearSearch()" title="지우기">×</button>' : ''}
       </div>
       <button class="btn-reset-data" onclick="toggleAllCats()" title="모두 접기/펼치기">${(() => {
