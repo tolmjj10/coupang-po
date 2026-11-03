@@ -118,6 +118,7 @@
   table.cat td.gmv    { color: var(--sales); font-weight: 600; }
   table.cat td.cpc    { color: var(--cpc); font-weight: 600; }
   table.cat td.coupon { color: var(--coupon); font-weight: 600; }
+  table.cat td.trial  { color: #556b7a; font-weight: 600; }
   table.cat td.total  { font-weight: 700; }
   table.cat .bar {
     display: inline-block; vertical-align: middle;
@@ -345,6 +346,8 @@ let cpcData = null;          // [{camp_id, cost, camp_name}]  (청구 소진 광
 let couponData = null;       // [{sku, amount}]  (|펀딩금액|)
 let salesData = null;        // { sku: {qty, gmvCogs, name, brand} }  (실입고=발주 전용)
 let returnsData = null;      // { sku: {qty, gmvCogs, name} }  (반출만 분리 집계)
+let promotionData = null;    // promotion-state 전체 (체험단 집계용)
+const EXPERIENCE_BASE_COST = 125000;
 let currentBySku = null;     // 집계된 SKU 상세 (필터링 재렌더용)
 let filterCat = '';          // '' = 전체
 let filterSearch = '';
@@ -442,6 +445,17 @@ async function loadMaps() {
     info.innerHTML = `<span class="ok">매핑 로드됨</span> · VIID→SKU ${Object.keys(maps.viid2sku).length.toLocaleString()} · SKU→카테 ${Object.keys(maps.sku2cat).length.toLocaleString()} · 캠페인→VIID ${Object.keys(maps.camp2viid).length.toLocaleString()} · 갱신 ${esc(maps.updated_at || '')}`;
   } catch (e) {
     info.innerHTML = '<span class="bad">매핑 로드 실패</span>';
+  }
+}
+
+async function loadPromotion() {
+  try {
+    const res = await fetch('/api/promotion-state', { cache: 'no-cache' });
+    const data = await res.json();
+    promotionData = Array.isArray(data) ? data : (data && Array.isArray(data.rows) ? data.rows : []);
+  } catch (e) {
+    console.warn('promotion-state 로드 실패:', e);
+    promotionData = [];
   }
 }
 
@@ -738,14 +752,37 @@ function aggregate() {
     }
   }
 
-  // 카테별 매출 집계 (bySku 기준)
+  // 체험단: CPC 파일명에서 월(YYYY-MM) 추출, 해당 월 date 체험단 행 모아 SKU별 비용 합산
+  const cpcName = lsLoad(LS.cpcName, false) || '';
+  const ymMatch = cpcName.match(/(\d{4})(\d{2})\d{2}-\d{8}/);
+  const trialYm = ymMatch ? `${ymMatch[1]}-${ymMatch[2]}` : null;
+  const trialBySku = {};
+  if (trialYm && Array.isArray(promotionData)) {
+    for (const r of promotionData) {
+      if (!r || r.type !== '체험단') continue;
+      if (!String(r.date || '').startsWith(trialYm)) continue;
+      const sku = String(r.skuId || '').trim();
+      if (!sku) continue;
+      const mg = marginMap && marginMap[sku];
+      const supply = mg ? mg.supply : 0;
+      const qty = Number(r.qty) || 0;
+      trialBySku[sku] = (trialBySku[sku] || 0) + (EXPERIENCE_BASE_COST + supply) * qty;
+    }
+  }
+  // 체험단만 있는 SKU도 bySku 에 추가
+  for (const sku of Object.keys(trialBySku)) if (!bySku[sku]) skuEnsure(sku);
+  // SKU별 체험단 비용 세팅
+  for (const sku in bySku) bySku[sku].trial = Math.round(trialBySku[sku] || 0);
+
+  // 카테별 매출/체험단 집계 (bySku 기준)
   for (const d of Object.values(bySku)) {
     const c = d.cat || '기타';
     if (!byCat[c]) byCat[c] = { cpc: 0, coupon: 0 };
     byCat[c].gmv = (byCat[c].gmv || 0) + d.gmv;
+    byCat[c].trial = (byCat[c].trial || 0) + (d.trial || 0);
   }
 
-  // 카테 광고비 반올림 분배 (전체 합 = 189,413,014 정확히 맞춤)
+  // 카테 광고비 반올림 분배
   const totalCpcInt = Math.round(totalRawCost * VAT_RATE);
   const perCatVat = Object.fromEntries(
     Object.entries(byCat).map(([k, v]) => [k, v.cpc * VAT_RATE])
@@ -753,10 +790,10 @@ function aggregate() {
   const roundedCpc = distributeRound(Object.entries(perCatVat), totalCpcInt);
   for (const k of Object.keys(byCat)) byCat[k].cpc = roundedCpc[k] ?? 0;
 
-  // SKU 광고비도 VAT ×1.1 후 반올림 (카테 합과 정확 일치시키려면 더 복잡 — 지금은 각각 round)
+  // SKU 광고비 VAT ×1.1 후 반올림 + 순수익 계산
   for (const d of Object.values(bySku)) {
     d.cpcVat = Math.round(d.cpc * VAT_RATE);
-    d.profit = Math.round(d.gmv - d.cogs - d.cpcVat - d.coupon);
+    d.profit = Math.round(d.gmv - d.cogs - d.cpcVat - d.coupon - (d.trial || 0));
   }
 
   render(byCat, { cpcMatched, cpcUnmatched, cpnMatched, cpnUnmatched, totalCpcInt });
@@ -822,15 +859,24 @@ window.downloadReport = () => {
   const total1 = {n:0,qty:0,gmv:0,cogs:0,cpc:0,cpn:0,p:0};
   for (const k of ['n','qty','gmv','cogs','cpc','cpn','p']) total1[k] = brandAgg['오아'][k] + brandAgg['보아르'][k];
   const pctStr = (p, g) => g > 0 ? (p/g*100).toFixed(2) + '%' : '';
+  // 체험단 합산
+  for (const b of ['오아','보아르']) {
+    brandAgg[b].tr = 0;
+    for (const [sku, d] of Object.entries(currentBySku)) {
+      if (brandOf(sku, d) !== b) continue;
+      brandAgg[b].tr += (d.trial || 0);
+    }
+  }
+  total1.tr = brandAgg['오아'].tr + brandAgg['보아르'].tr;
   const s1 = [
-    ['브랜드','SKU 수','수량','매출','원가','광고(VAT포함)','쿠폰','순수익','마진%'],
-    ['오아', brandAgg['오아'].n, brandAgg['오아'].qty, brandAgg['오아'].gmv, brandAgg['오아'].cogs, brandAgg['오아'].cpc, brandAgg['오아'].cpn, brandAgg['오아'].p, pctStr(brandAgg['오아'].p, brandAgg['오아'].gmv)],
-    ['보아르', brandAgg['보아르'].n, brandAgg['보아르'].qty, brandAgg['보아르'].gmv, brandAgg['보아르'].cogs, brandAgg['보아르'].cpc, brandAgg['보아르'].cpn, brandAgg['보아르'].p, pctStr(brandAgg['보아르'].p, brandAgg['보아르'].gmv)],
-    ['합계', total1.n, total1.qty, total1.gmv, total1.cogs, total1.cpc, total1.cpn, total1.p, pctStr(total1.p, total1.gmv)],
+    ['브랜드','SKU 수','수량','매출','원가','광고(VAT포함)','쿠폰','체험단','순수익','마진%'],
+    ['오아', brandAgg['오아'].n, brandAgg['오아'].qty, brandAgg['오아'].gmv, brandAgg['오아'].cogs, brandAgg['오아'].cpc, brandAgg['오아'].cpn, brandAgg['오아'].tr, brandAgg['오아'].p, pctStr(brandAgg['오아'].p, brandAgg['오아'].gmv)],
+    ['보아르', brandAgg['보아르'].n, brandAgg['보아르'].qty, brandAgg['보아르'].gmv, brandAgg['보아르'].cogs, brandAgg['보아르'].cpc, brandAgg['보아르'].cpn, brandAgg['보아르'].tr, brandAgg['보아르'].p, pctStr(brandAgg['보아르'].p, brandAgg['보아르'].gmv)],
+    ['합계', total1.n, total1.qty, total1.gmv, total1.cogs, total1.cpc, total1.cpn, total1.tr, total1.p, pctStr(total1.p, total1.gmv)],
     ...returnsBlock('brand'),
   ];
   const ws1 = XLSX.utils.aoa_to_sheet(s1);
-  ws1['!cols'] = [{wch:10},{wch:8},{wch:10},{wch:14},{wch:14},{wch:14},{wch:12},{wch:14},{wch:8}];
+  ws1['!cols'] = [{wch:10},{wch:8},{wch:10},{wch:14},{wch:14},{wch:14},{wch:12},{wch:12},{wch:14},{wch:8}];
   XLSX.utils.book_append_sheet(wb, ws1, '브랜드');
 
   // ─ 시트2: 카테고리 (요약 + SKU 상세, 기타 제외) ─
@@ -838,17 +884,17 @@ window.downloadReport = () => {
   for (const [sku, d] of Object.entries(currentBySku)) {
     const c = d.cat || '기타';
     if (c === '기타') continue;
-    catAgg[c] = catAgg[c] || { n:0, qty:0, gmv:0, cogs:0, cpc:0, cpn:0, p:0, skus:[] };
+    catAgg[c] = catAgg[c] || { n:0, qty:0, gmv:0, cogs:0, cpc:0, cpn:0, tr:0, p:0, skus:[] };
     const a = catAgg[c];
     a.n++; a.qty += d.qty; a.gmv += d.gmv; a.cogs += d.cogs;
-    a.cpc += d.cpcVat; a.cpn += d.coupon; a.p += d.profit;
+    a.cpc += d.cpcVat; a.cpn += d.coupon; a.tr += (d.trial||0); a.p += d.profit;
     a.skus.push({ sku, ...d });
   }
   const catOrder = Object.keys(catAgg).sort((a,b) => (a==='기타'?1:0) - (b==='기타'?1:0) || catAgg[b].gmv - catAgg[a].gmv);
-  const s2 = [['[카테고리 요약]'], ['카테고리','SKU 수','수량','매출','원가','광고(VAT)','쿠폰','순수익','마진%']];
+  const s2 = [['[카테고리 요약]'], ['카테고리','SKU 수','수량','매출','원가','광고(VAT)','쿠폰','체험단','순수익','마진%']];
   for (const c of catOrder) {
     const a = catAgg[c];
-    s2.push([c, a.n, a.qty, a.gmv, a.cogs, a.cpc, a.cpn, a.p, pctStr(a.p, a.gmv)]);
+    s2.push([c, a.n, a.qty, a.gmv, a.cogs, a.cpc, a.cpn, a.tr, a.p, pctStr(a.p, a.gmv)]);
   }
   s2.push([]);
   s2.push(['[카테고리별 SKU 상세]']);
@@ -857,22 +903,22 @@ window.downloadReport = () => {
     s2.push([]);
     s2.push([`▶ ${c}`]);
     boldRows.push(s2.length - 1);
-    s2.push(['SKU','상품명','브랜드','수량','매출','원가','광고(VAT)','쿠폰','순수익','마진%']);
+    s2.push(['SKU','상품명','브랜드','수량','매출','원가','광고(VAT)','쿠폰','체험단','순수익','마진%']);
     const items = catAgg[c].skus.sort((a,b) => b.gmv - a.gmv);
     for (const r of items) {
-      s2.push([r.sku, r.name, r.brand || brandOf(r.sku, r) || '', r.qty, r.gmv, r.cogs, r.cpcVat, r.coupon, r.profit, pctStr(r.profit, r.gmv)]);
+      s2.push([r.sku, r.name, r.brand || brandOf(r.sku, r) || '', r.qty, r.gmv, r.cogs, r.cpcVat, r.coupon, r.trial||0, r.profit, pctStr(r.profit, r.gmv)]);
     }
     // 카테 소계 (볼드)
     const a = catAgg[c];
-    s2.push(['소계', `${a.n} SKU`, '', a.qty, a.gmv, a.cogs, a.cpc, a.cpn, a.p, pctStr(a.p, a.gmv)]);
+    s2.push(['소계', `${a.n} SKU`, '', a.qty, a.gmv, a.cogs, a.cpc, a.cpn, a.tr, a.p, pctStr(a.p, a.gmv)]);
     boldRows.push(s2.length - 1);
   }
   s2.push(...returnsBlock('cat'));
   const ws2 = XLSX.utils.aoa_to_sheet(s2);
-  ws2['!cols'] = [{wch:12},{wch:38},{wch:8},{wch:8},{wch:14},{wch:14},{wch:12},{wch:12},{wch:14},{wch:8}];
+  ws2['!cols'] = [{wch:12},{wch:38},{wch:8},{wch:8},{wch:14},{wch:14},{wch:12},{wch:12},{wch:12},{wch:14},{wch:8}];
   // 소계/헤더 볼드 처리
   for (const r of boldRows) {
-    for (let c = 0; c < 10; c++) {
+    for (let c = 0; c < 11; c++) {
       const addr = XLSX.utils.encode_cell({ r, c });
       if (!ws2[addr]) ws2[addr] = { t: 's', v: '' };
       ws2[addr].s = { font: { bold: true }, fill: { fgColor: { rgb: 'FDFBF9' } } };
@@ -881,17 +927,17 @@ window.downloadReport = () => {
   XLSX.utils.book_append_sheet(wb, ws2, '카테고리');
 
   // ─ 시트3: SKU 전체 (검색/필터용 평평한 테이블, 기타 제외) ─
-  const s3 = [['SKU','상품명','브랜드','카테고리','수량','매출','원가','광고(VAT)','쿠폰','순수익','마진%']];
+  const s3 = [['SKU','상품명','브랜드','카테고리','수량','매출','원가','광고(VAT)','쿠폰','체험단','순수익','마진%']];
   const flat = Object.entries(currentBySku)
     .filter(([, d]) => (d.cat || '기타') !== '기타')
     .sort((a,b) => (a[0]+'').localeCompare(b[0]+''));
   for (const [sku, d] of flat) {
-    s3.push([sku, d.name || '', d.brand || brandOf(sku, d) || '', d.cat || '기타', d.qty, d.gmv, d.cogs, d.cpcVat, d.coupon, d.profit, pctStr(d.profit, d.gmv)]);
+    s3.push([sku, d.name || '', d.brand || brandOf(sku, d) || '', d.cat || '기타', d.qty, d.gmv, d.cogs, d.cpcVat, d.coupon, d.trial||0, d.profit, pctStr(d.profit, d.gmv)]);
   }
   s3.push(...returnsBlock('flat'));
   const ws3 = XLSX.utils.aoa_to_sheet(s3);
-  ws3['!cols'] = [{wch:12},{wch:38},{wch:8},{wch:14},{wch:8},{wch:14},{wch:14},{wch:12},{wch:12},{wch:14},{wch:8}];
-  ws3['!autofilter'] = { ref: 'A1:K1' };
+  ws3['!cols'] = [{wch:12},{wch:38},{wch:8},{wch:14},{wch:8},{wch:14},{wch:14},{wch:12},{wch:12},{wch:12},{wch:14},{wch:8}];
+  ws3['!autofilter'] = { ref: 'A1:L1' };
   XLSX.utils.book_append_sheet(wb, ws3, 'SKU전체');
 
   const ym = (lsLoad(LS.cpcName, false) || '').match(/\d{8}-(\d{8})/);
@@ -973,8 +1019,10 @@ function render(byCat, stats) {
   const totalCpc = cats.reduce((s,[,v]) => s + v.cpc, 0);
   const totalCpn = cats.reduce((s,[,v]) => s + v.coupon, 0);
   const totalGmv = cats.reduce((s,[,v]) => s + (v.gmv||0), 0);
-  const totalAll = totalCpc + totalCpn;
+  const totalTrial = cats.reduce((s,[,v]) => s + (v.trial||0), 0);
+  const totalAll = totalCpc + totalCpn + totalTrial;
   const hasSales = !!salesData;
+  const hasTrial = totalTrial > 0;
 
   // 정렬 그룹: 0=오아/보아르 세분 카테, 1=브랜드(삼대오백/온살), 2=미매칭/기타
   const groupOf = k => k === '기타' ? 3 : UNMATCHED_CATS.has(k) ? 2 : (BRAND_CATS.has(k) ? 1 : 0);
@@ -986,7 +1034,7 @@ function render(byCat, stats) {
 
   const maxTotal = Math.max(1, ...sorted.map(([,v]) => v.cpc + v.coupon));
   const rows = sorted.map(([cat, v]) => {
-    const sum = v.cpc + v.coupon;
+    const sum = v.cpc + v.coupon + (v.trial || 0);
     const pct = (sum / totalAll * 100).toFixed(1);
     const barPct = Math.max(2, Math.round(sum / maxTotal * 100));
     const isBrand = (cat === '삼대오백' || cat === '온살');
@@ -996,6 +1044,7 @@ function render(byCat, stats) {
         ${hasSales ? `<td class="gmv">${fmtWon(v.gmv||0)}</td>` : ''}
         <td class="cpc">${fmtWon(v.cpc)}</td>
         <td class="coupon">${fmtWon(v.coupon)}</td>
+        ${hasTrial ? `<td class="trial">${fmtWon(v.trial||0)}</td>` : ''}
         <td class="total">${fmtWon(sum)}</td>
         <td style="text-align:left; color: var(--text-hint); font-weight:500;">
           ${pct}%
@@ -1010,6 +1059,7 @@ function render(byCat, stats) {
       ${hasSales ? `<td class="gmv">${fmtWon(totalGmv)}</td>` : ''}
       <td class="cpc">${fmtWon(totalCpc)}</td>
       <td class="coupon">${fmtWon(totalCpn)}</td>
+      ${hasTrial ? `<td class="trial">${fmtWon(totalTrial)}</td>` : ''}
       <td class="total">${fmtWon(totalAll)}</td>
       <td></td>
     </tr>`;
@@ -1028,6 +1078,7 @@ function render(byCat, stats) {
           ${hasSales ? '<th>매출</th>' : ''}
           <th>CPC 광고비</th>
           <th>쿠폰비</th>
+          ${hasTrial ? '<th>체험단</th>' : ''}
           <th>합계</th>
           <th class="left" style="padding-left:16px;">비중</th>
         </tr>
@@ -1104,13 +1155,13 @@ function renderBrands(allEntries, hasSales) {
   if (!allEntries || !allEntries.length) { box.innerHTML = ''; return; }
 
   // 발주 기준 집계
-  const agg = { '오아': {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,p:0,qty:0,ret:0}, '보아르': {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,p:0,qty:0,ret:0} };
+  const agg = { '오아': {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,tr:0,p:0,qty:0,ret:0}, '보아르': {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,tr:0,p:0,qty:0,ret:0} };
   for (const [sku, d] of allEntries) {
     const b = brandOf(sku, d);
     if (!b) continue;
     const a = agg[b];
     a.cnt++; a.gmv += d.gmv; a.cogs += d.cogs; a.cpc += d.cpcVat;
-    a.cpn += d.coupon; a.p += d.profit; a.qty += d.qty;
+    a.cpn += d.coupon; a.tr += (d.trial||0); a.p += d.profit; a.qty += d.qty;
   }
   // 반출 (브랜드별) — 반출 금액(음수)과 수량 가산
   const hasReturns = returnsData && Object.keys(returnsData).length > 0;
@@ -1123,7 +1174,8 @@ function renderBrands(allEntries, hasSales) {
     }
   }
   const total = { cnt: agg['오아'].cnt + agg['보아르'].cnt };
-  for (const k of ['gmv','cogs','cpc','cpn','p','qty','ret']) total[k] = agg['오아'][k] + agg['보아르'][k];
+  for (const k of ['gmv','cogs','cpc','cpn','tr','p','qty','ret']) total[k] = agg['오아'][k] + agg['보아르'][k];
+  const hasTrialBrand = total.tr > 0;
 
   const card = (label, key, a) => {
     // 마진 분모는 발주 매출 그대로 사용 (반출은 매출 차감 아닌 비용 느낌)
@@ -1138,6 +1190,7 @@ function renderBrands(allEntries, hasSales) {
           <span class="b-k">원가</span><span class="b-v">${fmtWon(a.cogs)}</span>` : ''}
           <span class="b-k">광고(VAT)</span><span class="b-v cpc">${fmtWon(a.cpc)}</span>
           <span class="b-k">쿠폰</span><span class="b-v coupon">${fmtWon(a.cpn)}</span>
+          ${hasTrialBrand ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">${fmtWon(a.tr||0)}</span>` : ''}
           ${hasReturns ? `<span class="b-k">반출</span><span class="b-v" style="color:var(--neg);font-weight:600;">${fmtWon(a.ret)}</span>` : ''}
           ${hasSales ? `<span class="b-k">순수익</span><span class="b-v profit${a.p<0?' neg':''}">${fmtWon(a.p)}</span>
           <span class="b-k">마진</span><span class="b-v margin">${mg}</span>` : ''}
@@ -1203,8 +1256,9 @@ function renderSkuTable(bySku) {
   });
 
   // 필터된 합계
-  let TG=0, TC=0, TP=0, TCPC=0, TCPN=0;
-  for (const [,d] of filtered) { TG+=d.gmv; TC+=d.cogs; TCPC+=d.cpcVat; TCPN+=d.coupon; TP+=d.profit; }
+  let TG=0, TC=0, TP=0, TCPC=0, TCPN=0, TTR=0;
+  for (const [,d] of filtered) { TG+=d.gmv; TC+=d.cogs; TCPC+=d.cpcVat; TCPN+=d.coupon; TTR+=(d.trial||0); TP+=d.profit; }
+  const hasTrialSku = allEntries.some(([,d]) => (d.trial||0) > 0);
 
   const header = `
     <tr>
@@ -1214,20 +1268,21 @@ function renderSkuTable(bySku) {
       ${hasSales ? '<th>매출</th><th>원가</th>' : ''}
       <th>광고비(VAT)</th>
       <th>쿠폰</th>
+      ${hasTrialSku ? '<th>체험단</th>' : ''}
       ${hasSales ? '<th>순수익</th><th>마진%</th>' : ''}
     </tr>`;
 
   const bodyParts = [];
-  const colspan = hasSales ? 9 : 5;
+  const colspan = (hasSales ? 9 : 5) + (hasTrialSku ? 1 : 0);
   for (const cat of catOrder) {
     const items = groups[cat].sort((a,b) => b[1].gmv - a[1].gmv || b[1].cpcVat - a[1].cpcVat);
-    let g=0,c=0,cp=0,cpn=0,p=0,qty=0;
-    for (const [,d] of items) { g+=d.gmv; c+=d.cogs; cp+=d.cpcVat; cpn+=d.coupon; p+=d.profit; qty+=d.qty; }
+    let g=0,c=0,cp=0,cpn=0,tr=0,p=0,qty=0;
+    for (const [,d] of items) { g+=d.gmv; c+=d.cogs; cp+=d.cpcVat; cpn+=d.coupon; tr+=(d.trial||0); p+=d.profit; qty+=d.qty; }
     const marginPct = g > 0 ? (p / g * 100).toFixed(1) : '—';
     const isCollapsed = collapsedCats.has(cat);
     bodyParts.push(`<tr class="group ${isCollapsed?'collapsed':''}"><td colspan="${colspan}" onclick="toggleCat('${cat.replace(/'/g, "\\'")}')">
       <span class="caret">▼</span>${esc(cat)}
-      <span class="m">SKU ${items.length}개 · 매출 ${fmtWon(g)} · 광고 ${fmtWon(cp)} · 순수익 ${fmtWon(p)} ${hasSales?`(${marginPct}%)`:''}</span></td></tr>`);
+      <span class="m">SKU ${items.length}개 · 매출 ${fmtWon(g)} · 광고 ${fmtWon(cp)}${tr>0?` · 체험 ${fmtWon(tr)}`:''} · 순수익 ${fmtWon(p)} ${hasSales?`(${marginPct}%)`:''}</span></td></tr>`);
     if (!isCollapsed) {
       for (const [sku, d] of items) {
         const mPct = d.gmv > 0 ? (d.profit / d.gmv * 100).toFixed(1) : '—';
@@ -1240,6 +1295,7 @@ function renderSkuTable(bySku) {
             ${hasSales ? `<td class="gmv">${fmtWon(d.gmv)}</td><td>${fmtWon(d.cogs)}</td>` : ''}
             <td class="cpc">${fmtWon(d.cpcVat)}</td>
             <td class="coupon">${fmtWon(d.coupon)}</td>
+            ${hasTrialSku ? `<td style="color:#556b7a;font-weight:600;">${d.trial ? fmtWon(d.trial) : '—'}</td>` : ''}
             ${hasSales ? `<td class="${profitCls}">${fmtWon(d.profit)}</td><td>${mPct}${mPct==='—'?'':'%'}</td>` : ''}
           </tr>`);
       }
@@ -1257,6 +1313,7 @@ function renderSkuTable(bySku) {
       ${hasSales ? `<td class="gmv">${fmtWon(TG)}</td><td>${fmtWon(TC)}</td>` : ''}
       <td class="cpc">${fmtWon(TCPC)}</td>
       <td class="coupon">${fmtWon(TCPN)}</td>
+      ${hasTrialSku ? `<td style="color:#556b7a;font-weight:700;">${fmtWon(TTR)}</td>` : ''}
       ${hasSales ? `<td class="${TP<0?'profit neg':'profit'}">${fmtWon(TP)}</td><td>${totalMargin}${totalMargin==='—'?'':'%'}</td>` : ''}
     </tr>`;
 
@@ -1367,7 +1424,7 @@ window.addEventListener('dragover', e => { if (!e.target.closest('.drop')) e.pre
 window.addEventListener('drop',     e => { if (!e.target.closest('.drop')) e.preventDefault(); });
 
 (async () => {
-  await Promise.all([loadMaps(), loadMargin()]);
+  await Promise.all([loadMaps(), loadMargin(), loadPromotion()]);
   // 서버(KV) 공유 데이터 우선, 없으면 로컬 캐시 사용
   const hadServer = await restoreFromServer();
   if (!hadServer) restoreFromLs();
