@@ -763,11 +763,7 @@ function render(byCat, stats) {
   document.getElementById('result').innerHTML = `
     <div class="result-head">
       <div class="title">카테고리별 집계${brandFiltered ? ` <span style="font-weight:500;color:var(--accent-dark);">· ${esc(filterBrand)} 필터</span>` : ''}</div>
-      <div class="sub">
-        CPC 레코드 ${(stats.cpcMatched + stats.cpcUnmatched).toLocaleString()}건
-        · 쿠폰 레코드 ${(stats.cpnMatched + stats.cpnUnmatched).toLocaleString()}건
-        ${stats.cpcUnmatched + stats.cpnUnmatched ? ` · <span style="color:var(--neg);font-weight:600;">미매칭 ${stats.cpcUnmatched + stats.cpnUnmatched}건</span>` : ''}
-      </div>
+      ${stats.cpcUnmatched + stats.cpnUnmatched ? `<div class="sub"><span style="color:var(--neg);font-weight:600;">미매칭 ${stats.cpcUnmatched + stats.cpnUnmatched}건</span></div>` : ''}
       <button class="btn-reload" onclick="resetSettleData()" title="저장된 파일 데이터 초기화">초기화</button>
     </div>
     <table class="cat">
