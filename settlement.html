@@ -440,8 +440,9 @@ function parseSales(file) {
   //   col 3=SKU ID, 4=SKU명, 11=브랜드,
   //   col 13=판매수량(SKU ID, gross), 14=반품수량,
   //   col 15=매입원가(COGS) = 쿠팡 집계 "col13 × 공급가(VAT제외)"
-  //   col 28(AC)=판매수량(벤더아이템ID, 반품 반영 — 음수 가능)
-  // → 매출(실입금) = col 15 × (col13 - col14) / col13  — 쿠팡 공급가 × net 수량
+  //   col 28=판매수량(벤더아이템ID, gross) — col13과 유사하나 벤더아이템 묶임 차이로 소폭 다름
+  // → 수량(net) = col13 - col14  (실제 net 판매, 벤더 입금 기준)
+  //    매출(net) = col15 × (col13 - col14) / col13  — 쿠팡 공급가 × net 수량
   //    원가 = qty × margin.originN (aggregate에서 처리)
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
@@ -460,10 +461,10 @@ function parseSales(file) {
           const gmvCogsGross = Number(r[15]) || 0;  // col 15 (gross, col13 × 공급가)
           const qtyGross = Number(r[13]) || 0;      // col 13 판매수량 (gross)
           const qtyReturn = Number(r[14]) || 0;     // col 14 반품수량
-          const qty = Number(r[28]) || 0;           // col 28 판매수량 (반품 반영 net)
+          const qty = qtyGross - qtyReturn;         // 실 net 수량
           // 실입금 매출 = 쿠팡 공급가 × net 수량 = col15 × (col13 - col14) / col13
           const gmvCogs = qtyGross > 0
-            ? gmvCogsGross * (qtyGross - qtyReturn) / qtyGross
+            ? gmvCogsGross * qty / qtyGross
             : gmvCogsGross;
           const d = bySku[sku] || (bySku[sku] = { qty:0, gmvCogs:0, name, brand });
           d.qty += qty;
