@@ -115,6 +115,7 @@
   table.cat td.left { text-align: left; font-weight: 600; }
   table.cat tr.brand td.left { color: var(--cpc); font-weight: 700; }
   table.cat tr.sum td { font-weight: 700; background: #fdfbf9; }
+  table.cat td.gmv    { color: var(--sales); font-weight: 600; }
   table.cat td.cpc    { color: var(--cpc); font-weight: 600; }
   table.cat td.coupon { color: var(--coupon); font-weight: 600; }
   table.cat td.total  { font-weight: 700; }
@@ -682,6 +683,13 @@ function aggregate() {
     }
   }
 
+  // 카테별 매출 집계 (bySku 기준)
+  for (const d of Object.values(bySku)) {
+    const c = d.cat || '기타';
+    if (!byCat[c]) byCat[c] = { cpc: 0, coupon: 0 };
+    byCat[c].gmv = (byCat[c].gmv || 0) + d.gmv;
+  }
+
   // 카테 광고비 반올림 분배 (전체 합 = 189,413,014 정확히 맞춤)
   const totalCpcInt = Math.round(totalRawCost * VAT_RATE);
   const perCatVat = Object.fromEntries(
@@ -708,7 +716,9 @@ function render(byCat, stats) {
   const cats = Object.entries(byCat).filter(([k]) => !brandFiltered || !BRAND_EXCLUDE.has(k));
   const totalCpc = cats.reduce((s,[,v]) => s + v.cpc, 0);
   const totalCpn = cats.reduce((s,[,v]) => s + v.coupon, 0);
+  const totalGmv = cats.reduce((s,[,v]) => s + (v.gmv||0), 0);
   const totalAll = totalCpc + totalCpn;
+  const hasSales = !!salesData;
 
   // 정렬 그룹: 0=오아/보아르 세분 카테, 1=브랜드(삼대오백/온살), 2=미매칭/기타
   const groupOf = k => UNMATCHED_CATS.has(k) ? 2 : (BRAND_CATS.has(k) ? 1 : 0);
@@ -727,6 +737,7 @@ function render(byCat, stats) {
     return `
       <tr class="${isBrand ? 'brand' : ''}">
         <td class="left">${esc(cat)}</td>
+        ${hasSales ? `<td class="gmv">${fmtWon(v.gmv||0)}</td>` : ''}
         <td class="cpc">${fmtWon(v.cpc)}</td>
         <td class="coupon">${fmtWon(v.coupon)}</td>
         <td class="total">${fmtWon(sum)}</td>
@@ -740,6 +751,7 @@ function render(byCat, stats) {
   const sumRow = `
     <tr class="sum">
       <td class="left">합계</td>
+      ${hasSales ? `<td class="gmv">${fmtWon(totalGmv)}</td>` : ''}
       <td class="cpc">${fmtWon(totalCpc)}</td>
       <td class="coupon">${fmtWon(totalCpn)}</td>
       <td class="total">${fmtWon(totalAll)}</td>
@@ -761,6 +773,7 @@ function render(byCat, stats) {
       <thead>
         <tr>
           <th class="left">카테고리</th>
+          ${hasSales ? '<th>매출</th>' : ''}
           <th>CPC 광고비</th>
           <th>쿠폰비</th>
           <th>합계</th>
