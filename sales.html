@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   :root {
@@ -199,7 +200,7 @@
       <div class="month-label" id="month-label"><span id="month-text">—</span><input type="month" class="month-input" id="month-input"></div>
       <div class="month-btn" id="next" title="다음 달"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
     </div>
-    <div class="search"><input type="search" id="search" placeholder="상품명/SKU/카테고리 검색"></div>
+    <div class="search" style="margin-left:auto;"><input type="search" id="search" placeholder="상품명/SKU/카테고리 검색"></div>
   </div>
 
   <div class="kpi-grid">
@@ -650,11 +651,41 @@
     document.addEventListener('mouseup', onUp);
   });
 
+  // GitHub repo에서 '이슈제품*.xlsx' 최신본 받아 SKU → 특이사항 매핑
+  function loadIssueMap() {
+    return fetch('/api/repo-files?path=data&ref=main', { headers: { 'Accept':'application/json' } })
+      .then(r => r.ok ? r.json() : [])
+      .then(files => {
+        const hits = (files || []).filter(f => f.type === 'file' && /^이슈제품/.test(f.name));
+        if (!hits.length) return {};
+        hits.sort((a,b) => a.name < b.name ? 1 : -1);
+        return fetch(hits[0].download_url).then(r => r.arrayBuffer()).then(buf => {
+          const wb = XLSX.read(buf, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+          const map = {};
+          const norm = v => String(v || '').trim().toLowerCase().replace(/[\s\-_]/g, '');
+          for (const row of rows) {
+            const keys = Object.keys(row);
+            const skuKey = keys.find(k => { const n = norm(k); return n === 'skuid' || n === 'sku' || n === '옵션코드'; }) || keys[0];
+            const noteKey = keys.find(k => { const n = norm(k); return n === '특이사항' || n === '메모' || n === '비고' || n === 'note'; });
+            const sku = String(row[skuKey] || '').trim();
+            if (!sku) continue;
+            const note = noteKey ? String(row[noteKey] || '').trim() : '';
+            map[sku] = note || '확인필요';
+          }
+          return map;
+        });
+      })
+      .catch(e => { console.warn('issue load fail:', e); return {}; });
+  }
+
   Promise.all([
     fetch('data/sales-sku/index.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : Promise.reject(r.status)),
     fetch('/api/margin-state', { cache: 'no-cache' }).then(r => r.ok ? r.json() : { rows: [] }).catch(() => ({ rows: [] })),
-    fetch('data/sales-sku/master.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : { skus: {} }).catch(() => ({ skus: {} }))
-  ]).then(([m, ms, mm]) => {
+    fetch('data/sales-sku/master.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : { skus: {} }).catch(() => ({ skus: {} })),
+    loadIssueMap()
+  ]).then(([m, ms, mm, issueMap]) => {
     manifest = m;
     availableMonths = m.months.slice().sort();
     monthInput.min = availableMonths[0];
@@ -665,8 +696,14 @@
       marginMap[sku] = { cat: r.cat || '', name: r.name || '', cost: r.cost || 0, price: r.price || 0 };
     }
     masterMap = (mm && mm.skus) || {};
+    // 이슈제품 리스트의 특이사항 덮어쓰기
+    for (const [sku, note] of Object.entries(issueMap)) {
+      if (!masterMap[sku]) masterMap[sku] = {};
+      masterMap[sku].note = note;
+    }
     const mcount = Object.keys(marginMap).length;
-    metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${mm.as_of || '-'} · 마진 ${mcount} SKU`;
+    const icount = Object.keys(issueMap).length;
+    metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${mm.as_of || '-'} · 마진 ${mcount} SKU · 이슈 ${icount}건`;
     setMonth(availableMonths[availableMonths.length - 1]);
   }).catch(err => { metaEl.textContent = '데이터 로드 실패 (' + err + ')'; });
 })();
