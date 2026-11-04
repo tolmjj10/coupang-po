@@ -1273,7 +1273,14 @@ function renderBrands(allEntries, hasSales) {
   for (const k of ['gmv','cogs','cpc','cpn','tr','p','qty','ret']) total[k] = agg['오아'][k] + agg['보아르'][k];
   const hasTrialBrand = total.tr > 0;
 
-  const card = (label, key, a) => {
+  // 상계처리: 오아/보아르로 나눌 수 없어 합계에만 반영
+  const deductD = getActiveDeductions();
+  const deductExtra = deductD ? calcDeductSum(deductD) : 0;
+  total.deduct = deductExtra;
+  total.p = total.p - deductExtra;
+
+  const card = (label, key, a, opts = {}) => {
+    const showDeduct = !!opts.showDeduct;
     // 마진 분모는 발주 매출 그대로 사용 (반출은 매출 차감 아닌 비용 느낌)
     const mg = a.gmv > 0 ? (a.p / a.gmv * 100).toFixed(1) + '%' : '—';
     const activeCls = filterBrand === key ? ' active' : '';
@@ -1288,6 +1295,7 @@ function renderBrands(allEntries, hasSales) {
           <span class="b-k">쿠폰</span><span class="b-v coupon">-${fmtWon(a.cpn)}</span>
           ${hasTrialBrand ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">-${fmtWon(a.tr||0)}</span>` : ''}
           ${hasReturns ? `<span class="b-k">반출</span><span class="b-v" style="color:var(--neg);font-weight:600;">${fmtWon(a.ret)}</span>` : ''}
+          ${showDeduct && a.deduct > 0 ? `<span class="b-k">상계</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="성장·프리미엄½·DA·체험·어워즈·PPIR 합계">-${fmtWon(a.deduct)}</span>` : ''}
           ${hasSales ? `<span class="b-k">순수익</span><span class="b-v profit${a.p<0?' neg':''}">${fmtWon(a.p)}</span>
           <span class="b-k">마진</span><span class="b-v margin">${mg}</span>` : ''}
         </div>
@@ -1298,7 +1306,7 @@ function renderBrands(allEntries, hasSales) {
     <div class="brand-panel" style="margin-top:14px;">
       ${card('오아', '오아', agg['오아'])}
       ${card('보아르', '보아르', agg['보아르'])}
-      ${card('오아+보아르 합계', '오아+보아르', total)}
+      ${card('오아+보아르 합계', '오아+보아르', total, { showDeduct: true })}
     </div>`;
 }
 
