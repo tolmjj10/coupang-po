@@ -1131,10 +1131,8 @@ async function downloadPromotionList(types) {
     { h: 'COGs',             hf: PURPLE, hb: false, hs: 9,            ds: { ...styleData, numFmt }, sub: { v: '(매입가) ',   hf: PURPLE, hs: 9 } },
     { h: 'Limited Quantity', hf: PURPLE, hb: false, hs: 9,            ds: { ...styleData, numFmt }, sub: { v: '(한정수량) ', hf: PURPLE, hs: 9 } },
   ];
-  // 골드박스: 템플릿 미제공 — 타임특가 양식에 "현재가" 추가 (판매가 다음)
-  const GOLD_COLS = TIME_COLS.slice(0, 14).concat([
-    { h: '현재가',           hf: PURPLE, hb: false, hs: 9,            ds: { ...styleData, numFmt } },
-  ]).concat(TIME_COLS.slice(14));
+  // 골드박스: 타임특가와 동일 컬럼 구조 (현재가 제외)
+  const GOLD_COLS = TIME_COLS;
   const colStart = 1;  // B열
 
   const toExcelDate = (iso) => {
@@ -1151,13 +1149,13 @@ async function downloadPromotionList(types) {
   };
   const buildRow = (type, r) => {
     const d = derive(r);
+    // 판매가는 프로모션 행에 기재된 값(d.salePrice) 사용 - 마진테이블 스냅샷(priceBase)이 아님
     if (type === '골드박스') {
       return [
         toExcelDate(r.date), fmtTime(r.time, '07'), '골드박스', 10, 'Retail', 'CE', 'andy',
         toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
         '', '',
-        toNum(d.priceBase), toNum(d.salePrice), toNum(d.promoPrice),
-        toNum(r.discountRate),
+        toNum(d.salePrice), toNum(d.promoPrice), toNum(r.discountRate),
         toNum(d.supply), toNum(r.qty)
       ];
     }
@@ -1166,7 +1164,7 @@ async function downloadPromotionList(types) {
       toExcelDate(r.date), fmtTime(r.time, '15'), '타임특가', 10, 'Retail', 'CE', 'andy',
       toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
       '', '',
-      toNum(d.priceBase), toNum(d.promoPrice), discStr,
+      toNum(d.salePrice), toNum(d.promoPrice), discStr,
       '', toNum(r.qty)
     ];
   };
