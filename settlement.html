@@ -1517,13 +1517,16 @@ function detectYm(name) {
   // CPC: ...dailySettlement-20260101-20260131.xlsx
   let m = n.match(/dailySettlement-(\d{4})(\d{2})\d{2}-\d{8}/);
   if (m) return `${m[1]}-${m[2]}`;
-  // 쿠폰: coupon_YYYY_MM_DD (N).xls
+  // 쿠폰 신규: coupon_YYYY_MM_DD_N월.xls → 뒤쪽 N월이 목표 월 (다운로드 날짜 무시)
+  m = n.match(/coupon.*?(\d{4}).*?(\d{1,2})월/);
+  if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}`;
+  // 쿠폰 구버전: coupon_YYYY_MM_DD (N).xls
   m = n.match(/coupon_(\d{4})_(\d{2})_\d{2}/);
   if (m) return `${m[1]}-${m[2]}`;
-  // 실입고: Coupang_Stocked_Data_List_20260131-20260131.xlsx 또는 _YYYY-MM-DD
-  m = n.match(/Stocked.*?(\d{4})[-_]?(\d{2})\d{2}/);
+  // 실입고: Coupang_Stocked_Data_List(2026-01-01~2026-01-31).xlsx
+  m = n.match(/Stocked.*?\(?(\d{4})-(\d{2})-\d{2}/);
   if (m) return `${m[1]}-${m[2]}`;
-  m = n.match(/Stocked.*?(\d{4})-(\d{2})-\d{2}/);
+  m = n.match(/Stocked.*?(\d{4})(\d{2})\d{2}/);
   if (m) return `${m[1]}-${m[2]}`;
   return null;
 }
