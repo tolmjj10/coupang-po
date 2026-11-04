@@ -433,8 +433,18 @@ def git_push():
 
 
 def main():
-    print(f"=== refresh_sales {dt.datetime.now().isoformat(timespec='seconds')} ===")
+    mode = "full"
+    for a in sys.argv[1:]:
+        if a.startswith("--mode="):
+            mode = a.split("=", 1)[1].strip().lower()
+    print(f"=== refresh_sales {dt.datetime.now().isoformat(timespec='seconds')} mode={mode} ===")
     mcp = McpSession(MCP_URL, AUTH)
+
+    if mode == "inbound":
+        refresh_inbound(mcp)
+        git_push()
+        print("=== 완료 ===")
+        return
 
     # 1) 대시보드 — 항상 갱신
     refresh_sales_dash(mcp)
