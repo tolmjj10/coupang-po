@@ -283,6 +283,29 @@
   table.returns td.name { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
   table.returns td.neg { color: var(--neg); font-weight: 600; }
   table.returns tr.subsum td { font-weight: 700; background: #fdfbf9; border-top: 1px solid var(--border-strong); }
+
+  /* 월별 탭 */
+  .month-bar { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 10px; }
+  .month-bar .mtab {
+    padding: 5px 10px; font-size: 12px; font-weight: 600; letter-spacing: -0.01em;
+    background: var(--surface); color: var(--text-hint);
+    border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+    transition: all .12s;
+  }
+  .month-bar .mtab:hover { color: var(--text); border-color: var(--border-strong); }
+  .month-bar .mtab.has-data { color: var(--text); }
+  .month-bar .mtab.has-data::after { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--profit); margin-left: 5px; vertical-align: middle; }
+  .month-bar .mtab.active { background: var(--accent-dark); color: #fff; border-color: var(--accent-dark); }
+  .month-bar .mtab.active.has-data::after { background: #fff; }
+  .month-bar .mtab.all { font-weight: 700; margin-left: 6px; }
+  .month-bar .spacer { flex: 1; }
+  .month-bar .batch-btn {
+    padding: 5px 12px; font-size: 12px; font-weight: 700;
+    background: var(--accent-light); color: var(--accent-dark);
+    border: 1px solid var(--border-strong); border-radius: 8px; cursor: pointer;
+  }
+  .month-bar .batch-btn:hover { background: var(--accent); color: #fff; }
 </style>
 </head>
 <body>
@@ -291,6 +314,13 @@
     <h1>정산</h1>
     <div class="map-info" id="map-info">매핑 로드 중…</div>
   </header>
+
+  <div class="month-bar" id="month-bar">
+    <!-- 월별 탭 JS 렌더 -->
+    <div class="spacer"></div>
+    <button class="batch-btn" id="batch-btn" title="po/settlement_files/ 폴더를 선택하면 YYYY-MM 하위폴더를 자동 읽어 월별로 처리합니다">📁 폴더 일괄 처리</button>
+    <input type="file" id="batch-input" webkitdirectory directory multiple style="display:none">
+  </div>
 
   <div class="drops">
     <div class="drop cpc" id="drop-cpc">
@@ -1423,11 +1453,249 @@ setupDrop('drop-sales', 'sales');
 window.addEventListener('dragover', e => { if (!e.target.closest('.drop')) e.preventDefault(); });
 window.addEventListener('drop',     e => { if (!e.target.closest('.drop')) e.preventDefault(); });
 
+/* ═══════════════════════ 월별 탭 & 폴더 일괄 처리 ═══════════════════════ */
+const MONTHS_LS = 'settle_months_v1';
+let activeMonth = null;  // null=기본(단일 업로드 모드), 'YYYY-MM', 'ALL'
+
+function monthsStore()      { try { return JSON.parse(localStorage.getItem(MONTHS_LS) || '{}'); } catch { return {}; } }
+function saveMonthsStore(o) { try { localStorage.setItem(MONTHS_LS, JSON.stringify(o)); } catch(_) {} }
+
+// 파일명에서 YYYY-MM 추출 — CPC/쿠폰/실입고 각기 다른 패턴
+function detectYm(name) {
+  if (!name) return null;
+  const n = String(name);
+  // CPC: ...dailySettlement-20260101-20260131.xlsx
+  let m = n.match(/dailySettlement-(\d{4})(\d{2})\d{2}-\d{8}/);
+  if (m) return `${m[1]}-${m[2]}`;
+  // 쿠폰: coupon_YYYY_MM_DD (N).xls
+  m = n.match(/coupon_(\d{4})_(\d{2})_\d{2}/);
+  if (m) return `${m[1]}-${m[2]}`;
+  // 실입고: Coupang_Stocked_Data_List_20260131-20260131.xlsx 또는 _YYYY-MM-DD
+  m = n.match(/Stocked.*?(\d{4})[-_]?(\d{2})\d{2}/);
+  if (m) return `${m[1]}-${m[2]}`;
+  m = n.match(/Stocked.*?(\d{4})-(\d{2})-\d{2}/);
+  if (m) return `${m[1]}-${m[2]}`;
+  return null;
+}
+
+// 올해 1월 ~ 현재월 목록
+function monthList() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const upto = now.getMonth() + 1;
+  const arr = [];
+  for (let i = 1; i <= upto; i++) arr.push(`${year}-${String(i).padStart(2,'0')}`);
+  return arr;
+}
+
+function renderMonthTabs() {
+  const bar = document.getElementById('month-bar');
+  if (!bar) return;
+  const store = monthsStore();
+  const months = monthList();
+  const tabsHtml = months.map(m => {
+    const has = !!store[m];
+    const cls = (activeMonth === m ? 'active' : '') + (has ? ' has-data' : '');
+    return `<button class="mtab ${cls}" data-m="${m}">${m}</button>`;
+  }).join('');
+  const allCls = (activeMonth === 'ALL' ? 'active' : '') + (Object.keys(store).length ? ' has-data' : '');
+  const allTab = `<button class="mtab all ${allCls}" data-m="ALL">전체</button>`;
+  bar.innerHTML = tabsHtml + allTab +
+    '<div class="spacer"></div>' +
+    '<button class="batch-btn" id="batch-btn" title="po/settlement_files/ 폴더를 선택하면 YYYY-MM 하위폴더를 자동 읽어 월별로 처리합니다">📁 폴더 일괄 처리</button>' +
+    '<input type="file" id="batch-input" webkitdirectory directory multiple style="display:none">';
+  bar.querySelectorAll('.mtab').forEach(b => b.addEventListener('click', () => switchMonth(b.dataset.m)));
+  document.getElementById('batch-btn').addEventListener('click', () => document.getElementById('batch-input').click());
+  document.getElementById('batch-input').addEventListener('change', onBatchFolder);
+}
+
+function loadMonthDataIntoState(m) {
+  if (m === 'ALL') {
+    // 전체 병합
+    const store = monthsStore();
+    const cpcAll = [], couAll = [];
+    const slAll = {}, rtAll = {};
+    for (const d of Object.values(store)) {
+      if (Array.isArray(d.cpc)) cpcAll.push(...d.cpc);
+      if (Array.isArray(d.coupon)) couAll.push(...d.coupon);
+      for (const [sku, v] of Object.entries(d.sales || {})) {
+        const e = slAll[sku] || (slAll[sku] = { qty:0, gmvCogs:0, name:v.name||'', brand:v.brand||'' });
+        e.qty += Number(v.qty)||0; e.gmvCogs += Number(v.gmvCogs)||0;
+      }
+      for (const [sku, v] of Object.entries(d.returns || {})) {
+        const e = rtAll[sku] || (rtAll[sku] = { qty:0, gmvCogs:0, name:v.name||'' });
+        e.qty += Number(v.qty)||0; e.gmvCogs += Number(v.gmvCogs)||0;
+      }
+    }
+    cpcData = cpcAll.length ? cpcAll : null;
+    couponData = couAll.length ? couAll : null;
+    salesData = Object.keys(slAll).length ? slAll : null;
+    returnsData = Object.keys(rtAll).length ? rtAll : null;
+    lsSave(LS.cpcName, '(전체 합산)');
+    return;
+  }
+  const d = monthsStore()[m];
+  if (!d) {
+    cpcData = couponData = salesData = returnsData = null;
+    lsSave(LS.cpcName, '');
+    return;
+  }
+  cpcData = d.cpc || null;
+  couponData = d.coupon || null;
+  salesData = d.sales || null;
+  returnsData = d.returns || null;
+  lsSave(LS.cpcName, d.cpcName || '');
+  lsSave(LS.couponName, d.couponName || '');
+  lsSave(LS.salesName, d.salesName || '');
+}
+
+function switchMonth(m) {
+  activeMonth = m;
+  loadMonthDataIntoState(m);
+  renderMonthTabs();
+  updateDropLabelsFromState(m);
+  if (cpcData || couponData) aggregate();
+  else renderEmptyResult();
+}
+
+function updateDropLabelsFromState(m) {
+  const d = m && m !== 'ALL' ? (monthsStore()[m] || {}) : {};
+  const setLabel = (kind, nm) => {
+    const zone = document.getElementById(`drop-${kind}`);
+    const label = zone.querySelector('.drop-file');
+    const title = zone.querySelector('.drop-title');
+    const hint = zone.querySelector('.drop-hint');
+    const path = zone.querySelector('.drop-path');
+    if (nm) {
+      label.textContent = nm;
+      label.hidden = false;
+      title.hidden = true; hint.hidden = true; if (path) path.hidden = true;
+      zone.classList.add('loaded');
+    } else {
+      label.hidden = true; label.textContent = '';
+      title.hidden = false; hint.hidden = false; if (path) path.hidden = false;
+      zone.classList.remove('loaded');
+    }
+  };
+  if (m === 'ALL') {
+    setLabel('cpc', '(전체 합산)');
+    setLabel('coupon', '(전체 합산)');
+    setLabel('sales', '(전체 합산)');
+  } else {
+    setLabel('cpc', d.cpcName || '');
+    setLabel('coupon', d.couponName || '');
+    setLabel('sales', d.salesName || '');
+  }
+}
+
+function renderEmptyResult() {
+  const r = document.getElementById('result');
+  if (r) r.innerHTML = `<div class="empty">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/>
+    </svg>
+    <div>${activeMonth && activeMonth !== 'ALL' ? `${activeMonth} 데이터 없음 — 파일을 올리거나 폴더 일괄 처리하세요.` : '파일을 업로드하거나 월 탭을 선택하세요.'}</div>
+  </div>`;
+  const rs = document.getElementById('result-sku'); if (rs) rs.hidden = true;
+  const rr = document.getElementById('result-returns'); if (rr) rr.innerHTML = '';
+  const rb = document.getElementById('result-brands'); if (rb) rb.innerHTML = '';
+}
+
+// 월별 캐시에 현재 데이터 저장 (단일 업로드 모드에서 업로드 성공 후 호출)
+function saveCurrentToMonth(ym) {
+  if (!ym) return;
+  const store = monthsStore();
+  const prev = store[ym] || {};
+  store[ym] = {
+    cpc: cpcData || prev.cpc || null,
+    coupon: couponData || prev.coupon || null,
+    sales: salesData || prev.sales || null,
+    returns: returnsData || prev.returns || null,
+    cpcName: lsLoad(LS.cpcName, false) || prev.cpcName || '',
+    couponName: lsLoad(LS.couponName, false) || prev.couponName || '',
+    salesName: lsLoad(LS.salesName, false) || prev.salesName || '',
+  };
+  saveMonthsStore(store);
+  renderMonthTabs();
+}
+
+// 단일 업로드 handle() 후 자동 월 분류 — setupDrop을 교체하지 않고 외부에서 후처리
+['cpc','coupon','sales'].forEach(kind => {
+  const zone = document.getElementById(`drop-${kind}`);
+  const input = zone.querySelector('input[type="file"]');
+  input.addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const ym = detectYm(f.name);
+    if (ym) setTimeout(() => saveCurrentToMonth(ym), 500);  // 파싱 완료 후
+  });
+});
+
+// 폴더 일괄 처리: webkitdirectory로 YYYY-MM 하위폴더 스캔
+async function onBatchFolder(e) {
+  const files = Array.from(e.target.files || []);
+  if (!files.length) { alert('파일이 없습니다.'); return; }
+  // webkitRelativePath에서 YYYY-MM 하위폴더 추출
+  const byMonth = {};  // { 'YYYY-MM': { cpcFile, couponFile, salesFile } }
+  const skipped = [];
+  for (const f of files) {
+    const rel = f.webkitRelativePath || f.name;
+    // rel = "settlement_files/2026-01/A0006...-dailySettlement-...xlsx"
+    const m = rel.match(/\/(\d{4}-\d{2})\//) || rel.match(/^(\d{4}-\d{2})\//);
+    if (!m) { skipped.push(rel); continue; }
+    const ym = m[1];
+    const nm = f.name;
+    const slot = byMonth[ym] || (byMonth[ym] = {});
+    if (/dailySettlement/i.test(nm)) slot.cpcFile = f;
+    else if (/^coupon_/i.test(nm)) slot.couponFile = f;
+    else if (/Stocked/i.test(nm)) slot.salesFile = f;
+    else skipped.push(rel);
+  }
+  const months = Object.keys(byMonth).sort();
+  if (!months.length) { alert('YYYY-MM 하위폴더에서 파일을 찾지 못했습니다.'); return; }
+
+  const store = monthsStore();
+  let okCount = 0;
+  for (const ym of months) {
+    const slot = byMonth[ym];
+    const entry = store[ym] || {};
+    try {
+      if (slot.cpcFile) {
+        const buf = await slot.cpcFile.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        entry.cpc = parseCPC(wb);
+        entry.cpcName = slot.cpcFile.name;
+      }
+      if (slot.couponFile) {
+        entry.coupon = await parseCoupon(slot.couponFile);
+        entry.couponName = slot.couponFile.name;
+      }
+      if (slot.salesFile) {
+        const p = await parseSales(slot.salesFile);
+        entry.sales = p.purchases;
+        entry.returns = p.returns;
+        entry.salesName = slot.salesFile.name;
+      }
+      store[ym] = entry;
+      okCount++;
+    } catch (err) {
+      console.error(`[${ym}] 처리 실패:`, err);
+    }
+  }
+  saveMonthsStore(store);
+  alert(`${okCount}개 월 처리 완료\n${months.join(', ')}` + (skipped.length ? `\n\n미분류 ${skipped.length}개 (콘솔 확인)` : ''));
+  if (skipped.length) console.warn('미분류:', skipped);
+  renderMonthTabs();
+  // 처리한 첫 월로 자동 전환
+  if (months.length) switchMonth(months[0]);
+}
+
 (async () => {
   await Promise.all([loadMaps(), loadMargin(), loadPromotion()]);
   // 서버(KV) 공유 데이터 우선, 없으면 로컬 캐시 사용
   const hadServer = await restoreFromServer();
   if (!hadServer) restoreFromLs();
+  renderMonthTabs();
   if (cpcData && couponData) aggregate();
 })();
 </script>
