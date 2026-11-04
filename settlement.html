@@ -878,6 +878,24 @@ function aggregate() {
     byCat[c].trial = (byCat[c].trial || 0) + (d.trial || 0);
   }
 
+  // 월별 체험단 상계 총액(deductions.trial)이 SKU별 합계보다 크면 차액을 '체험단 (미분배)' 가상 카테로 추가
+  const monthDeduct = getActiveDeductions();
+  const monthTrialTotal = (monthDeduct && Number(monthDeduct.trial)) || 0;
+  const skuTrialSum = Object.values(bySku).reduce((s, d) => s + (d.trial || 0), 0);
+  const trialGap = monthTrialTotal - skuTrialSum;
+  if (trialGap > 0) {
+    const vSku = `__trial_unalloc_${activeMonth || 'cur'}`;
+    bySku[vSku] = {
+      cpc: 0, coupon: 0, gmv: 0, cogs: 0, qty: 0,
+      name: '(체험단 - 미분배)',
+      brand: '',
+      cat: '체험단 미분배',
+      trial: trialGap,
+    };
+    byCat['체험단 미분배'] = (byCat['체험단 미분배'] || { cpc: 0, coupon: 0 });
+    byCat['체험단 미분배'].trial = (byCat['체험단 미분배'].trial || 0) + trialGap;
+  }
+
   // 카테 광고비 반올림 분배
   const totalCpcInt = Math.round(totalRawCost * VAT_RATE);
   const perCatVat = Object.fromEntries(
