@@ -307,7 +307,7 @@
   }
   .month-bar .batch-btn:hover { background: var(--accent); color: #fff; }
 
-  /* 추가 공제 패널 */
+  /* 상계처리 패널 */
   .deduct-panel {
     background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
     padding: 10px 14px; margin-bottom: 12px;
@@ -337,6 +337,21 @@
   }
   .deduct-panel .dp-sum .lab { font-size: 10.5px; font-weight: 600; color: var(--accent-dark); }
   .deduct-panel .dp-sum .val { font-size: 14px; font-weight: 700; color: var(--neg); }
+  .deduct-panel .dp-final {
+    margin-top: 10px; padding: 10px 14px; background: #fdf5ed;
+    border: 1px solid #e9d4b5; border-radius: 10px;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    font-size: 13px;
+  }
+  .deduct-panel .dp-final .dp-break { color: var(--text-hint); line-height: 1.5; }
+  .deduct-panel .dp-final .dp-break strong.profit { color: var(--profit); }
+  .deduct-panel .dp-final .dp-break strong.neg { color: var(--neg); }
+  .deduct-panel .dp-final .dp-break .detail { opacity: .7; font-size: 11.5px; display: block; margin-top: 2px; }
+  .deduct-panel .dp-final .dp-final-v {
+    font-size: 16px; font-weight: 800; white-space: nowrap;
+  }
+  .deduct-panel .dp-final .dp-final-v.ok  { color: var(--profit); }
+  .deduct-panel .dp-final .dp-final-v.neg { color: var(--neg); }
 </style>
 </head>
 <body>
@@ -382,7 +397,7 @@
 
   <div class="deduct-panel" id="deduct-panel">
     <div class="dp-head">
-      <span>추가 공제 <span id="dp-month-label" style="color:var(--text-hint); font-weight:500;"></span></span>
+      <span>상계처리 <span id="dp-month-label" style="color:var(--text-hint); font-weight:500;"></span></span>
       <span class="dp-src">공제금액계정 › 지급처리결과 · 상계금액</span>
     </div>
     <div class="dp-grid">
@@ -393,10 +408,11 @@
       <div class="dp-cell"><label>PPIR</label><input type="text" data-k="ppir" inputmode="numeric" placeholder="0"></div>
       <div class="dp-cell"><label>DA <small>Display AD &amp; Rocket Insight</small></label><input type="text" data-k="da" inputmode="numeric" placeholder="0"></div>
       <div class="dp-sum">
-        <div class="lab">공제 합계</div>
+        <div class="lab">상계 합계</div>
         <div class="val" id="dp-sum">—</div>
       </div>
     </div>
+    <div class="dp-final" id="dp-final" hidden></div>
   </div>
 
   <div class="result-box" id="result">
@@ -1743,7 +1759,7 @@ async function onBatchFolder(e) {
   if (months.length) switchMonth(months[0]);
 }
 
-/* ═══════════════════════ 추가 공제 (상계금액) ═══════════════════════ */
+/* ═══════════════════════ 상계처리 (상계금액) ═══════════════════════ */
 // 성장장려금, 쿠팡체험단, 어워즈패키지, 프리미엄 데이터(×1/2), PPIR
 // activeMonth가 'YYYY-MM'이면 그 월에 저장. 'ALL'이면 모든 월 합산 표시(수정 불가).
 const DEDUCT_KEYS = ['growth', 'trial', 'awards', 'premium', 'ppir', 'da'];
@@ -1799,8 +1815,9 @@ function onDeductInput(e) {
   entry.deductions[inp.dataset.k] = raw;
   saveMonthsStore(store);
   document.getElementById('dp-sum').textContent = fmtWon(calcDeductSum(entry.deductions));
-  // 집계 다시 렌더 (최종 순수익에 반영)
+  // 집계 다시 렌더 (최종 순수익에 반영). 파일이 없어도 공제만의 요약은 표시.
   if (cpcData || couponData) aggregate();
+  else applyDeductionsToSummary();
 }
 
 document.querySelectorAll('#deduct-panel input[data-k]').forEach(inp => {
@@ -1808,37 +1825,24 @@ document.querySelectorAll('#deduct-panel input[data-k]').forEach(inp => {
   inp.addEventListener('blur', e => { e.target.value = fmtInput(parseWon(e.target.value)); });
 });
 
-// render 훅: renderSkuTable 완료 후 공제 합계를 하단 요약에 추가 반영
-const _origRenderSkuTable = window.renderSkuTable || null;
-// 공제를 집계 결과에 투영: aggregate()가 render() + renderSkuTable()을 호출함.
-// renderSkuTable의 하단 요약 div(#result-sku 내부)에 추가 줄을 append.
+// 상계처리 최종 순수익 요약 — deduct-panel 하단에 항상 노출 (#result-sku가 hidden이어도 보임)
 function applyDeductionsToSummary() {
+  const box = document.getElementById('dp-final');
+  if (!box) return;
   const d = getActiveDeductions();
   const extra = d ? calcDeductSum(d) : 0;
-  // 기존 하단 요약 영역 찾기
-  const skuBox = document.getElementById('result-sku');
-  if (!skuBox) return;
-  // 기존 추가공제 줄 제거
-  skuBox.querySelectorAll('[data-deduct-row]').forEach(el => el.remove());
-  if (!d || !activeMonth || extra === 0) return;
-  // 기존에 표시되던 "매출 ... 순수익 TP" 라인을 찾아 그 아래 삽입
-  const footer = skuBox.querySelector('.sku-footer') || skuBox.lastElementChild;
-  if (!footer) return;
-  // TP 추출: footer 안에 '순수익 {금액}' 패턴이 있음. 이 값을 가져오려면 currentBySku 재집계가 정확.
   let TP = 0;
-  if (currentBySku) for (const d of Object.values(currentBySku)) TP += (d.profit||0);
+  if (currentBySku) for (const v of Object.values(currentBySku)) TP += (v.profit||0);
+  if (!d || (extra === 0 && TP === 0)) { box.hidden = true; box.innerHTML = ''; return; }
   const finalProfit = TP - extra;
-  const row = document.createElement('div');
-  row.dataset.deductRow = '1';
-  row.style.cssText = 'margin-top:8px; padding:10px 14px; background:#fdf5ed; border:1px solid #e9d4b5; border-radius:10px; font-size:13px; display:flex; justify-content:space-between; align-items:center;';
-  row.innerHTML = `
-    <span style="color:var(--text-hint);">
-      기본 순수익 <strong style="color:var(--profit)">${fmtWon(TP)}</strong>
-      − 추가 공제 <strong style="color:var(--neg)">${fmtWon(extra)}</strong>
-      <span style="opacity:.7; font-size:11.5px;">(성장${fmtWon(d.growth)} + 체험${fmtWon(d.trial)} + 어워즈${fmtWon(d.awards)} + 프리미엄½${fmtWon(Math.round(d.premium/2))} + PPIR${fmtWon(d.ppir)} + DA${fmtWon(d.da)})</span>
-    </span>
-    <span style="font-size:15px; font-weight:800; color:${finalProfit<0?'var(--neg)':'var(--profit)'};">최종 순수익 ${fmtWon(finalProfit)}</span>`;
-  skuBox.appendChild(row);
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="dp-break">
+      기본 순수익 <strong class="profit">${fmtWon(TP)}</strong>
+      − 상계 합계 <strong class="neg">${fmtWon(extra)}</strong>
+      <span class="detail">= 성장 ${fmtWon(d.growth)} + 체험 ${fmtWon(d.trial)} + 어워즈 ${fmtWon(d.awards)} + 프리미엄½ ${fmtWon(Math.round(d.premium/2))} + PPIR ${fmtWon(d.ppir)} + DA ${fmtWon(d.da)}</span>
+    </div>
+    <div class="dp-final-v ${finalProfit<0?'neg':'ok'}">최종 순수익 ${fmtWon(finalProfit)}</div>`;
 }
 
 // aggregate 완료 후 공제 반영. render()/renderSkuTable()를 가로채지 않고 wrapper로.
@@ -1853,6 +1857,7 @@ const _origSwitchMonth = switchMonth;
 switchMonth = function(m) {
   _origSwitchMonth.call(this, m);
   renderDeductPanel();
+  applyDeductionsToSummary();
 };
 
 (async () => {
