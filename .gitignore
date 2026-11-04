@@ -6,6 +6,7 @@ rocket-metrics/
 *.xlsx
 !promotion/*.xlsx
 *.csv
+!data/daily/*.csv
 *.pyc
 _margin_dump.json
 캡처.PNG
