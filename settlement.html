@@ -1112,10 +1112,12 @@ function render(byCat, stats) {
   const BRAND_EXCLUDE = new Set(['뷰티가전', '기타']);
   const brandFiltered = filterBrand !== '';
   const cats = Object.entries(byCat).filter(([k]) => !brandFiltered || !BRAND_EXCLUDE.has(k));
-  const totalCpc = cats.reduce((s,[,v]) => s + v.cpc, 0);
-  const totalCpn = cats.reduce((s,[,v]) => s + v.coupon, 0);
-  const totalGmv = cats.reduce((s,[,v]) => s + (v.gmv||0), 0);
-  const totalTrial = cats.reduce((s,[,v]) => s + (v.trial||0), 0);
+  // 합계에서는 '기타'는 항상 제외 (오아/보아르만 반영)
+  const totalCats = cats.filter(([k]) => k !== '기타');
+  const totalCpc = totalCats.reduce((s,[,v]) => s + v.cpc, 0);
+  const totalCpn = totalCats.reduce((s,[,v]) => s + v.coupon, 0);
+  const totalGmv = totalCats.reduce((s,[,v]) => s + (v.gmv||0), 0);
+  const totalTrial = totalCats.reduce((s,[,v]) => s + (v.trial||0), 0);
   const totalAll = totalCpc + totalCpn + totalTrial;
   const hasSales = !!salesData;
   const hasTrial = totalTrial > 0;
