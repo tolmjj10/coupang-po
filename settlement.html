@@ -1913,8 +1913,25 @@ async function seedDeductionsIfMissing() {
   } catch (e) { console.warn('seed 로딩 실패:', e); }
 }
 
+// sku2cat에 없는 SKU는 마진테이블에서 보강 → '오아/보아르 미매칭' 최소화
+function augmentSkuMapFromMargin() {
+  if (!maps || !maps.sku2cat || !marginMap) return;
+  let added = 0;
+  for (const [sku, m] of Object.entries(marginMap)) {
+    if (maps.sku2cat[sku]) continue;
+    if (!m || !m.cat) continue;
+    maps.sku2cat[sku] = { name: m.name || '', cat: m.cat };
+    added++;
+  }
+  if (added) {
+    const info = document.getElementById('map-info');
+    if (info) info.innerHTML += ` · <span class="ok">마진테이블로 +${added} 보강</span>`;
+  }
+}
+
 (async () => {
   await Promise.all([loadMaps(), loadMargin(), loadPromotion(), seedDeductionsIfMissing()]);
+  augmentSkuMapFromMargin();
   // 서버(KV) 공유 데이터 우선, 없으면 로컬 캐시 사용
   const hadServer = await restoreFromServer();
   if (!hadServer) restoreFromLs();
