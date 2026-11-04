@@ -1833,24 +1833,44 @@ document.querySelectorAll('#deduct-panel input[data-k]').forEach(inp => {
   inp.addEventListener('blur', e => { e.target.value = fmtInput(parseWon(e.target.value)); });
 });
 
-// 상계처리 최종 순수익 요약 — deduct-panel 하단에 항상 노출 (#result-sku가 hidden이어도 보임)
+// 월 순수익 요약: 오아+보아르만 집계하고 상계처리 차감
 function applyDeductionsToSummary() {
   const box = document.getElementById('dp-final');
   if (!box) return;
   const d = getActiveDeductions();
   const extra = d ? calcDeductSum(d) : 0;
-  let TP = 0;
-  if (currentBySku) for (const v of Object.values(currentBySku)) TP += (v.profit||0);
-  if (!d || (extra === 0 && TP === 0)) { box.hidden = true; box.innerHTML = ''; return; }
-  const finalProfit = TP - extra;
+  // 오아/보아르 브랜드 순수익만 합산 (반출도 반영)
+  let brandP = 0;
+  if (currentBySku) {
+    for (const [sku, v] of Object.entries(currentBySku)) {
+      const b = brandOf(sku, v);
+      if (b === '오아' || b === '보아르') brandP += (v.profit||0);
+    }
+  }
+  if (returnsData) {
+    for (const [sku, r] of Object.entries(returnsData)) {
+      const b = brandOf(sku, r);
+      if (b === '오아' || b === '보아르') brandP += (r.gmvCogs||0);
+    }
+  }
+  if (!d || (extra === 0 && brandP === 0)) { box.hidden = true; box.innerHTML = ''; return; }
+  const finalProfit = brandP - extra;
+  // 월 라벨
+  let label = '최종 순수익';
+  if (activeMonth && activeMonth !== 'ALL') {
+    const mNum = Number(activeMonth.slice(5)) || 0;
+    if (mNum) label = `${mNum}월 순수익`;
+  } else if (activeMonth === 'ALL') {
+    label = '전체 순수익';
+  }
   box.hidden = false;
   box.innerHTML = `
     <div class="dp-break">
-      기본 순수익 <strong class="profit">${fmtWon(TP)}</strong>
+      오아+보아르 순수익 <strong class="profit">${fmtWon(brandP)}</strong>
       − 상계 합계 <strong class="neg">${fmtWon(extra)}</strong>
       <span class="detail">= 성장 ${fmtWon(d.growth)} + 프리미엄½ ${fmtWon(Math.round(d.premium/2))} + DA ${fmtWon(d.da)} + 체험 ${fmtWon(d.trial)} + 어워즈 ${fmtWon(d.awards)} + PPIR ${fmtWon(d.ppir)}</span>
     </div>
-    <div class="dp-final-v ${finalProfit<0?'neg':'ok'}">최종 순수익 ${fmtWon(finalProfit)}</div>`;
+    <div class="dp-final-v ${finalProfit<0?'neg':'ok'}">${label} ${fmtWon(finalProfit)}</div>`;
 }
 
 // aggregate 완료 후 공제 반영. render()/renderSkuTable()를 가로채지 않고 wrapper로.
