@@ -1087,67 +1087,49 @@ async function downloadPromotionList(type) {
   const sel = data.filter(r => r.type === type && rowInMonth(r, activeMonth) && selectedRows.has(r.id));
   if (!sel.length) { alert('체크된 항목이 없습니다. 다운로드할 행을 체크해주세요.'); return; }
 
-  // ── 공통 스타일 (템플릿 글꼴/색/테두리 재현) ──
+  // ── 공통 스타일 (템플릿 타임특가_오아*.xlsx 재현) ──
   const B = { style: 'thin', color: { rgb: '000000' } };
   const border = { top: B, bottom: B, left: B, right: B };
   const font = (opts = {}) => Object.assign({ name: '맑은 고딕', sz: 10, color: { rgb: '000000' } }, opts);
   const alignC = { horizontal: 'center', vertical: 'center', wrapText: true };
   const alignL = { horizontal: 'left', vertical: 'center' };
   const fill = (rgb) => ({ patternType: 'solid', fgColor: { rgb }, bgColor: { indexed: 64 } });
-  const styleLabel = { font: font({ sz: 11, bold: true }), alignment: alignL, border };
-  const styleHeader = { font: font({ sz: 10, bold: true, color: { rgb: 'FFFFFF' } }), fill: fill('375623'), alignment: alignC, border };
-  const styleSubType = { font: font({ sz: 8, color: { rgb: 'FFFFFF' } }), fill: fill('002060'), alignment: alignC, border };
-  const styleSubPurple = { font: font({ sz: 8, color: { rgb: 'FFFFFF' } }), fill: fill('7030A0'), alignment: alignC, border };
+  const GREEN = '375623', NAVY = '002060', PURPLE = '7030A0';
+  const styleLabel = { font: font({ sz: 11, bold: true }), alignment: { horizontal: 'center', vertical: 'center' } };
+  const hdrStyle = (rgb, sz, bold) => ({ font: font({ sz, bold: !!bold, color: { rgb: 'FFFFFF' } }), fill: fill(rgb), alignment: alignC, border });
+  const subStyle = (rgb, sz) => ({ font: font({ sz, color: { rgb: 'FFFFFF' } }), fill: fill(rgb), alignment: alignC, border });
   const styleData = { font: font({ sz: 10 }), alignment: { horizontal: 'center', vertical: 'center' }, border };
   const styleDataName = { ...styleData, alignment: alignL };
   const dateFmt = 'mm"월" dd"일"';
   const numFmt = '_-* #,##0_-;\\-* #,##0_-;_-* "-"_-;_-@_-';
 
-  // 섹션별 컬럼 정의 (0 = 상대 col 인덱스, 실제 저장은 col start+idx)
-  // 각 컬럼: 헤더 텍스트 + 데이터 셀 스타일/숫자포맷
-  const GOLD_COLS = [
-    { h: 'Date', ds: { ...styleData, numFmt: dateFmt } },
-    { h: 'Open Time', ds: styleData },
-    { h: 'Time', ds: styleData },
-    { h: 'No.', ds: styleData },
-    { h: 'Business', ds: styleData, sub: { v: 'type', st: styleSubType } },
-    { h: 'Category', ds: styleData },
-    { h: 'BM', ds: styleData },
-    { h: 'SKU Id', ds: styleData },
-    { h: 'Vendoritem Id', ds: styleData },
-    { h: 'Product Id', ds: styleData },
-    { h: 'VendoritemName', ds: styleDataName },
-    { h: '계약 ID', ds: styleData },
-    { h: '계약 상태', ds: styleData },
-    { h: '판매가', ds: { ...styleData, numFmt } },
-    { h: '현재가', ds: { ...styleData, numFmt } },
-    { h: '행사가', ds: { ...styleData, numFmt } },
-    { h: '할인(%)', ds: { ...styleData, numFmt } },
-    { h: 'COGs', ds: { ...styleData, numFmt }, sub: { v: '(매입가) ', st: styleSubPurple } },
-    { h: 'Limited Quantity', ds: { ...styleData, numFmt }, sub: { v: '(한정수량) ', st: styleSubPurple } },
-  ];
+  // 컬럼 정의: h=헤더, hf/hb/hs=헤더 색/굵기/폰트크기, sub=서브헤더(없으면 세로병합), ds=데이터 스타일, w=열너비
   const TIME_COLS = [
-    { h: 'Date', ds: { ...styleData, numFmt: dateFmt } },
-    { h: 'Open Time', ds: styleData },
-    { h: 'Time', ds: styleData },
-    { h: 'No.', ds: styleData },
-    { h: 'Business', ds: styleData, sub: { v: 'type', st: styleSubType } },
-    { h: 'Category', ds: styleData },
-    { h: 'BM', ds: styleData },
-    { h: 'SKU Id', ds: styleData },
-    { h: 'Vendoritem Id', ds: styleData },
-    { h: 'Product Id', ds: styleData },
-    { h: 'VendoritemName', ds: styleDataName },
-    { h: '계약 ID', ds: styleData },
-    { h: '계약 상태', ds: styleData },
-    { h: '판매가', ds: { ...styleData, numFmt } },
-    { h: '행사가', ds: { ...styleData, numFmt } },
-    { h: '할인(%)', ds: { ...styleData, numFmt } },
-    { h: 'COGs', ds: { ...styleData, numFmt }, sub: { v: '(매입가) ', st: styleSubPurple } },
-    { h: 'Limited Quantity', ds: { ...styleData, numFmt }, sub: { v: '(한정수량) ', st: styleSubPurple } },
+    { h: 'Date',             hf: GREEN,  hb: true,  hs: 10, w: 10.86, ds: { ...styleData, numFmt: dateFmt } },
+    { h: 'Open Time',        hf: GREEN,  hb: true,  hs: 10,           ds: styleData },
+    { h: 'Time',             hf: PURPLE, hb: false, hs: 10,           ds: styleData },
+    { h: 'No.',              hf: NAVY,   hb: false, hs: 10,           ds: styleData },
+    { h: 'Business',         hf: NAVY,   hb: false, hs: 10,           ds: styleData, sub: { v: 'type',        hf: NAVY,   hs: 10 } },
+    { h: 'Category',         hf: NAVY,   hb: false, hs: 10,           ds: styleData },
+    { h: 'BM',               hf: PURPLE, hb: false, hs: 10, w: 14.86, ds: styleData },
+    { h: 'SKU Id',           hf: PURPLE, hb: false, hs: 10,           ds: styleData },
+    { h: 'Vendoritem Id',    hf: PURPLE, hb: false, hs: 10,           ds: styleData },
+    { h: 'Product Id',       hf: PURPLE, hb: false, hs: 9,  w: 32.86, ds: styleData },
+    { h: 'VendoritemName',   hf: PURPLE, hb: false, hs: 10, w: 28.57, ds: styleDataName },
+    { h: '계약 ID',          hf: PURPLE, hb: false, hs: 9,  w: 10.86, ds: styleData },
+    { h: '계약 상태',        hf: PURPLE, hb: false, hs: 9,            ds: styleData },
+    { h: '판매가',           hf: PURPLE, hb: false, hs: 9,            ds: { ...styleData, numFmt } },
+    { h: '행사가',           hf: PURPLE, hb: false, hs: 9,            ds: { ...styleData, numFmt } },
+    { h: '할인(%)',          hf: PURPLE, hb: false, hs: 9,            ds: { ...styleData, numFmt } },
+    { h: 'COGs',             hf: PURPLE, hb: false, hs: 9,            ds: { ...styleData, numFmt }, sub: { v: '(매입가) ',   hf: PURPLE, hs: 9 } },
+    { h: 'Limited Quantity', hf: PURPLE, hb: false, hs: 9,            ds: { ...styleData, numFmt }, sub: { v: '(한정수량) ', hf: PURPLE, hs: 9 } },
   ];
+  // 골드박스: 템플릿 미제공 — 타임특가 양식에 "현재가" 추가 (판매가 다음)
+  const GOLD_COLS = TIME_COLS.slice(0, 14).concat([
+    { h: '현재가',           hf: PURPLE, hb: false, hs: 9,            ds: { ...styleData, numFmt } },
+  ]).concat(TIME_COLS.slice(14));
   const COLS = type === '골드박스' ? GOLD_COLS : TIME_COLS;
-  const label = type === '골드박스' ? '[골드박스]' : '타임특가';
+  const label = type === '골드박스' ? '골드박스' : '타임특가';
   const colStart = 1;  // B열
 
   const toExcelDate = (iso) => {
@@ -1183,19 +1165,21 @@ async function downloadPromotionList(type) {
   // 워크시트 조립
   const ws = {};
   const put = (addr, cell) => { ws[addr] = cell; };
-  // row 2: 라벨 (B3)
+  // row 3 (r:2): 라벨 B3 — 병합 B3:C3
   put(XLSX.utils.encode_cell({ r: 2, c: colStart }), { t: 's', v: label, s: styleLabel });
-  // row 3: 헤더
+  // row 4 (r:3): 헤더
   COLS.forEach((col, i) => {
-    put(XLSX.utils.encode_cell({ r: 3, c: colStart + i }), { t: 's', v: col.h, s: styleHeader });
+    put(XLSX.utils.encode_cell({ r: 3, c: colStart + i }), { t: 's', v: col.h, s: hdrStyle(col.hf, col.hs, col.hb) });
   });
-  // row 4: 서브헤더
+  // row 5 (r:4): 서브헤더 — sub 있는 컬럼만 값/스타일, 없으면 비워두고 세로병합으로 처리
   COLS.forEach((col, i) => {
-    const addr = XLSX.utils.encode_cell({ r: 4, c: colStart + i });
-    if (col.sub) put(addr, { t: 's', v: col.sub.v, s: col.sub.st });
-    else put(addr, { t: 's', v: '', s: { border, fill: fill('FFFFFF') } });
+    if (col.sub) {
+      const addr = XLSX.utils.encode_cell({ r: 4, c: colStart + i });
+      put(addr, { t: 's', v: col.sub.v, s: subStyle(col.sub.hf, col.sub.hs) });
+    }
+    // sub 없으면 row4~5 세로병합이므로 row5 셀은 쓰지 않음 (merge가 커버)
   });
-  // row 5+: 데이터
+  // row 6+ (r:5+): 데이터
   rowsOut.forEach((vals, i) => {
     vals.forEach((v, idx) => {
       const col = COLS[idx]; if (!col) return;
@@ -1210,17 +1194,18 @@ async function downloadPromotionList(type) {
   const lastRow = 5 + rowsOut.length - 1;
   ws['!ref'] = XLSX.utils.encode_range({ s: { r: 2, c: colStart }, e: { r: Math.max(lastRow, 5), c: colEnd } });
 
-  // 라벨 머지 (B3:C3)
-  ws['!merges'] = [{ s: { r: 2, c: colStart }, e: { r: 2, c: colStart + 1 } }];
-
-  // 열 너비
-  ws['!cols'] = COLS.map((col, i) => {
-    if (col.h === 'VendoritemName') return { wch: 32 };
-    if (col.h.includes('Id')) return { wch: 14 };
-    if (col.h === 'Date') return { wch: 11 };
-    return { wch: 10 };
+  // 머지: B3:C3(라벨) + sub 없는 헤더는 row4~5 세로병합
+  const merges = [{ s: { r: 2, c: colStart }, e: { r: 2, c: colStart + 1 } }];
+  COLS.forEach((col, i) => {
+    if (!col.sub) merges.push({ s: { r: 3, c: colStart + i }, e: { r: 4, c: colStart + i } });
   });
-  ws['!rows'] = [null, null, null, { hpt: 22 }, { hpt: 18 }];
+  ws['!merges'] = merges;
+
+  // 열 너비 (A열은 비워두고 B부터 COLS 순서)
+  const cols = [{ wch: 11.86 }];  // A열: 템플릿 기본값
+  COLS.forEach(col => cols.push(col.w ? { wch: col.w } : {}));
+  ws['!cols'] = cols;
+  ws['!rows'] = [null, null, null, { hpt: 21.95 }, { hpt: 18 }, { hpt: 15 }];
 
   const outWb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(outWb, ws, '행사제안');
