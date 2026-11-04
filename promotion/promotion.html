@@ -1147,6 +1147,13 @@ async function downloadPromotionList(types) {
     const s = String(t == null || t === '' ? dflt : t).trim();
     return /시$/.test(s) ? s : s + '시';
   };
+  // 할인율: 100 미만이면 '20%', 100 이상이면 '5,000원'
+  const fmtDisc = v => {
+    if (v == null || v === '') return '';
+    const n = Number(v);
+    if (!Number.isFinite(n)) return String(v);
+    return n < 100 ? (n + '%') : (n.toLocaleString() + '원');
+  };
   const buildRow = (type, r) => {
     const d = derive(r);
     // 판매가는 프로모션 행에 기재된 값(d.salePrice) 사용 - 마진테이블 스냅샷(priceBase)이 아님
@@ -1155,16 +1162,15 @@ async function downloadPromotionList(types) {
         toExcelDate(r.date), fmtTime(r.time, '07'), '골드박스', 10, 'Retail', 'CE', 'andy',
         toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
         '', '',
-        toNum(d.salePrice), toNum(d.promoPrice), toNum(r.discountRate),
+        toNum(d.salePrice), toNum(d.promoPrice), fmtDisc(r.discountRate),
         toNum(d.supply), toNum(r.qty)
       ];
     }
-    const discStr = r.discountRate ? (Number(r.discountRate).toLocaleString() + '원') : '';
     return [
       toExcelDate(r.date), fmtTime(r.time, '15'), '타임특가', 10, 'Retail', 'CE', 'andy',
       toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
       '', '',
-      toNum(d.salePrice), toNum(d.promoPrice), discStr,
+      toNum(d.salePrice), toNum(d.promoPrice), fmtDisc(r.discountRate),
       '', toNum(r.qty)
     ];
   };
