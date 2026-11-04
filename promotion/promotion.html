@@ -1145,11 +1145,15 @@ async function downloadPromotionList(types) {
   };
   const toNum = v => { const n = Number(v); return Number.isFinite(n) && v !== '' && v != null ? n : (v == null ? '' : v); };
 
+  const fmtTime = (t, dflt) => {
+    const s = String(t == null || t === '' ? dflt : t).trim();
+    return /시$/.test(s) ? s : s + '시';
+  };
   const buildRow = (type, r) => {
     const d = derive(r);
     if (type === '골드박스') {
       return [
-        toExcelDate(r.date), r.time || '07시', '골드박스', 10, 'Retail', 'CE', 'andy',
+        toExcelDate(r.date), fmtTime(r.time, '07'), '골드박스', 10, 'Retail', 'CE', 'andy',
         toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
         '', '',
         toNum(d.priceBase), toNum(d.salePrice), toNum(d.promoPrice),
@@ -1159,7 +1163,7 @@ async function downloadPromotionList(types) {
     }
     const discStr = r.discountRate ? (Number(r.discountRate).toLocaleString() + '원') : '';
     return [
-      toExcelDate(r.date), r.time || '15시', '타임특가', 10, 'Retail', 'CE', 'andy',
+      toExcelDate(r.date), fmtTime(r.time, '15'), '타임특가', 10, 'Retail', 'CE', 'andy',
       toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
       '', '',
       toNum(d.priceBase), toNum(d.promoPrice), discStr,
