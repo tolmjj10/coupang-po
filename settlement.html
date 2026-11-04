@@ -1138,7 +1138,9 @@ function render(byCat, stats) {
   const totalTrial = totalCats.reduce((s,[,v]) => s + (v.trial||0), 0);
   const totalAll = totalCpc + totalCpn + totalTrial;
   const hasSales = !!salesData;
-  const hasTrial = totalTrial > 0;
+  // 체험단: SKU 집계 또는 월 상계 둘 중 하나라도 있으면 항상 column 노출
+  const _monthDeductForRender = getActiveDeductions();
+  const hasTrial = totalTrial > 0 || (_monthDeductForRender && (_monthDeductForRender.trial || 0) > 0);
 
   // 정렬 그룹: 0=오아/보아르 세분 카테, 1=브랜드(삼대오백/온살), 2=미매칭/기타
   const groupOf = k => k === '기타' ? 3 : UNMATCHED_CATS.has(k) ? 2 : (BRAND_CATS.has(k) ? 1 : 0);
@@ -1393,7 +1395,8 @@ function renderSkuTable(bySku) {
   // 필터된 합계
   let TG=0, TC=0, TP=0, TCPC=0, TCPN=0, TTR=0;
   for (const [,d] of filtered) { TG+=d.gmv; TC+=d.cogs; TCPC+=d.cpcVat; TCPN+=d.coupon; TTR+=(d.trial||0); TP+=d.profit; }
-  const hasTrialSku = allEntries.some(([,d]) => (d.trial||0) > 0);
+  const _dForSku = getActiveDeductions();
+  const hasTrialSku = allEntries.some(([,d]) => (d.trial||0) > 0) || (_dForSku && (_dForSku.trial || 0) > 0);
 
   const header = `
     <tr>
