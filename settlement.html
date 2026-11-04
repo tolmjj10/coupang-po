@@ -1982,6 +1982,20 @@ function patch2026_04_DA() {
   localStorage.setItem(MARK, 'done');
 }
 
+// 1회 패치: 10월 체험단 0 → 47,485,501 (쿠팡 측 상계값)
+function patch2026_10_trial() {
+  const MARK = 'settle_patch_2026_10_trial';
+  if (localStorage.getItem(MARK) === 'done') return;
+  const store = monthsStore();
+  const d = store['2026-10'] && store['2026-10'].deductions;
+  if (d && (d.trial === 0 || d.trial == null)) {
+    d.trial = 47485501;
+    saveMonthsStore(store);
+    console.log('[patch] 2026-10 trial → 47,485,501');
+  }
+  localStorage.setItem(MARK, 'done');
+}
+
 // 1회 패치: 8·9월 어워즈 복구 (이전 잘못된 11,880,000 수정 되돌림) + awardsBoarre 주입
 function patchAwardsRevertAndBrandSplit() {
   const MARK = 'settle_patch_awards_brand_v1';
@@ -2055,6 +2069,7 @@ function augmentSkuMapFromMargin() {
   migratePremiumToHalf();
   patch2026_04_DA();
   patchAwardsRevertAndBrandSplit();
+  patch2026_10_trial();
   // 4) 매핑/마진/프로모션/시드 로드
   await Promise.all([loadMaps(), loadMargin(), loadPromotion(), seedDeductionsIfMissing()]);
   augmentSkuMapFromMargin();

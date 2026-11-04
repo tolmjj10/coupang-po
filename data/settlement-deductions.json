@@ -12,6 +12,6 @@
     "2026-07": { "growth": 22110581, "trial": 8135310,  "awards": 14850000, "awardsBoarre": 0,       "premium": 825000,   "ppir": 0,     "da": 0 },
     "2026-08": { "growth": 50601746, "trial": 0,        "awards": 893769,   "awardsBoarre": 0,       "premium": 825000,   "ppir": 0,     "da": 45650000 },
     "2026-09": { "growth": 47900451, "trial": 0,        "awards": 25836231, "awardsBoarre": 0,       "premium": 825000,   "ppir": 0,     "da": 0 },
-    "2026-10": { "growth": 50115255, "trial": 0,        "awards": 11880000, "awardsBoarre": 0,       "premium": 825000,   "ppir": 93240, "da": 0 }
+    "2026-10": { "growth": 50115255, "trial": 47485501, "awards": 11880000, "awardsBoarre": 0,       "premium": 825000,   "ppir": 93240, "da": 0 }
   }
 }
