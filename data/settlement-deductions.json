@@ -10,7 +10,7 @@
     "2026-05": { "growth": 25487411, "trial": 16905620, "awards": 0,        "premium": 8250000,  "ppir": 0,     "da": 0 },
     "2026-06": { "growth": 39987649, "trial": 24883570, "awards": 0,        "premium": 797500,   "ppir": 0,     "da": 0 },
     "2026-07": { "growth": 22110581, "trial": 8135310,  "awards": 14850000, "premium": 825000,   "ppir": 0,     "da": 0 },
-    "2026-08": { "growth": 50601746, "trial": 0,        "awards": 893769,   "premium": 825000,   "ppir": 0,     "da": 45650000 },
+    "2026-08": { "growth": 50601746, "trial": 0,        "awards": 11880000, "premium": 825000,   "ppir": 0,     "da": 45650000 },
     "2026-09": { "growth": 47900451, "trial": 0,        "awards": 11880000, "premium": 825000,   "ppir": 0,     "da": 0 },
     "2026-10": { "growth": 50115255, "trial": 0,        "awards": 11880000, "premium": 825000,   "ppir": 93240, "da": 0 }
   }

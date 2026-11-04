@@ -1940,6 +1940,20 @@ function patch2026_09_awards() {
   localStorage.setItem(MARK, 'done');
 }
 
+// 1회 패치: 8월 어워즈 893,769 → 11,880,000 (전산 기준으로 교정)
+function patch2026_08_awards() {
+  const MARK = 'settle_patch_2026_08_awards';
+  if (localStorage.getItem(MARK) === 'done') return;
+  const store = monthsStore();
+  const d = store['2026-08'] && store['2026-08'].deductions;
+  if (d && d.awards === 893769) {
+    d.awards = 11880000;
+    saveMonthsStore(store);
+    console.log('[patch] 2026-08 awards → 11,880,000');
+  }
+  localStorage.setItem(MARK, 'done');
+}
+
 // 월별 상계처리 seed 로딩: 비어있는 월만 채움, 사용자 입력은 덮어쓰지 않음
 async function seedDeductionsIfMissing() {
   try {
@@ -1979,6 +1993,7 @@ function augmentSkuMapFromMargin() {
   migratePremiumToHalf();
   patch2026_04_DA();
   patch2026_09_awards();
+  patch2026_08_awards();
   await Promise.all([loadMaps(), loadMargin(), loadPromotion(), seedDeductionsIfMissing()]);
   augmentSkuMapFromMargin();
   // 서버(KV) 공유 데이터 우선, 없으면 로컬 캐시 사용
