@@ -1839,16 +1839,16 @@ function calcDeductSum(d) {
 function getActiveDeductions() {
   if (activeMonth === 'ALL') {
     const store = monthsStore();
-    const sum = { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0 };
+    const sum = { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, awardsBoarre:0 };
     for (const d of Object.values(store)) {
       if (!d.deductions) continue;
-      for (const k of DEDUCT_KEYS) sum[k] += Number(d.deductions[k]||0);
+      for (const k of Object.keys(sum)) sum[k] += Number(d.deductions[k]||0);
     }
     return sum;
   }
   if (!activeMonth) return null;
   const store = monthsStore();
-  return (store[activeMonth] && store[activeMonth].deductions) || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0 };
+  return (store[activeMonth] && store[activeMonth].deductions) || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, awardsBoarre:0 };
 }
 
 function renderDeductPanel() {
