@@ -1543,7 +1543,52 @@ const MONTHS_LS = 'settle_months_v1';
 let activeMonth = null;  // null=기본(단일 업로드 모드), 'YYYY-MM', 'ALL'
 
 function monthsStore()      { try { return JSON.parse(localStorage.getItem(MONTHS_LS) || '{}'); } catch { return {}; } }
-function saveMonthsStore(o) { try { localStorage.setItem(MONTHS_LS, JSON.stringify(o)); } catch(_) {} }
+function saveMonthsStore(o) {
+  try { localStorage.setItem(MONTHS_LS, JSON.stringify(o)); } catch(_) {}
+  queueMonthsRemoteSave();
+}
+
+// KV 동기화 (월별 전체 스토어)
+let _monthsSaveTimer = null;
+function queueMonthsRemoteSave() {
+  clearTimeout(_monthsSaveTimer);
+  _monthsSaveTimer = setTimeout(async () => {
+    try {
+      const body = localStorage.getItem(MONTHS_LS) || '{}';
+      await fetch('/api/settlement-months', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+    } catch (e) { console.warn('월별 데이터 공유 저장 실패:', e); }
+  }, 800);
+}
+async function restoreMonthsFromServer() {
+  try {
+    const res = await fetch('/api/settlement-months', { cache: 'no-cache' });
+    const data = await res.json();
+    if (!data || typeof data !== 'object') return false;
+    // 서버값이 있고 로컬보다 많은 월을 갖고 있으면 머지 (서버 우선 — 다른 PC에서 업데이트된 값 반영)
+    const local = monthsStore();
+    const merged = { ...local };
+    for (const [ym, srv] of Object.entries(data)) {
+      // 로컬에 없거나, 서버에 cpc/coupon이 있으면 서버 데이터로 덮기
+      const loc = merged[ym] || {};
+      merged[ym] = {
+        cpc: srv.cpc || loc.cpc || null,
+        coupon: srv.coupon || loc.coupon || null,
+        sales: srv.sales || loc.sales || null,
+        returns: srv.returns || loc.returns || null,
+        cpcName: srv.cpcName || loc.cpcName || '',
+        couponName: srv.couponName || loc.couponName || '',
+        salesName: srv.salesName || loc.salesName || '',
+        deductions: srv.deductions || loc.deductions || null,
+      };
+    }
+    try { localStorage.setItem(MONTHS_LS, JSON.stringify(merged)); } catch(_) {}
+    return true;
+  } catch (e) { console.warn('월별 데이터 공유 로드 실패:', e); return false; }
+}
 
 // 파일명에서 YYYY-MM 추출 — CPC/쿠폰/실입고 각기 다른 패턴
 function detectYm(name) {
@@ -2002,17 +2047,33 @@ function augmentSkuMapFromMargin() {
 }
 
 (async () => {
+  // 1) 로컬 데이터 먼저 복원 (없으면 KV 보조)
+  restoreFromLs();
+  // 2) KV의 월별 전체 스토어를 머지 (다른 PC에서 올린 값 받기)
+  await restoreMonthsFromServer();
+  // 3) 마이그/패치
   migratePremiumToHalf();
   patch2026_04_DA();
   patchAwardsRevertAndBrandSplit();
+  // 4) 매핑/마진/프로모션/시드 로드
   await Promise.all([loadMaps(), loadMargin(), loadPromotion(), seedDeductionsIfMissing()]);
   augmentSkuMapFromMargin();
-  // 서버(KV) 공유 데이터 우선, 없으면 로컬 캐시 사용
+  // 5) 활성 단일 KV (최근 업로드 1건 공유)
   const hadServer = await restoreFromServer();
-  if (!hadServer) restoreFromLs();
+  // 6) 초기 활성 월 결정 — 가장 최근 데이터 있는 월로 자동 전환
+  const store = monthsStore();
+  const monthsWithData = Object.keys(store).filter(ym => store[ym].cpc || store[ym].coupon).sort();
+  if (!activeMonth && monthsWithData.length) {
+    activeMonth = monthsWithData[monthsWithData.length - 1];
+    loadMonthDataIntoState(activeMonth);
+    updateDropLabelsFromState(activeMonth);
+  }
   renderMonthTabs();
   renderDeductPanel();
   if (cpcData && couponData) aggregate();
+  else if (activeMonth) renderEmptyResult();
+  // 로컬에 데이터 있으면 KV로 1회 푸시 (다른 PC와 동기화)
+  if (monthsWithData.length) queueMonthsRemoteSave();
 })();
 </script>
 </body>
