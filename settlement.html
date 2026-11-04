@@ -443,6 +443,7 @@ let couponData = null;       // [{sku, amount}]  (|펀딩금액|)
 let salesData = null;        // { sku: {qty, gmvCogs, name, brand} }  (실입고=발주 전용)
 let returnsData = null;      // { sku: {qty, gmvCogs, name} }  (반출만 분리 집계)
 let promotionData = null;    // promotion-state 전체 (체험단 집계용)
+let trialOverride = null;    // /data/trial-by-sku.json — 월별 SKU별 체험단 (VAT제외) 수동 매핑
 const EXPERIENCE_BASE_COST = 125000;
 let currentBySku = null;     // 집계된 SKU 상세 (필터링 재렌더용)
 let filterCat = '';          // '' = 전체
@@ -552,6 +553,17 @@ async function loadPromotion() {
   } catch (e) {
     console.warn('promotion-state 로드 실패:', e);
     promotionData = [];
+  }
+}
+
+async function loadTrialOverride() {
+  try {
+    const res = await fetch('/data/trial-by-sku.json', { cache: 'no-cache' });
+    const data = await res.json();
+    trialOverride = (data && data.months) || {};
+  } catch (e) {
+    console.warn('trial-by-sku.json 로드 실패:', e);
+    trialOverride = {};
   }
 }
 
@@ -853,7 +865,22 @@ function aggregate() {
   const ymMatch = cpcName.match(/(\d{4})(\d{2})\d{2}-\d{8}/);
   const trialYm = ymMatch ? `${ymMatch[1]}-${ymMatch[2]}` : null;
   const trialBySku = {};
-  if (trialYm && Array.isArray(promotionData)) {
+  // 1차: trial-by-sku.json의 수동 매핑 (VAT 제외 → ×1.1 적용)
+  const activeYm = activeMonth && activeMonth !== 'ALL' ? activeMonth : trialYm;
+  if (activeYm && trialOverride && trialOverride[activeYm]) {
+    for (const [sku, excl] of Object.entries(trialOverride[activeYm])) {
+      trialBySku[sku] = Math.round(Number(excl) * 1.1);
+    }
+  } else if (activeMonth === 'ALL' && trialOverride) {
+    // 전체: 모든 월 합산
+    for (const monthMap of Object.values(trialOverride)) {
+      for (const [sku, excl] of Object.entries(monthMap)) {
+        trialBySku[sku] = (trialBySku[sku] || 0) + Math.round(Number(excl) * 1.1);
+      }
+    }
+  }
+  // 2차: trial-by-sku.json에 해당 월 데이터 없으면 promotion-state 체험단 자동 계산
+  if (!Object.keys(trialBySku).length && trialYm && Array.isArray(promotionData)) {
     for (const r of promotionData) {
       if (!r || r.type !== '체험단') continue;
       if (!String(r.date || '').startsWith(trialYm)) continue;
@@ -2094,7 +2121,7 @@ function augmentSkuMapFromMargin() {
   patchAwardsRevertAndBrandSplit();
   patch2026_10_trial();
   // 4) 매핑/마진/프로모션/시드 로드
-  await Promise.all([loadMaps(), loadMargin(), loadPromotion(), seedDeductionsIfMissing()]);
+  await Promise.all([loadMaps(), loadMargin(), loadPromotion(), loadTrialOverride(), seedDeductionsIfMissing()]);
   augmentSkuMapFromMargin();
   // 5) 활성 단일 KV (최근 업로드 1건 공유)
   const hadServer = await restoreFromServer();
