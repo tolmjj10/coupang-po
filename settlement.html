@@ -402,7 +402,7 @@
     </div>
     <div class="dp-grid">
       <div class="dp-cell"><label>성장장려금</label><input type="text" data-k="growth" inputmode="numeric" placeholder="0"></div>
-      <div class="dp-cell"><label>프리미엄 데이터 <small>(CSVS 포함) × 1/2</small></label><input type="text" data-k="premium" inputmode="numeric" placeholder="0"></div>
+      <div class="dp-cell"><label>프리미엄 데이터 <small>× 1/2</small><small id="csvs-note" style="color:var(--neg); margin-left:4px; display:none;">· CSVS × 1/2</small></label><input type="text" data-k="premium" inputmode="numeric" placeholder="0"></div>
       <div class="dp-cell"><label>DA <small>Display AD &amp; Rocket Insight</small></label><input type="text" data-k="da" inputmode="numeric" placeholder="0"></div>
       <div class="dp-cell"><label>쿠팡 체험단</label><input type="text" data-k="trial" inputmode="numeric" placeholder="0"></div>
       <div class="dp-cell"><label>어워즈패키지</label><input type="text" data-k="awards" inputmode="numeric" placeholder="0"></div>
@@ -1810,6 +1810,12 @@ function renderDeductPanel() {
     inp.disabled = !activeMonth || isAll;
   });
   sumEl.textContent = d ? fmtWon(calcDeductSum(d)) : '—';
+  // CSVS 안내: 2·3·4·5월에만 표시
+  const csvsNote = document.getElementById('csvs-note');
+  if (csvsNote) {
+    const mNum = activeMonth && activeMonth !== 'ALL' ? Number(activeMonth.slice(5)) : 0;
+    csvsNote.style.display = (mNum >= 2 && mNum <= 5) ? '' : 'none';
+  }
 }
 
 function onDeductInput(e) {
