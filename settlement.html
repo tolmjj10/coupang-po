@@ -306,6 +306,37 @@
     border: 1px solid var(--border-strong); border-radius: 8px; cursor: pointer;
   }
   .month-bar .batch-btn:hover { background: var(--accent); color: #fff; }
+
+  /* 추가 공제 패널 */
+  .deduct-panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 10px 14px; margin-bottom: 12px;
+  }
+  .deduct-panel .dp-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 8px;
+  }
+  .deduct-panel .dp-head .dp-src { font-size: 11px; font-weight: 500; color: var(--text-hint); }
+  .deduct-panel .dp-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr) auto; gap: 8px; align-items: end;
+  }
+  .deduct-panel .dp-cell { display: flex; flex-direction: column; gap: 3px; }
+  .deduct-panel .dp-cell label {
+    font-size: 10.5px; font-weight: 600; color: var(--text-hint); letter-spacing: -0.01em;
+  }
+  .deduct-panel .dp-cell label small { font-weight: 500; color: var(--neg); margin-left: 3px; }
+  .deduct-panel .dp-cell input {
+    width: 100%; padding: 6px 8px; font-size: 13px; font-family: inherit;
+    border: 1px solid var(--border-strong); border-radius: 6px; background: #fdfbf9;
+    text-align: right; letter-spacing: -0.01em;
+  }
+  .deduct-panel .dp-cell input:focus { outline: none; border-color: var(--accent); }
+  .deduct-panel .dp-sum {
+    padding: 6px 12px; background: var(--accent-light); border-radius: 6px;
+    display: flex; flex-direction: column; gap: 2px; text-align: right;
+  }
+  .deduct-panel .dp-sum .lab { font-size: 10.5px; font-weight: 600; color: var(--accent-dark); }
+  .deduct-panel .dp-sum .val { font-size: 14px; font-weight: 700; color: var(--neg); }
 </style>
 </head>
 <body>
@@ -346,6 +377,24 @@
       <div class="drop-path">허브 › 물류 › 입고 상세내역</div>
       <div class="drop-file" id="file-sales" hidden></div>
       <input type="file" accept=".xlsx,.xls" />
+    </div>
+  </div>
+
+  <div class="deduct-panel" id="deduct-panel">
+    <div class="dp-head">
+      <span>추가 공제 <span id="dp-month-label" style="color:var(--text-hint); font-weight:500;"></span></span>
+      <span class="dp-src">공제금액계정 › 지급처리결과 · 상계금액</span>
+    </div>
+    <div class="dp-grid">
+      <div class="dp-cell"><label>성장장려금</label><input type="text" data-k="growth" inputmode="numeric" placeholder="0"></div>
+      <div class="dp-cell"><label>쿠팡 체험단</label><input type="text" data-k="trial" inputmode="numeric" placeholder="0"></div>
+      <div class="dp-cell"><label>어워즈패키지</label><input type="text" data-k="awards" inputmode="numeric" placeholder="0"></div>
+      <div class="dp-cell"><label>프리미엄 데이터 <small>× 1/2</small></label><input type="text" data-k="premium" inputmode="numeric" placeholder="0"></div>
+      <div class="dp-cell"><label>PPIR</label><input type="text" data-k="ppir" inputmode="numeric" placeholder="0"></div>
+      <div class="dp-sum">
+        <div class="lab">공제 합계</div>
+        <div class="val" id="dp-sum">—</div>
+      </div>
     </div>
   </div>
 
@@ -1690,12 +1739,125 @@ async function onBatchFolder(e) {
   if (months.length) switchMonth(months[0]);
 }
 
+/* ═══════════════════════ 추가 공제 (상계금액) ═══════════════════════ */
+// 성장장려금, 쿠팡체험단, 어워즈패키지, 프리미엄 데이터(×1/2), PPIR
+// activeMonth가 'YYYY-MM'이면 그 월에 저장. 'ALL'이면 모든 월 합산 표시(수정 불가).
+const DEDUCT_KEYS = ['growth', 'trial', 'awards', 'premium', 'ppir'];
+const parseWon = s => { const n = Number(String(s||'').replace(/[,\s]/g,'')); return Number.isFinite(n) ? n : 0; };
+const fmtInput = n => n ? Number(n).toLocaleString('ko-KR') : '';
+
+function calcDeductSum(d) {
+  if (!d) return 0;
+  return (d.growth||0) + (d.trial||0) + (d.awards||0) + Math.round((d.premium||0) / 2) + (d.ppir||0);
+}
+
+function getActiveDeductions() {
+  if (activeMonth === 'ALL') {
+    const store = monthsStore();
+    const sum = { growth:0, trial:0, awards:0, premium:0, ppir:0 };
+    for (const d of Object.values(store)) {
+      if (!d.deductions) continue;
+      for (const k of DEDUCT_KEYS) sum[k] += Number(d.deductions[k]||0);
+    }
+    return sum;
+  }
+  if (!activeMonth) return null;
+  const store = monthsStore();
+  return (store[activeMonth] && store[activeMonth].deductions) || { growth:0, trial:0, awards:0, premium:0, ppir:0 };
+}
+
+function renderDeductPanel() {
+  const panel = document.getElementById('deduct-panel');
+  const label = document.getElementById('dp-month-label');
+  const sumEl = document.getElementById('dp-sum');
+  const inputs = panel.querySelectorAll('input[data-k]');
+  const isAll = activeMonth === 'ALL';
+  const d = getActiveDeductions();
+  if (label) {
+    label.textContent = activeMonth ? (isAll ? '· 전체 합산 (읽기전용)' : `· ${activeMonth}`) : '· 월 탭을 선택하세요';
+  }
+  inputs.forEach(inp => {
+    const k = inp.dataset.k;
+    inp.value = d ? fmtInput(d[k]||0) : '';
+    inp.disabled = !activeMonth || isAll;
+  });
+  sumEl.textContent = d ? fmtWon(calcDeductSum(d)) : '—';
+}
+
+function onDeductInput(e) {
+  if (!activeMonth || activeMonth === 'ALL') return;
+  const inp = e.target;
+  const raw = parseWon(inp.value);
+  inp.value = fmtInput(raw);
+  const store = monthsStore();
+  const entry = store[activeMonth] || (store[activeMonth] = {});
+  entry.deductions = entry.deductions || { growth:0, trial:0, awards:0, premium:0, ppir:0 };
+  entry.deductions[inp.dataset.k] = raw;
+  saveMonthsStore(store);
+  document.getElementById('dp-sum').textContent = fmtWon(calcDeductSum(entry.deductions));
+  // 집계 다시 렌더 (최종 순수익에 반영)
+  if (cpcData || couponData) aggregate();
+}
+
+document.querySelectorAll('#deduct-panel input[data-k]').forEach(inp => {
+  inp.addEventListener('input', onDeductInput);
+  inp.addEventListener('blur', e => { e.target.value = fmtInput(parseWon(e.target.value)); });
+});
+
+// render 훅: renderSkuTable 완료 후 공제 합계를 하단 요약에 추가 반영
+const _origRenderSkuTable = window.renderSkuTable || null;
+// 공제를 집계 결과에 투영: aggregate()가 render() + renderSkuTable()을 호출함.
+// renderSkuTable의 하단 요약 div(#result-sku 내부)에 추가 줄을 append.
+function applyDeductionsToSummary() {
+  const d = getActiveDeductions();
+  const extra = d ? calcDeductSum(d) : 0;
+  // 기존 하단 요약 영역 찾기
+  const skuBox = document.getElementById('result-sku');
+  if (!skuBox) return;
+  // 기존 추가공제 줄 제거
+  skuBox.querySelectorAll('[data-deduct-row]').forEach(el => el.remove());
+  if (!d || !activeMonth || extra === 0) return;
+  // 기존에 표시되던 "매출 ... 순수익 TP" 라인을 찾아 그 아래 삽입
+  const footer = skuBox.querySelector('.sku-footer') || skuBox.lastElementChild;
+  if (!footer) return;
+  // TP 추출: footer 안에 '순수익 {금액}' 패턴이 있음. 이 값을 가져오려면 currentBySku 재집계가 정확.
+  let TP = 0;
+  if (currentBySku) for (const d of Object.values(currentBySku)) TP += (d.profit||0);
+  const finalProfit = TP - extra;
+  const row = document.createElement('div');
+  row.dataset.deductRow = '1';
+  row.style.cssText = 'margin-top:8px; padding:10px 14px; background:#fdf5ed; border:1px solid #e9d4b5; border-radius:10px; font-size:13px; display:flex; justify-content:space-between; align-items:center;';
+  row.innerHTML = `
+    <span style="color:var(--text-hint);">
+      기본 순수익 <strong style="color:var(--profit)">${fmtWon(TP)}</strong>
+      − 추가 공제 <strong style="color:var(--neg)">${fmtWon(extra)}</strong>
+      <span style="opacity:.7; font-size:11.5px;">(성장${fmtWon(d.growth)} + 체험${fmtWon(d.trial)} + 어워즈${fmtWon(d.awards)} + 프리미엄½${fmtWon(Math.round(d.premium/2))} + PPIR${fmtWon(d.ppir)})</span>
+    </span>
+    <span style="font-size:15px; font-weight:800; color:${finalProfit<0?'var(--neg)':'var(--profit)'};">최종 순수익 ${fmtWon(finalProfit)}</span>`;
+  skuBox.appendChild(row);
+}
+
+// aggregate 완료 후 공제 반영. render()/renderSkuTable()를 가로채지 않고 wrapper로.
+const _origAggregate = aggregate;
+aggregate = function() {
+  _origAggregate.apply(this, arguments);
+  applyDeductionsToSummary();
+};
+
+// switchMonth 시 공제 패널도 갱신
+const _origSwitchMonth = switchMonth;
+switchMonth = function(m) {
+  _origSwitchMonth.call(this, m);
+  renderDeductPanel();
+};
+
 (async () => {
   await Promise.all([loadMaps(), loadMargin(), loadPromotion()]);
   // 서버(KV) 공유 데이터 우선, 없으면 로컬 캐시 사용
   const hadServer = await restoreFromServer();
   if (!hadServer) restoreFromLs();
   renderMonthTabs();
+  renderDeductPanel();
   if (cpcData && couponData) aggregate();
 })();
 </script>
