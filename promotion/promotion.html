@@ -1163,7 +1163,7 @@ async function downloadPromotionList(types) {
         toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
         '', '',
         toNum(d.salePrice), toNum(d.promoPrice), fmtDisc(r.discountRate),
-        toNum(d.supply), toNum(r.qty)
+        '', toNum(r.qty)
       ];
     }
     return [
