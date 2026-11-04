@@ -1273,11 +1273,21 @@ function renderBrands(allEntries, hasSales) {
   for (const k of ['gmv','cogs','cpc','cpn','tr','p','qty','ret']) total[k] = agg['오아'][k] + agg['보아르'][k];
   const hasTrialBrand = total.tr > 0;
 
-  // 상계처리: 오아/보아르로 나눌 수 없어 합계에만 반영
+  // 상계처리 — 대부분은 합계에만 반영, '어워즈'만 브랜드별 분배 (설정: awardsBoarre)
   const deductD = getActiveDeductions();
   const deductExtra = deductD ? calcDeductSum(deductD) : 0;
+  const awardsTotal = deductD ? (deductD.awards || 0) : 0;
+  const boarreAwards = deductD ? (deductD.awardsBoarre || 0) : 0;
+  const oaAwards = Math.max(0, awardsTotal - boarreAwards);
+  agg['오아'].awd = oaAwards;
+  agg['보아르'].awd = boarreAwards;
+  agg['오아'].p -= oaAwards;
+  agg['보아르'].p -= boarreAwards;
+  // 전체 합계는 전체 상계 반영
   total.deduct = deductExtra;
-  total.p = total.p - deductExtra;
+  total.awd = awardsTotal;
+  // total.p 재계산 (브랜드별 조정 반영 후) + 어워즈 제외 상계 추가 차감
+  total.p = agg['오아'].p + agg['보아르'].p - (deductExtra - awardsTotal);
 
   const card = (label, key, a, opts = {}) => {
     const showDeduct = !!opts.showDeduct;
@@ -1295,7 +1305,8 @@ function renderBrands(allEntries, hasSales) {
           <span class="b-k">쿠폰</span><span class="b-v coupon">-${fmtWon(a.cpn)}</span>
           ${hasTrialBrand ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">-${fmtWon(a.tr||0)}</span>` : ''}
           ${a.ret !== 0 ? `<span class="b-k">반출</span><span class="b-v" style="color:var(--neg);font-weight:600;">${fmtWon(a.ret)}</span>` : ''}
-          ${showDeduct && a.deduct > 0 ? `<span class="b-k">상계</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="성장·프리미엄½·DA·체험·어워즈·PPIR 합계">-${fmtWon(a.deduct)}</span>` : ''}
+          ${a.awd > 0 ? `<span class="b-k">어워즈</span><span class="b-v" style="color:var(--neg);font-weight:600;">-${fmtWon(a.awd)}</span>` : ''}
+          ${showDeduct && a.deduct > 0 ? `<span class="b-k">상계(어워즈 제외)</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="성장·프리미엄·DA·체험·PPIR 합계">-${fmtWon(a.deduct - (a.awd||0))}</span>` : ''}
           ${hasSales ? `<span class="b-k">순수익</span><span class="b-v profit${a.p<0?' neg':''}">${fmtWon(a.p)}</span>
           <span class="b-k">마진</span><span class="b-v margin">${mg}</span>` : ''}
         </div>
@@ -1926,32 +1937,33 @@ function patch2026_04_DA() {
   localStorage.setItem(MARK, 'done');
 }
 
-// 1회 패치: 9월 어워즈 25,836,231 → 11,880,000 (전산 기준으로 교정)
-function patch2026_09_awards() {
-  const MARK = 'settle_patch_2026_09_awards';
+// 1회 패치: 8·9월 어워즈 복구 (이전 잘못된 11,880,000 수정 되돌림) + awardsBoarre 주입
+function patchAwardsRevertAndBrandSplit() {
+  const MARK = 'settle_patch_awards_brand_v1';
   if (localStorage.getItem(MARK) === 'done') return;
   const store = monthsStore();
-  const d = store['2026-09'] && store['2026-09'].deductions;
-  if (d && d.awards === 25836231) {
-    d.awards = 11880000;
-    saveMonthsStore(store);
-    console.log('[patch] 2026-09 awards → 11,880,000');
+  let changed = false;
+  // 8·9월 어워즈 값 복구 (이전 patch가 11,880,000으로 바꿔놨을 경우 되돌림)
+  const revert = { '2026-08': 893769, '2026-09': 25836231 };
+  for (const [ym, correct] of Object.entries(revert)) {
+    const d = store[ym] && store[ym].deductions;
+    if (d && d.awards === 11880000) {
+      d.awards = correct;
+      changed = true;
+    }
   }
-  localStorage.setItem(MARK, 'done');
-}
-
-// 1회 패치: 8월 어워즈 893,769 → 11,880,000 (전산 기준으로 교정)
-function patch2026_08_awards() {
-  const MARK = 'settle_patch_2026_08_awards';
-  if (localStorage.getItem(MARK) === 'done') return;
-  const store = monthsStore();
-  const d = store['2026-08'] && store['2026-08'].deductions;
-  if (d && d.awards === 893769) {
-    d.awards = 11880000;
-    saveMonthsStore(store);
-    console.log('[patch] 2026-08 awards → 11,880,000');
+  // awardsBoarre 주입 (1·2월만 2,970,000)
+  const boarre = { '2026-01': 2970000, '2026-02': 2970000 };
+  for (const [ym, v] of Object.entries(boarre)) {
+    const d = store[ym] && store[ym].deductions;
+    if (d && d.awardsBoarre == null) {
+      d.awardsBoarre = v;
+      changed = true;
+    }
   }
+  if (changed) saveMonthsStore(store);
   localStorage.setItem(MARK, 'done');
+  if (changed) console.log('[patch] 어워즈 복구 + 브랜드 분배 주입 완료');
 }
 
 // 월별 상계처리 seed 로딩: 비어있는 월만 채움, 사용자 입력은 덮어쓰지 않음
@@ -1992,8 +2004,7 @@ function augmentSkuMapFromMargin() {
 (async () => {
   migratePremiumToHalf();
   patch2026_04_DA();
-  patch2026_09_awards();
-  patch2026_08_awards();
+  patchAwardsRevertAndBrandSplit();
   await Promise.all([loadMaps(), loadMargin(), loadPromotion(), seedDeductionsIfMissing()]);
   augmentSkuMapFromMargin();
   // 서버(KV) 공유 데이터 우선, 없으면 로컬 캐시 사용
