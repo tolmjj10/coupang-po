@@ -318,7 +318,7 @@
   }
   .deduct-panel .dp-head .dp-src { font-size: 11px; font-weight: 500; color: var(--text-hint); }
   .deduct-panel .dp-grid {
-    display: grid; grid-template-columns: repeat(6, 1fr) auto; gap: 8px; align-items: end;
+    display: grid; grid-template-columns: repeat(7, 1fr) auto; gap: 8px; align-items: end;
   }
   .deduct-panel .dp-cell { display: flex; flex-direction: column; gap: 3px; }
   .deduct-panel .dp-cell label {
@@ -407,6 +407,7 @@
       <div class="dp-cell"><label>프리미엄 데이터 <small>× 1/2</small></label><input type="text" data-k="premium" inputmode="numeric" placeholder="0"></div>
       <div class="dp-cell"><label>PPIR</label><input type="text" data-k="ppir" inputmode="numeric" placeholder="0"></div>
       <div class="dp-cell"><label>DA <small>Display AD &amp; Rocket Insight</small></label><input type="text" data-k="da" inputmode="numeric" placeholder="0"></div>
+      <div class="dp-cell"><label>CSVS <small>× 1/2</small></label><input type="text" data-k="csvs" inputmode="numeric" placeholder="0"></div>
       <div class="dp-sum">
         <div class="lab">상계 합계</div>
         <div class="val" id="dp-sum">—</div>
@@ -1762,19 +1763,19 @@ async function onBatchFolder(e) {
 /* ═══════════════════════ 상계처리 (상계금액) ═══════════════════════ */
 // 성장장려금, 쿠팡체험단, 어워즈패키지, 프리미엄 데이터(×1/2), PPIR
 // activeMonth가 'YYYY-MM'이면 그 월에 저장. 'ALL'이면 모든 월 합산 표시(수정 불가).
-const DEDUCT_KEYS = ['growth', 'trial', 'awards', 'premium', 'ppir', 'da'];
+const DEDUCT_KEYS = ['growth', 'trial', 'awards', 'premium', 'ppir', 'da', 'csvs'];
 const parseWon = s => { const n = Number(String(s||'').replace(/[,\s]/g,'')); return Number.isFinite(n) ? n : 0; };
 const fmtInput = n => n ? Number(n).toLocaleString('ko-KR') : '';
 
 function calcDeductSum(d) {
   if (!d) return 0;
-  return (d.growth||0) + (d.trial||0) + (d.awards||0) + Math.round((d.premium||0) / 2) + (d.ppir||0) + (d.da||0);
+  return (d.growth||0) + (d.trial||0) + (d.awards||0) + Math.round((d.premium||0) / 2) + (d.ppir||0) + (d.da||0) + Math.round((d.csvs||0) / 2);
 }
 
 function getActiveDeductions() {
   if (activeMonth === 'ALL') {
     const store = monthsStore();
-    const sum = { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0 };
+    const sum = { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, csvs:0 };
     for (const d of Object.values(store)) {
       if (!d.deductions) continue;
       for (const k of DEDUCT_KEYS) sum[k] += Number(d.deductions[k]||0);
@@ -1783,7 +1784,7 @@ function getActiveDeductions() {
   }
   if (!activeMonth) return null;
   const store = monthsStore();
-  return (store[activeMonth] && store[activeMonth].deductions) || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0 };
+  return (store[activeMonth] && store[activeMonth].deductions) || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, csvs:0 };
 }
 
 function renderDeductPanel() {
@@ -1811,7 +1812,7 @@ function onDeductInput(e) {
   inp.value = fmtInput(raw);
   const store = monthsStore();
   const entry = store[activeMonth] || (store[activeMonth] = {});
-  entry.deductions = entry.deductions || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0 };
+  entry.deductions = entry.deductions || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, csvs:0 };
   entry.deductions[inp.dataset.k] = raw;
   saveMonthsStore(store);
   document.getElementById('dp-sum').textContent = fmtWon(calcDeductSum(entry.deductions));
@@ -1840,7 +1841,7 @@ function applyDeductionsToSummary() {
     <div class="dp-break">
       기본 순수익 <strong class="profit">${fmtWon(TP)}</strong>
       − 상계 합계 <strong class="neg">${fmtWon(extra)}</strong>
-      <span class="detail">= 성장 ${fmtWon(d.growth)} + 체험 ${fmtWon(d.trial)} + 어워즈 ${fmtWon(d.awards)} + 프리미엄½ ${fmtWon(Math.round(d.premium/2))} + PPIR ${fmtWon(d.ppir)} + DA ${fmtWon(d.da)}</span>
+      <span class="detail">= 성장 ${fmtWon(d.growth)} + 체험 ${fmtWon(d.trial)} + 어워즈 ${fmtWon(d.awards)} + 프리미엄½ ${fmtWon(Math.round(d.premium/2))} + PPIR ${fmtWon(d.ppir)} + DA ${fmtWon(d.da)} + CSVS½ ${fmtWon(Math.round((d.csvs||0)/2))}</span>
     </div>
     <div class="dp-final-v ${finalProfit<0?'neg':'ok'}">최종 순수익 ${fmtWon(finalProfit)}</div>`;
 }
