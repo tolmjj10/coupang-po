@@ -1224,8 +1224,9 @@ async function downloadPromotionList(type) {
 
   const outWb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(outWb, ws, '행사제안');
-  const ym = (activeMonth || '').replace('-', '');
-  XLSX.writeFile(outWb, `${type}_${ym || 'all'}.xlsx`);
+  const t = new Date();
+  const stamp = `${t.getFullYear()}${String(t.getMonth()+1).padStart(2,'0')}${String(t.getDate()).padStart(2,'0')}`;
+  XLSX.writeFile(outWb, `${type}_오아${stamp}.xlsx`);
 }
 
 /* ═══════════════════════ 체험단 리스트 엑셀 다운로드 (그룹별) ═══════════════════════ */
