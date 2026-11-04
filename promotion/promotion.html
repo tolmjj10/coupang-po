@@ -926,12 +926,12 @@ function renderTabs() {
   $('tabs').querySelectorAll('.tab[data-tab]').forEach(el => {
     el.addEventListener('click', () => { activeTab = el.dataset.tab; render(); });
   });
-  // 다운로드 아이콘: 골드박스 / 타임특가 에서만 (체험단은 그룹별로 분리)
+  // 다운로드 아이콘: 골드박스 / 타임특가 / 전체 에서 (체험단은 그룹별로 분리)
   const dlBtn = document.getElementById('dlBtn');
   if (dlBtn) {
-    const show = ['골드박스','타임특가'].includes(activeTab);
+    const show = ['골드박스','타임특가','전체'].includes(activeTab);
     dlBtn.style.display = show ? '' : 'none';
-    dlBtn.title = activeTab + ' 엑셀 다운로드';
+    dlBtn.title = activeTab === '전체' ? '체크된 골드박스/타임특가 엑셀 다운로드' : (activeTab + ' 엑셀 다운로드');
   }
   const ub = document.getElementById('undoBtn');
   const rb = document.getElementById('redoBtn');
@@ -1083,9 +1083,16 @@ function restoreFocus(info) {
 }
 
 /* ═══════════════════════ 골드박스 / 타임특가 엑셀 다운로드 (행사제안 양식) ═══════════════════════ */
-async function downloadPromotionList(type) {
-  const sel = data.filter(r => r.type === type && rowInMonth(r, activeMonth) && selectedRows.has(r.id));
-  if (!sel.length) { alert('체크된 항목이 없습니다. 다운로드할 행을 체크해주세요.'); return; }
+async function downloadPromotionList(types) {
+  // types: 문자열이면 단일, 배열이면 여러 타입 → 각 타입별 시트 생성
+  const typeList = Array.isArray(types) ? types : [types];
+  const byType = {};
+  typeList.forEach(t => {
+    const rows = data.filter(r => r.type === t && rowInMonth(r, activeMonth) && selectedRows.has(r.id));
+    if (rows.length) byType[t] = rows;
+  });
+  const activeTypes = Object.keys(byType);
+  if (!activeTypes.length) { alert('체크된 항목이 없습니다. 다운로드할 행을 체크해주세요.'); return; }
 
   // ── 공통 스타일 (템플릿 타임특가_오아*.xlsx 재현) ──
   const B = { style: 'thin', color: { rgb: '000000' } };
@@ -1128,8 +1135,6 @@ async function downloadPromotionList(type) {
   const GOLD_COLS = TIME_COLS.slice(0, 14).concat([
     { h: '현재가',           hf: PURPLE, hb: false, hs: 9,            ds: { ...styleData, numFmt } },
   ]).concat(TIME_COLS.slice(14));
-  const COLS = type === '골드박스' ? GOLD_COLS : TIME_COLS;
-  const label = type === '골드박스' ? '골드박스' : '타임특가';
   const colStart = 1;  // B열
 
   const toExcelDate = (iso) => {
@@ -1140,78 +1145,84 @@ async function downloadPromotionList(type) {
   };
   const toNum = v => { const n = Number(v); return Number.isFinite(n) && v !== '' && v != null ? n : (v == null ? '' : v); };
 
-  const rowsOut = sel.map(r => {
-    const d = derive(r);
-    if (type === '골드박스') {
+  // 타입별 시트 1장 생성
+  const buildSheet = (type, sel) => {
+    const COLS = type === '골드박스' ? GOLD_COLS : TIME_COLS;
+    const label = type;
+
+    const rowsOut = sel.map(r => {
+      const d = derive(r);
+      if (type === '골드박스') {
+        return [
+          toExcelDate(r.date), r.time || '07시', '골드박스', 10, 'Retail', 'CE', 'andy',
+          toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
+          '', '',
+          toNum(d.priceBase), toNum(d.salePrice), toNum(d.promoPrice),
+          toNum(r.discountRate),
+          toNum(d.supply), toNum(r.qty)
+        ];
+      }
+      const discStr = r.discountRate ? (Number(r.discountRate).toLocaleString() + '원') : '';
       return [
-        toExcelDate(r.date), r.time || '07시', '골드박스', 10, 'Retail', 'CE', 'andy',
+        toExcelDate(r.date), r.time || '15시', '타임특가', 10, 'Retail', 'CE', 'andy',
         toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
         '', '',
-        toNum(d.priceBase), toNum(d.salePrice), toNum(d.promoPrice),
-        toNum(r.discountRate),
-        toNum(d.supply), toNum(r.qty)
+        toNum(d.priceBase), toNum(d.promoPrice), discStr,
+        '', toNum(r.qty)
       ];
-    }
-    const discStr = r.discountRate ? (Number(r.discountRate).toLocaleString() + '원') : '';
-    return [
-      toExcelDate(r.date), r.time || '15시', '타임특가', 10, 'Retail', 'CE', 'andy',
-      toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
-      '', '',
-      toNum(d.priceBase), toNum(d.promoPrice), discStr,
-      '', toNum(r.qty)
-    ];
-  });
-
-  // 워크시트 조립
-  const ws = {};
-  const put = (addr, cell) => { ws[addr] = cell; };
-  // row 3 (r:2): 라벨 B3 — 병합 B3:C3
-  put(XLSX.utils.encode_cell({ r: 2, c: colStart }), { t: 's', v: label, s: styleLabel });
-  // row 4 (r:3): 헤더
-  COLS.forEach((col, i) => {
-    put(XLSX.utils.encode_cell({ r: 3, c: colStart + i }), { t: 's', v: col.h, s: hdrStyle(col.hf, col.hs, col.hb) });
-  });
-  // row 5 (r:4): 서브헤더 — sub 있는 컬럼만 값/스타일, 없으면 비워두고 세로병합으로 처리
-  COLS.forEach((col, i) => {
-    if (col.sub) {
-      const addr = XLSX.utils.encode_cell({ r: 4, c: colStart + i });
-      put(addr, { t: 's', v: col.sub.v, s: subStyle(col.sub.hf, col.sub.hs) });
-    }
-    // sub 없으면 row4~5 세로병합이므로 row5 셀은 쓰지 않음 (merge가 커버)
-  });
-  // row 6+ (r:5+): 데이터
-  rowsOut.forEach((vals, i) => {
-    vals.forEach((v, idx) => {
-      const col = COLS[idx]; if (!col) return;
-      const addr = XLSX.utils.encode_cell({ r: 5 + i, c: colStart + idx });
-      const cell = { t: typeof v === 'number' ? 'n' : 's', v: v == null ? '' : v, s: { ...col.ds } };
-      if (col.ds.numFmt) { cell.z = col.ds.numFmt; }
-      put(addr, cell);
     });
-  });
 
-  const colEnd = colStart + COLS.length - 1;
-  const lastRow = 5 + rowsOut.length - 1;
-  ws['!ref'] = XLSX.utils.encode_range({ s: { r: 2, c: colStart }, e: { r: Math.max(lastRow, 5), c: colEnd } });
+    const ws = {};
+    const put = (addr, cell) => { ws[addr] = cell; };
+    // row 3 (r:2): 라벨 B3 — 병합 B3:C3
+    put(XLSX.utils.encode_cell({ r: 2, c: colStart }), { t: 's', v: label, s: styleLabel });
+    // row 4 (r:3): 헤더
+    COLS.forEach((col, i) => {
+      put(XLSX.utils.encode_cell({ r: 3, c: colStart + i }), { t: 's', v: col.h, s: hdrStyle(col.hf, col.hs, col.hb) });
+    });
+    // row 5 (r:4): 서브헤더
+    COLS.forEach((col, i) => {
+      if (col.sub) {
+        const addr = XLSX.utils.encode_cell({ r: 4, c: colStart + i });
+        put(addr, { t: 's', v: col.sub.v, s: subStyle(col.sub.hf, col.sub.hs) });
+      }
+    });
+    // row 6+ (r:5+): 데이터
+    rowsOut.forEach((vals, i) => {
+      vals.forEach((v, idx) => {
+        const col = COLS[idx]; if (!col) return;
+        const addr = XLSX.utils.encode_cell({ r: 5 + i, c: colStart + idx });
+        const cell = { t: typeof v === 'number' ? 'n' : 's', v: v == null ? '' : v, s: { ...col.ds } };
+        if (col.ds.numFmt) { cell.z = col.ds.numFmt; }
+        put(addr, cell);
+      });
+    });
 
-  // 머지: B3:C3(라벨) + sub 없는 헤더는 row4~5 세로병합
-  const merges = [{ s: { r: 2, c: colStart }, e: { r: 2, c: colStart + 1 } }];
-  COLS.forEach((col, i) => {
-    if (!col.sub) merges.push({ s: { r: 3, c: colStart + i }, e: { r: 4, c: colStart + i } });
-  });
-  ws['!merges'] = merges;
+    const colEnd = colStart + COLS.length - 1;
+    const lastRow = 5 + rowsOut.length - 1;
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 2, c: colStart }, e: { r: Math.max(lastRow, 5), c: colEnd } });
 
-  // 열 너비 (A열은 비워두고 B부터 COLS 순서)
-  const cols = [{ wch: 11.86 }];  // A열: 템플릿 기본값
-  COLS.forEach(col => cols.push(col.w ? { wch: col.w } : {}));
-  ws['!cols'] = cols;
-  ws['!rows'] = [null, null, null, { hpt: 21.95 }, { hpt: 18 }, { hpt: 15 }];
+    const merges = [{ s: { r: 2, c: colStart }, e: { r: 2, c: colStart + 1 } }];
+    COLS.forEach((col, i) => {
+      if (!col.sub) merges.push({ s: { r: 3, c: colStart + i }, e: { r: 4, c: colStart + i } });
+    });
+    ws['!merges'] = merges;
+
+    const cols = [{ wch: 11.86 }];
+    COLS.forEach(col => cols.push(col.w ? { wch: col.w } : {}));
+    ws['!cols'] = cols;
+    ws['!rows'] = [null, null, null, { hpt: 21.95 }, { hpt: 18 }, { hpt: 15 }];
+    return ws;
+  };
 
   const outWb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(outWb, ws, '행사제안');
-  const t = new Date();
-  const stamp = `${t.getFullYear()}${String(t.getMonth()+1).padStart(2,'0')}${String(t.getDate()).padStart(2,'0')}`;
-  XLSX.writeFile(outWb, `${type}_오아${stamp}.xlsx`);
+  activeTypes.forEach(t => {
+    XLSX.utils.book_append_sheet(outWb, buildSheet(t, byType[t]), t);
+  });
+  const now = new Date();
+  const stamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  const nameBase = activeTypes.join('_');
+  XLSX.writeFile(outWb, `${nameBase}_오아${stamp}.xlsx`);
 }
 
 /* ═══════════════════════ 체험단 리스트 엑셀 다운로드 (그룹별) ═══════════════════════ */
@@ -2015,7 +2026,8 @@ $('addBtn').addEventListener('click', () => {
 $('saveBtn').addEventListener('click', () => { clearTimeout(_saveTimer); saveRemote({ force: true }); });
 $('undoBtn').addEventListener('click', doUndo);
 $('dlBtn').addEventListener('click', () => {
-  if (activeTab === '골드박스' || activeTab === '타임특가') downloadPromotionList(activeTab);
+  if (activeTab === '전체') downloadPromotionList(['타임특가','골드박스']);
+  else if (activeTab === '골드박스' || activeTab === '타임특가') downloadPromotionList([activeTab]);
 });
 $('redoBtn').addEventListener('click', doRedo);
 
