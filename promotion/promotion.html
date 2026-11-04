@@ -2154,6 +2154,12 @@ function applyResizeToTable(table, storageKey) {
     if (th.dataset.origWidth == null) {
       th.dataset.origWidth = th.style.width || '';
     }
+    // 체크박스 컬럼(promoSelAll)은 리사이즈 제외 + 항상 원본 너비 강제 (저장값 무시)
+    const isSelCol = !!th.querySelector('#promoSelAll');
+    if (isSelCol) {
+      th.style.width = th.dataset.origWidth;
+      return;
+    }
     if (idx < ths.length - 1) {
       if (saved[idx] != null) th.style.width = saved[idx] + 'px';
       else th.style.width = th.dataset.origWidth;    // 저장된 값 없으면 원본 복원
