@@ -1,0 +1,16 @@
+{
+  "_description": "월별 상계처리 초기값 (공제금액계정 › 지급처리결과에서 수집). settlement.html이 로드 시 비어있는 월만 채움.",
+  "_updated_at": "2026-11-04",
+  "deductions": {
+    "2026-01": { "growth": 0,        "trial": 11897640, "awards": 5940000,  "premium": 1650000,  "ppir": 0,     "da": 0 },
+    "2026-02": { "growth": 0,        "trial": 0,        "awards": 5940000,  "premium": 12375000, "ppir": 0,     "da": 0 },
+    "2026-03": { "growth": 41511650, "trial": 0,        "awards": 0,        "premium": 12375000, "ppir": 0,     "da": 0 },
+    "2026-04": { "growth": 42988032, "trial": 0,        "awards": 0,        "premium": 16500000, "ppir": 0,     "da": 28600000 },
+    "2026-05": { "growth": 25487411, "trial": 16905620, "awards": 0,        "premium": 16500000, "ppir": 0,     "da": 0 },
+    "2026-06": { "growth": 39987649, "trial": 24883570, "awards": 0,        "premium": 1595000,  "ppir": 0,     "da": 0 },
+    "2026-07": { "growth": 22110581, "trial": 8135310,  "awards": 14850000, "premium": 1650000,  "ppir": 0,     "da": 0 },
+    "2026-08": { "growth": 50601746, "trial": 0,        "awards": 893769,   "premium": 1650000,  "ppir": 0,     "da": 45650000 },
+    "2026-09": { "growth": 47900451, "trial": 0,        "awards": 25836231, "premium": 1650000,  "ppir": 0,     "da": 0 },
+    "2026-10": { "growth": 50115255, "trial": 0,        "awards": 11880000, "premium": 1650000,  "ppir": 93240, "da": 0 }
+  }
+}

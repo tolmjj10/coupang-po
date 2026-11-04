@@ -1860,8 +1860,27 @@ switchMonth = function(m) {
   applyDeductionsToSummary();
 };
 
+// 월별 상계처리 seed 로딩: 비어있는 월만 채움, 사용자 입력은 덮어쓰지 않음
+async function seedDeductionsIfMissing() {
+  try {
+    const res = await fetch('/data/settlement-deductions.json', { cache: 'no-cache' });
+    if (!res.ok) return;
+    const seed = await res.json();
+    const store = monthsStore();
+    let changed = false;
+    for (const [ym, d] of Object.entries(seed.deductions || {})) {
+      const entry = store[ym] || (store[ym] = {});
+      if (!entry.deductions) {
+        entry.deductions = { ...d };
+        changed = true;
+      }
+    }
+    if (changed) saveMonthsStore(store);
+  } catch (e) { console.warn('seed 로딩 실패:', e); }
+}
+
 (async () => {
-  await Promise.all([loadMaps(), loadMargin(), loadPromotion()]);
+  await Promise.all([loadMaps(), loadMargin(), loadPromotion(), seedDeductionsIfMissing()]);
   // 서버(KV) 공유 데이터 우선, 없으면 로컬 캐시 사용
   const hadServer = await restoreFromServer();
   if (!hadServer) restoreFromLs();
