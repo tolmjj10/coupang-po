@@ -1145,80 +1145,91 @@ async function downloadPromotionList(types) {
   };
   const toNum = v => { const n = Number(v); return Number.isFinite(n) && v !== '' && v != null ? n : (v == null ? '' : v); };
 
-  // 타입별 시트 1장 생성
-  const buildSheet = (type, sel) => {
-    const COLS = type === '골드박스' ? GOLD_COLS : TIME_COLS;
-    const label = type;
-
-    const rowsOut = sel.map(r => {
-      const d = derive(r);
-      if (type === '골드박스') {
-        return [
-          toExcelDate(r.date), r.time || '07시', '골드박스', 10, 'Retail', 'CE', 'andy',
-          toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
-          '', '',
-          toNum(d.priceBase), toNum(d.salePrice), toNum(d.promoPrice),
-          toNum(r.discountRate),
-          toNum(d.supply), toNum(r.qty)
-        ];
-      }
-      const discStr = r.discountRate ? (Number(r.discountRate).toLocaleString() + '원') : '';
+  const buildRow = (type, r) => {
+    const d = derive(r);
+    if (type === '골드박스') {
       return [
-        toExcelDate(r.date), r.time || '15시', '타임특가', 10, 'Retail', 'CE', 'andy',
+        toExcelDate(r.date), r.time || '07시', '골드박스', 10, 'Retail', 'CE', 'andy',
         toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
         '', '',
-        toNum(d.priceBase), toNum(d.promoPrice), discStr,
-        '', toNum(r.qty)
+        toNum(d.priceBase), toNum(d.salePrice), toNum(d.promoPrice),
+        toNum(r.discountRate),
+        toNum(d.supply), toNum(r.qty)
       ];
-    });
+    }
+    const discStr = r.discountRate ? (Number(r.discountRate).toLocaleString() + '원') : '';
+    return [
+      toExcelDate(r.date), r.time || '15시', '타임특가', 10, 'Retail', 'CE', 'andy',
+      toNum(r.skuId), toNum(d.viid), toNum(d.pid), d.skuName || '',
+      '', '',
+      toNum(d.priceBase), toNum(d.promoPrice), discStr,
+      '', toNum(r.qty)
+    ];
+  };
 
-    const ws = {};
-    const put = (addr, cell) => { ws[addr] = cell; };
-    // row 3 (r:2): 라벨 B3 — 병합 B3:C3
-    put(XLSX.utils.encode_cell({ r: 2, c: colStart }), { t: 's', v: label, s: styleLabel });
-    // row 4 (r:3): 헤더
+  // 단일 시트에 섹션 스택: 각 타입마다 라벨+헤더+서브헤더+데이터, 사이에 빈 행 1개
+  const ws = {};
+  const put = (addr, cell) => { ws[addr] = cell; };
+  const merges = [];
+  const rowHeights = [null, null];  // 0~1: 빈 행
+
+  let rPos = 2;  // r index (0-based). row 3부터 시작.
+  let maxCol = colStart;
+
+  activeTypes.forEach((type, sIdx) => {
+    const COLS = type === '골드박스' ? GOLD_COLS : TIME_COLS;
+    const sel = byType[type];
+    const rowsOut = sel.map(r => buildRow(type, r));
+
+    // 라벨
+    put(XLSX.utils.encode_cell({ r: rPos, c: colStart }), { t: 's', v: type, s: styleLabel });
+    merges.push({ s: { r: rPos, c: colStart }, e: { r: rPos, c: colStart + 1 } });
+    rowHeights[rPos] = null;
+
+    // 헤더
     COLS.forEach((col, i) => {
-      put(XLSX.utils.encode_cell({ r: 3, c: colStart + i }), { t: 's', v: col.h, s: hdrStyle(col.hf, col.hs, col.hb) });
+      put(XLSX.utils.encode_cell({ r: rPos + 1, c: colStart + i }), { t: 's', v: col.h, s: hdrStyle(col.hf, col.hs, col.hb) });
     });
-    // row 5 (r:4): 서브헤더
+    rowHeights[rPos + 1] = { hpt: 21.95 };
+
+    // 서브헤더 (sub 없으면 세로 병합)
     COLS.forEach((col, i) => {
       if (col.sub) {
-        const addr = XLSX.utils.encode_cell({ r: 4, c: colStart + i });
-        put(addr, { t: 's', v: col.sub.v, s: subStyle(col.sub.hf, col.sub.hs) });
+        put(XLSX.utils.encode_cell({ r: rPos + 2, c: colStart + i }), { t: 's', v: col.sub.v, s: subStyle(col.sub.hf, col.sub.hs) });
+      } else {
+        merges.push({ s: { r: rPos + 1, c: colStart + i }, e: { r: rPos + 2, c: colStart + i } });
       }
     });
-    // row 6+ (r:5+): 데이터
+    rowHeights[rPos + 2] = { hpt: 18 };
+
+    // 데이터
     rowsOut.forEach((vals, i) => {
       vals.forEach((v, idx) => {
         const col = COLS[idx]; if (!col) return;
-        const addr = XLSX.utils.encode_cell({ r: 5 + i, c: colStart + idx });
+        const addr = XLSX.utils.encode_cell({ r: rPos + 3 + i, c: colStart + idx });
         const cell = { t: typeof v === 'number' ? 'n' : 's', v: v == null ? '' : v, s: { ...col.ds } };
         if (col.ds.numFmt) { cell.z = col.ds.numFmt; }
         put(addr, cell);
       });
+      rowHeights[rPos + 3 + i] = { hpt: 15 };
     });
 
-    const colEnd = colStart + COLS.length - 1;
-    const lastRow = 5 + rowsOut.length - 1;
-    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 2, c: colStart }, e: { r: Math.max(lastRow, 5), c: colEnd } });
+    maxCol = Math.max(maxCol, colStart + COLS.length - 1);
+    rPos += 3 + rowsOut.length + 1;  // 섹션 사이에 빈 행 1개
+  });
 
-    const merges = [{ s: { r: 2, c: colStart }, e: { r: 2, c: colStart + 1 } }];
-    COLS.forEach((col, i) => {
-      if (!col.sub) merges.push({ s: { r: 3, c: colStart + i }, e: { r: 4, c: colStart + i } });
-    });
-    ws['!merges'] = merges;
+  ws['!ref'] = XLSX.utils.encode_range({ s: { r: 2, c: colStart }, e: { r: Math.max(rPos - 1, 5), c: maxCol } });
+  ws['!merges'] = merges;
 
-    const cols = [{ wch: 11.86 }];
-    COLS.forEach(col => cols.push(col.w ? { wch: col.w } : {}));
-    ws['!cols'] = cols;
-    ws['!rows'] = [null, null, null, { hpt: 21.95 }, { hpt: 18 }, { hpt: 15 }];
-    return ws;
-  };
+  // 열 너비: 섹션 중 가장 넓은 COLS(GOLD는 19 cols) 기준 + 지정 없는 컬럼은 기본 10
+  const widestCols = activeTypes.includes('골드박스') ? GOLD_COLS : TIME_COLS;
+  const cols = [{ wch: 11.86 }];
+  widestCols.forEach(col => cols.push({ wch: col.w || 10 }));
+  ws['!cols'] = cols;
+  ws['!rows'] = rowHeights;
 
   const outWb = XLSX.utils.book_new();
-  activeTypes.forEach(t => {
-    XLSX.utils.book_append_sheet(outWb, buildSheet(t, byType[t]), t);
-  });
+  XLSX.utils.book_append_sheet(outWb, ws, '행사제안');
   const now = new Date();
   const stamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
   const nameBase = activeTypes.join('_');
