@@ -318,7 +318,7 @@
   <div class="month-bar" id="month-bar">
     <!-- 월별 탭 JS 렌더 -->
     <div class="spacer"></div>
-    <button class="batch-btn" id="batch-btn" title="po/settlement_files/ 폴더를 선택하면 YYYY-MM 하위폴더를 자동 읽어 월별로 처리합니다">📁 폴더 일괄 처리</button>
+    <button class="batch-btn" id="batch-btn" title="po/settlement_files/ 폴더 선택 → 하위 1/(광고비) 2/(쿠폰비) 3/(입고내역)에서 파일을 읽고 파일명 월(YYYY-MM)로 자동 분류">📁 폴더 일괄 처리</button>
     <input type="file" id="batch-input" webkitdirectory directory multiple style="display:none">
   </div>
 
@@ -1502,7 +1502,7 @@ function renderMonthTabs() {
   const allTab = `<button class="mtab all ${allCls}" data-m="ALL">전체</button>`;
   bar.innerHTML = tabsHtml + allTab +
     '<div class="spacer"></div>' +
-    '<button class="batch-btn" id="batch-btn" title="po/settlement_files/ 폴더를 선택하면 YYYY-MM 하위폴더를 자동 읽어 월별로 처리합니다">📁 폴더 일괄 처리</button>' +
+    '<button class="batch-btn" id="batch-btn" title="po/settlement_files/ 폴더 선택 → 하위 1/(광고비) 2/(쿠폰비) 3/(입고내역)에서 파일을 읽고 파일명 월(YYYY-MM)로 자동 분류">📁 폴더 일괄 처리</button>' +
     '<input type="file" id="batch-input" webkitdirectory directory multiple style="display:none">';
   bar.querySelectorAll('.mtab').forEach(b => b.addEventListener('click', () => switchMonth(b.dataset.m)));
   document.getElementById('batch-btn').addEventListener('click', () => document.getElementById('batch-input').click());
@@ -1631,28 +1631,28 @@ function saveCurrentToMonth(ym) {
   });
 });
 
-// 폴더 일괄 처리: webkitdirectory로 YYYY-MM 하위폴더 스캔
+// 폴더 일괄 처리: webkitdirectory로 1/2/3 하위폴더 스캔
+// 1/=광고비(CPC), 2/=쿠폰비, 3/=입고내역. 월은 파일명에서 자동 추출.
 async function onBatchFolder(e) {
   const files = Array.from(e.target.files || []);
   if (!files.length) { alert('파일이 없습니다.'); return; }
-  // webkitRelativePath에서 YYYY-MM 하위폴더 추출
   const byMonth = {};  // { 'YYYY-MM': { cpcFile, couponFile, salesFile } }
   const skipped = [];
   for (const f of files) {
     const rel = f.webkitRelativePath || f.name;
-    // rel = "settlement_files/2026-01/A0006...-dailySettlement-...xlsx"
-    const m = rel.match(/\/(\d{4}-\d{2})\//) || rel.match(/^(\d{4}-\d{2})\//);
-    if (!m) { skipped.push(rel); continue; }
-    const ym = m[1];
-    const nm = f.name;
+    // 상위폴더 번호(1/2/3) 추출: ".../1/파일명.xlsx"
+    const km = rel.match(/(?:^|\/)([123])\//);
+    if (!km) { skipped.push(rel + ' (1/2/3 폴더 아님)'); continue; }
+    const kindNum = km[1];
+    const ym = detectYm(f.name);
+    if (!ym) { skipped.push(rel + ' (파일명에서 YYYY-MM 인식 실패)'); continue; }
     const slot = byMonth[ym] || (byMonth[ym] = {});
-    if (/dailySettlement/i.test(nm)) slot.cpcFile = f;
-    else if (/^coupon_/i.test(nm)) slot.couponFile = f;
-    else if (/Stocked/i.test(nm)) slot.salesFile = f;
-    else skipped.push(rel);
+    if (kindNum === '1') slot.cpcFile = f;
+    else if (kindNum === '2') slot.couponFile = f;
+    else if (kindNum === '3') slot.salesFile = f;
   }
   const months = Object.keys(byMonth).sort();
-  if (!months.length) { alert('YYYY-MM 하위폴더에서 파일을 찾지 못했습니다.'); return; }
+  if (!months.length) { alert('1/2/3 하위폴더에서 파일을 찾지 못했습니다.\n(파일명에서 YYYY-MM도 인식돼야 합니다)'); return; }
 
   const store = monthsStore();
   let okCount = 0;
