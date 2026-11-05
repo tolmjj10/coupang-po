@@ -1420,9 +1420,12 @@ function renderSkuTable(bySku) {
     return sb - sa;
   });
 
-  // 필터된 합계
+  // 필터된 합계 (기타 카테고리는 합계에서 제외)
   let TG=0, TC=0, TP=0, TCPC=0, TCPN=0, TTR=0;
-  for (const [,d] of filtered) { TG+=d.gmv; TC+=d.cogs; TCPC+=d.cpcVat; TCPN+=d.coupon; TTR+=(d.trial||0); TP+=d.profit; }
+  for (const [,d] of filtered) {
+    if ((d.cat || '기타') === '기타') continue;
+    TG+=d.gmv; TC+=d.cogs; TCPC+=d.cpcVat; TCPN+=d.coupon; TTR+=(d.trial||0); TP+=d.profit;
+  }
   const _dForSku = getActiveDeductions();
   const hasTrialSku = allEntries.some(([,d]) => (d.trial||0) > 0) || (_dForSku && (_dForSku.trial || 0) > 0);
 
