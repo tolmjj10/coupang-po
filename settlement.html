@@ -866,17 +866,16 @@ function aggregate() {
   const ymMatch = cpcName.match(/(\d{4})(\d{2})\d{2}-\d{8}/);
   const trialYm = ymMatch ? `${ymMatch[1]}-${ymMatch[2]}` : null;
   const trialBySku = {};
-  // 1차: trial-by-sku.json의 수동 매핑 (VAT 제외 → ×1.1 적용)
+  // 1차: trial-by-sku.json의 수동 매핑 (최종 금액 그대로 사용)
   const activeYm = activeMonth && activeMonth !== 'ALL' ? activeMonth : trialYm;
   if (activeYm && trialOverride && trialOverride[activeYm]) {
-    for (const [sku, excl] of Object.entries(trialOverride[activeYm])) {
-      trialBySku[sku] = Math.round(Number(excl) * 1.1);
+    for (const [sku, amt] of Object.entries(trialOverride[activeYm])) {
+      trialBySku[sku] = Math.round(Number(amt));
     }
   } else if (activeMonth === 'ALL' && trialOverride) {
-    // 전체: 모든 월 합산
     for (const monthMap of Object.values(trialOverride)) {
-      for (const [sku, excl] of Object.entries(monthMap)) {
-        trialBySku[sku] = (trialBySku[sku] || 0) + Math.round(Number(excl) * 1.1);
+      for (const [sku, amt] of Object.entries(monthMap)) {
+        trialBySku[sku] = (trialBySku[sku] || 0) + Math.round(Number(amt));
       }
     }
   }
@@ -902,7 +901,7 @@ function aggregate() {
       const mg = marginMap && marginMap[sku];
       const supply = mg ? mg.supply : 0;
       const qty = Number(r.qty) || 0;
-      // VAT 포함 (×1.1) — trial-by-sku.json 과 동일한 스케일 유지
+      // VAT 포함 (×1.1) — 최종 금액
       trialBySku[sku] = (trialBySku[sku] || 0) + Math.round((EXPERIENCE_BASE_COST + supply) * qty * 1.1);
     }
   }
@@ -2062,16 +2061,20 @@ function patch2026_04_DA() {
   localStorage.setItem(MARK, 'done');
 }
 
-// 1회 패치: 10월 체험단 0 → 47,485,501 (쿠팡 측 상계값)
+// 1회 패치: 10월 체험단을 실제 per-SKU 합계(14,744,886)로 재설정
+// (기존에 47,485,501 쿠팡 상계값으로 넣었던 것 → 실제 체험단 금액으로 교체)
 function patch2026_10_trial() {
-  const MARK = 'settle_patch_2026_10_trial';
+  const MARK = 'settle_patch_2026_10_trial_v2';
   if (localStorage.getItem(MARK) === 'done') return;
   const store = monthsStore();
   const d = store['2026-10'] && store['2026-10'].deductions;
-  if (d && (d.trial === 0 || d.trial == null)) {
-    d.trial = 47485501;
-    saveMonthsStore(store);
-    console.log('[patch] 2026-10 trial → 47,485,501');
+  if (d) {
+    // 0, null, 혹은 47,485,501인 경우 교체
+    if (d.trial == null || d.trial === 0 || d.trial === 47485501) {
+      d.trial = 14744886;
+      saveMonthsStore(store);
+      console.log('[patch] 2026-10 trial → 14,744,886');
+    }
   }
   localStorage.setItem(MARK, 'done');
 }
