@@ -2291,11 +2291,13 @@ function applyResizeToTable(table, storageKey) {
           const styled = parseInt(h.style.width, 10);
           widths[i] = !isNaN(styled) ? styled : Math.round(h.getBoundingClientRect().width);
         });
-        try { localStorage.setItem(storageKey, JSON.stringify(widths)); } catch(_) {}
+        // 현재 테이블의 저장키를 사용 (activeMonth가 바뀌어도 올바른 월 키에 저장)
+        const currentKey = table.dataset.colWidths || storageKey;
+        try { localStorage.setItem(currentKey, JSON.stringify(widths)); } catch(_) {}
         const tot = Object.values(widths).reduce((a,b) => a+(b||0), 0);
         if (tot > 0) table.style.minWidth = tot + 'px';
         // 같은 view 내 다른 하위 표들도 동기화
-        document.querySelectorAll(`table[data-col-widths="${storageKey}"]`).forEach(t => {
+        document.querySelectorAll(`table[data-col-widths="${currentKey}"]`).forEach(t => {
           if (t === table) return;
           t.querySelectorAll('thead th').forEach((oth, i) => {
             if (widths[i] != null && i < oth.parentElement.children.length - 1) {
