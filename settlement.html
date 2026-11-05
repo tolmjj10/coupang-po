@@ -1184,11 +1184,13 @@ function render(byCat, stats) {
 
   // 정렬 그룹: 0=오아/보아르 세분 카테, 1=브랜드(삼대오백/온살), 2=미매칭/기타
   const groupOf = k => k === '기타' ? 3 : UNMATCHED_CATS.has(k) ? 2 : (BRAND_CATS.has(k) ? 1 : 0);
-  const sorted = cats.sort((a,b) => {
-    const g = groupOf(a[0]) - groupOf(b[0]);
-    if (g !== 0) return g;
-    return (b[1].cpc + b[1].coupon) - (a[1].cpc + a[1].coupon);
-  });
+  const sorted = cats
+    .filter(([k]) => k !== '기타')  // 기타 숨김
+    .sort((a,b) => {
+      const g = groupOf(a[0]) - groupOf(b[0]);
+      if (g !== 0) return g;
+      return (b[1].cpc + b[1].coupon) - (a[1].cpc + a[1].coupon);
+    });
 
   const maxTotal = Math.max(1, ...sorted.map(([,v]) => v.cpc + v.coupon));
   const rows = sorted.map(([cat, v]) => {
@@ -1404,11 +1406,12 @@ function renderSkuTable(bySku) {
     allCats[c] = (allCats[c] || 0) + 1;
   }
   const groupOf = k => k === '기타' ? 3 : UNMATCHED_CATS.has(k) ? 2 : (BRAND_CATS.has(k) || k === '뷰티' ? 1 : 0);
-  const chipCats = Object.keys(allCats).sort((a,b) => groupOf(a) - groupOf(b) || a.localeCompare(b));
+  const chipCats = Object.keys(allCats).filter(c => c !== '기타').sort((a,b) => groupOf(a) - groupOf(b) || a.localeCompare(b));
 
-  // 필터링 (카테 + 검색)
+  // 필터링 (카테 + 검색) — '기타' 카테는 SKU 상세에서 완전 숨김
   const q = filterSearch.trim().toLowerCase();
   const filtered = allEntries.filter(([sku, d]) => {
+    if ((d.cat || '기타') === '기타') return false;
     if (filterCat && d.cat !== filterCat) return false;
     if (filterBrand) {
       const b = brandOf(sku, d);
