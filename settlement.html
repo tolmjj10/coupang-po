@@ -902,39 +902,23 @@ function aggregate() {
       const mg = marginMap && marginMap[sku];
       const supply = mg ? mg.supply : 0;
       const qty = Number(r.qty) || 0;
-      trialBySku[sku] = (trialBySku[sku] || 0) + (EXPERIENCE_BASE_COST + supply) * qty;
+      // VAT 포함 (×1.1) — trial-by-sku.json 과 동일한 스케일 유지
+      trialBySku[sku] = (trialBySku[sku] || 0) + Math.round((EXPERIENCE_BASE_COST + supply) * qty * 1.1);
     }
   }
-  // 월 상계 체험단 총액과 정확히 일치시키기 — per-SKU 합을 상계값에 맞춰 비례 조정
-  const _monthDeductForTrial = getActiveDeductions();
-  const _monthTrialAuth = (_monthDeductForTrial && Number(_monthDeductForTrial.trial)) || 0;
-  const _rawTrialSum = Object.values(trialBySku).reduce((s, v) => s + v, 0);
-  if (_monthTrialAuth > 0 && _rawTrialSum > 0) {
-    const factor = _monthTrialAuth / _rawTrialSum;
-    for (const sku of Object.keys(trialBySku)) {
-      trialBySku[sku] = Math.round(trialBySku[sku] * factor);
-    }
-    // 반올림 잉여를 가장 큰 SKU에 가산 → 합계 정확히 일치
-    const _adjSum = Object.values(trialBySku).reduce((s, v) => s + v, 0);
-    const _diff = _monthTrialAuth - _adjSum;
-    if (_diff !== 0 && Object.keys(trialBySku).length) {
-      const maxSku = Object.entries(trialBySku).sort((a,b) => b[1] - a[1])[0][0];
-      trialBySku[maxSku] += _diff;
-    }
-  }
-
-  // 체험단만 있는 SKU도 bySku 에 추가
+  // per-SKU 체험단 값은 원본 그대로 적용 (스케일링 금지 — 실제 발생 비용 반영)
   for (const sku of Object.keys(trialBySku)) if (!bySku[sku]) skuEnsure(sku);
-  // SKU별 체험단 비용 세팅
   for (const sku in bySku) bySku[sku].trial = Math.round(trialBySku[sku] || 0);
 
-  // per-SKU 체험단이 월 상계값을 못 채우면 잔액을 '기타' 가상 SKU로 표시 (브랜드 합계는 별도 보정)
+  // 월 상계값(쿠팡 전산)과 per-SKU 합의 차이 = 기타로 분류 (오아/보아르 외 비용)
+  const _monthDeductForTrial = getActiveDeductions();
+  const _monthTrialAuth = (_monthDeductForTrial && Number(_monthDeductForTrial.trial)) || 0;
   const _perSkuTrialSum = Object.values(bySku).reduce((s, d) => s + (d.trial || 0), 0);
   const _trialUnalloc = Math.max(0, _monthTrialAuth - _perSkuTrialSum);
   if (_trialUnalloc > 0) {
     bySku['__trial_unalloc'] = {
       cpc: 0, coupon: 0, gmv: 0, cogs: 0, qty: 0,
-      name: '(체험단 미할당)', brand: '', cat: '기타', trial: _trialUnalloc,
+      name: '(체험단 기타)', brand: '', cat: '기타', trial: _trialUnalloc,
     };
   }
 
