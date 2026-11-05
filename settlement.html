@@ -1354,7 +1354,7 @@ function renderBrands(allEntries, hasSales) {
           <span class="b-k">원가</span><span class="b-v" style="color:var(--neg);">-${fmtWon(a.cogs)}</span>` : ''}
           <span class="b-k">광고</span><span class="b-v cpc">-${fmtWon(a.cpc)}</span>
           <span class="b-k">쿠폰</span><span class="b-v coupon">-${fmtWon(a.cpn)}</span>
-          ${hasTrialBrand ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">-${fmtWon(a.tr||0)}</span>` : ''}
+          ${(a.tr||0) > 0 ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">-${fmtWon(a.tr)}</span>` : ''}
           ${a.ret !== 0 ? `<span class="b-k">반출</span><span class="b-v" style="color:var(--neg);font-weight:600;">${fmtWon(a.ret)}</span>` : ''}
           ${a.awd > 0 ? `<span class="b-k">어워즈</span><span class="b-v" style="color:var(--neg);font-weight:600;">-${fmtWon(a.awd)}</span>` : ''}
           ${showDeduct && a.deduct > 0 ? `<span class="b-k">상계(어워즈 제외)</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="성장·프리미엄·DA·체험·PPIR 합계">-${fmtWon(a.deduct - (a.awd||0))}</span>` : ''}
