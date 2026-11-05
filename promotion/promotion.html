@@ -2268,10 +2268,17 @@ function applyResizeToTable(table, storageKey) {
       grip.classList.add('active');
       const startX = e.clientX;
       const startW = th.getBoundingClientRect().width;
+      // 드래그 시작 시 모든 컬럼 현재 너비를 px로 고정 → 이웃 컬럼이 비례 축소되지 않음
+      const startWidths = [...ths].map(h => Math.round(h.getBoundingClientRect().width));
+      ths.forEach((h, i) => { h.style.width = startWidths[i] + 'px'; });
+      const startTableW = startWidths.reduce((a,b) => a+b, 0);
+      table.style.minWidth = startTableW + 'px';
       document.body.style.cursor = 'col-resize';
       function onMove(ev) {
         const w = Math.max(40, startW + (ev.clientX - startX));
         th.style.width = w + 'px';
+        // 테이블 최소 너비를 리사이즈 델타만큼 함께 조정 → 이웃 컬럼 보존, 좁으면 가로 스크롤
+        table.style.minWidth = Math.max(100, startTableW + (w - startW)) + 'px';
       }
       function onUp() {
         grip.classList.remove('active');
@@ -2280,9 +2287,11 @@ function applyResizeToTable(table, storageKey) {
         document.removeEventListener('mouseup', onUp);
         // 저장 + 같은 storageKey 를 쓰는 모든 표에 즉시 반영
         const widths = {};
-        ths.forEach((h, i) => { widths[i] = Math.round(h.getBoundingClientRect().width); });
+        ths.forEach((h, i) => {
+          const styled = parseInt(h.style.width, 10);
+          widths[i] = !isNaN(styled) ? styled : Math.round(h.getBoundingClientRect().width);
+        });
         try { localStorage.setItem(storageKey, JSON.stringify(widths)); } catch(_) {}
-        // 총 너비 재계산 → 테이블 최소 너비 즉시 반영 (고정 너비 유지, 다음 렌더까지 기다릴 필요 없음)
         const tot = Object.values(widths).reduce((a,b) => a+(b||0), 0);
         if (tot > 0) table.style.minWidth = tot + 'px';
         // 같은 view 내 다른 하위 표들도 동기화
