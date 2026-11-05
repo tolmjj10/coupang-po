@@ -596,7 +596,7 @@ function classify(sku, brand, campName) {
   const b = (brand || '').trim();
   const nameHint = sku && maps.sku2cat[sku] ? (maps.sku2cat[sku].name || '') : '';
   const text = `${campName || ''} ${nameHint}`;
-  if (text.includes('올리미') || text.includes('히팅뷰러') || text.includes('히팅마스크')) return '뷰티가전';
+  if (text.includes('올리미') || text.includes('히팅뷰러') || text.includes('히팅마스크')) return '뷰티';
   if (sku && maps.sku2cat[sku] && (b === '오아' || b === '보아르' || nameHint.startsWith('오아') || nameHint.startsWith('보아르'))) {
     return maps.sku2cat[sku].cat;
   }
@@ -763,9 +763,10 @@ function distributeCampCost(campId, totalRawCost, campCat) {
 /* SKU → 카테 (쿠폰 분류 로직과 동일) */
 function catForSku(sku, meta) {
   const nm = (meta && meta.name) || '';
-  if (nm.includes('올리미') || nm.includes('히팅뷰러') || nm.includes('히팅마스크')) return '뷰티가전';
+  if (nm.includes('올리미') || nm.includes('히팅뷰러') || nm.includes('히팅마스크')) return '뷰티';
   const raw = (nm.startsWith('오아') || nm.startsWith('보아르')) ? meta.cat : ((meta && meta.cat) || '기타');
   if (raw === '삼대오백' || raw === '온살') return '기타';
+  if (raw === '뷰티가전') return '뷰티';  // 뷰티가전 → 뷰티 통일
   return raw;
 }
 
@@ -839,7 +840,7 @@ function aggregate() {
     } else {
       // SKU명 fallback (sku2cat에 없을 때 쿠폰명에서 브랜드 추론)
       const nm = row.name || '';
-      if (nm.includes('올리미') || nm.includes('히팅뷰러') || nm.includes('히팅마스크')) { cat = '뷰티가전'; cpnMatched++; }
+      if (nm.includes('올리미') || nm.includes('히팅뷰러') || nm.includes('히팅마스크')) { cat = '뷰티'; cpnMatched++; }
       else if (nm.startsWith('오아')) { cat = '오아 미매칭'; cpnUnmatched++; }
       else if (nm.startsWith('보아르')) { cat = '보아르 미매칭'; cpnUnmatched++; }
       else { cat = '기타'; cpnMatched++; }
@@ -1154,7 +1155,7 @@ function renderReturnsPanel() {
 /* ─────────── 렌더 ─────────── */
 function render(byCat, stats) {
   currentByCat = byCat; currentStats = stats;
-  const BRAND_EXCLUDE = new Set(['뷰티가전', '기타']);
+  const BRAND_EXCLUDE = new Set(['뷰티', '기타']);
   const brandFiltered = filterBrand !== '';
   const cats = Object.entries(byCat).filter(([k]) => !brandFiltered || !BRAND_EXCLUDE.has(k));
   // 합계에서는 '기타'는 항상 제외 (오아/보아르만 반영)
@@ -1265,9 +1266,9 @@ function brandOf(sku, d) {
   const nm = (d.name || '').trim();
   if (nm.startsWith('오아')) return '오아';
   if (nm.startsWith('보아르')) return '보아르';
-  // 뷰티가전(올리미/히팅뷰러/히팅마스크)은 오아 산하
+  // 뷰티(올리미/히팅뷰러/히팅마스크)는 오아 산하
   if (nm.includes('올리미') || nm.includes('히팅뷰러') || nm.includes('히팅마스크')) return '오아';
-  if (d && d.cat === '뷰티가전') return '오아';
+  if (d && (d.cat === '뷰티' || d.cat === '뷰티가전')) return '오아';
   return '';
 }
 window.toggleCat = (cat) => {
@@ -1386,7 +1387,7 @@ function renderSkuTable(bySku) {
     const c = d.cat || '기타';
     allCats[c] = (allCats[c] || 0) + 1;
   }
-  const groupOf = k => k === '기타' ? 3 : UNMATCHED_CATS.has(k) ? 2 : (BRAND_CATS.has(k) || k === '뷰티가전' ? 1 : 0);
+  const groupOf = k => k === '기타' ? 3 : UNMATCHED_CATS.has(k) ? 2 : (BRAND_CATS.has(k) || k === '뷰티' ? 1 : 0);
   const chipCats = Object.keys(allCats).sort((a,b) => groupOf(a) - groupOf(b) || a.localeCompare(b));
 
   // 필터링 (카테 + 검색)
