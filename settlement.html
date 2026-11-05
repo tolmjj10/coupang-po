@@ -881,10 +881,15 @@ function aggregate() {
     }
   }
   // 2차: trial-by-sku.json에 해당 월 데이터 없으면 promotion-state 체험단 자동 계산
-  if (!Object.keys(trialBySku).length && trialYm && Array.isArray(promotionData)) {
+  // 월 식별은 activeMonth 우선, 없으면 cpcName에서 추출한 trialYm 사용 (전체 탭이면 모든 월)
+  const promoYm = (activeMonth && activeMonth !== 'ALL') ? activeMonth : trialYm;
+  const isAllMonth = activeMonth === 'ALL';
+  if (!Object.keys(trialBySku).length && Array.isArray(promotionData)) {
     for (const r of promotionData) {
       if (!r || r.type !== '체험단') continue;
-      if (!String(r.date || '').startsWith(trialYm)) continue;
+      const rowYm = String(r.date || '').slice(0, 7);
+      if (!isAllMonth && promoYm && !rowYm.startsWith(promoYm)) continue;
+      if (isAllMonth && !/^\d{4}-\d{2}/.test(rowYm)) continue;
       const sku = String(r.skuId || '').trim();
       if (!sku) continue;
       const mg = marginMap && marginMap[sku];
