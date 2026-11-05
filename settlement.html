@@ -443,7 +443,7 @@ let couponData = null;       // [{sku, amount}]  (|펀딩금액|)
 let salesData = null;        // { sku: {qty, gmvCogs, name, brand} }  (실입고=발주 전용)
 let returnsData = null;      // { sku: {qty, gmvCogs, name} }  (반출만 분리 집계)
 let promotionData = null;    // promotion-state 전체 (체험단 집계용)
-let trialOverride = null;    // /data/trial-by-sku.json — 월별 SKU별 체험단 (VAT제외) 수동 매핑
+let trialOverride = null;    // /settlement/trial-by-sku.json — 월별 SKU별 체험단 (VAT제외) 수동 매핑
 const EXPERIENCE_BASE_COST = 125000;
 let currentBySku = null;     // 집계된 SKU 상세 (필터링 재렌더용)
 let filterCat = '';          // '' = 전체
@@ -558,7 +558,7 @@ async function loadPromotion() {
 
 async function loadTrialOverride() {
   try {
-    const res = await fetch('/data/trial-by-sku.json', { cache: 'no-cache' });
+    const res = await fetch('/settlement/trial-by-sku.json', { cache: 'no-cache' });
     const data = await res.json();
     trialOverride = (data && data.months) || {};
   } catch (e) {
@@ -2079,7 +2079,7 @@ function patchAwardsRevertAndBrandSplit() {
 // 월별 상계처리 seed 로딩: 비어있는 월만 채움, 사용자 입력은 덮어쓰지 않음
 async function seedDeductionsIfMissing() {
   try {
-    const res = await fetch('/data/settlement-deductions.json', { cache: 'no-cache' });
+    const res = await fetch('/settlement/deductions.json', { cache: 'no-cache' });
     if (!res.ok) return;
     const seed = await res.json();
     const store = monthsStore();

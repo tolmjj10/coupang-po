@@ -1,0 +1,349 @@
+ 
+=== 2026-11-02  8:29:40.83 === 
+[main 04c067f] 판매 데이터 자동 갱신 (2026-11-02)
+ 3 files changed, 21 insertions(+), 13 deletions(-)
+ create mode 100644 data/sales-sku/2026-11.json
+From https://github.com/tolmjj10/coupang-po
+   665297d..fb17fee  main       -> origin/main
+Rebasing (1/1)Successfully rebased and updated refs/heads/main.
+To https://github.com/tolmjj10/coupang-po.git
+   fb17fee..4cdbb9c  main -> main
+Already up to date.
+scripts/refresh_sales.log already exists, no checkout
+error: could not restore untracked files from stash
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	_tmp/
+	scripts/refresh_sales.log
+
+nothing added to commit but untracked files present (use "git add" to track)
+The stash entry is kept in case you need it again.
+=== refresh_sales 2026-11-02T08:29:44 ===
+[dash] 당월 매출 301,823원  입고 133,968원  (작년 동월 1,358,595,942 / 800,256,521)
+[inbound] 허용 상품명 592개 (마진 단종제외 + 신제품)
+[inbound] 매칭 필터: 48 → 33건
+[inbound] 8개 입고일, 33품목, 총 94,782개 → KV 저장
+[check] DB 최신 2026-10-31  로컬 최신 None
+[sku] 2026-11-01  SKUs 0
+[sku] 2026-11-02  SKUs 0
+[sku] 2026-11-03  SKUs 0
+[sku] 2026-11-04  SKUs 0
+[sku] 2026-11-05  SKUs 0
+[sku] 2026-11-06  SKUs 0
+[sku] 2026-11-07  SKUs 0
+[sku] 2026-11-08  SKUs 0
+[sku] 2026-11-09  SKUs 0
+[sku] 2026-11-10  SKUs 0
+[sku] 2026-11-11  SKUs 0
+[sku] 2026-11-12  SKUs 0
+[sku] 2026-11-13  SKUs 0
+[sku] 2026-11-14  SKUs 0
+[sku] 2026-11-15  SKUs 0
+[sku] 2026-11-16  SKUs 0
+[sku] 2026-11-17  SKUs 0
+[sku] 2026-11-18  SKUs 0
+[sku] 2026-11-19  SKUs 0
+[sku] 2026-11-20  SKUs 0
+[sku] 2026-11-21  SKUs 0
+[sku] 2026-11-22  SKUs 0
+[sku] 2026-11-23  SKUs 0
+[sku] 2026-11-24  SKUs 0
+[sku] 2026-11-25  SKUs 0
+[sku] 2026-11-26  SKUs 0
+[sku] 2026-11-27  SKUs 0
+[sku] 2026-11-28  SKUs 0
+[sku] 2026-11-29  SKUs 0
+[sku] 2026-11-30  SKUs 0
+[sku] 2026-11.json 저장  out:0  in:0  amt:301,823  mgn:167,855
+[idx] 4개월 인덱스 갱신
+[git] push 완료: 판매 데이터 자동 갱신 (2026-11-02)
+=== 완료 ===
+ 
+=== 2026-11-02  8:35:03.35 === 
+[main a5a662a] 판매 데이터 자동 갱신 (2026-11-02)
+ 3 files changed, 7 insertions(+), 7 deletions(-)
+Current branch main is up to date.
+To https://github.com/tolmjj10/coupang-po.git
+   4cdbb9c..a5a662a  main -> main
+Already up to date.
+scripts/refresh_sales.log already exists, no checkout
+error: could not restore untracked files from stash
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	_tmp/
+	scripts/refresh_sales.log
+
+nothing added to commit but untracked files present (use "git add" to track)
+The stash entry is kept in case you need it again.
+=== refresh_sales 2026-11-02T08:35:04 ===
+[dash] 당월 매출 287,642원  입고 129,248원  (작년 동월 1,358,595,942 / 800,256,521)
+[inbound] 허용 상품명 592개 (마진 단종제외 + 신제품)
+[inbound] 매칭 필터: 48 → 33건
+[inbound] 8개 입고일, 33품목, 총 94,782개 → KV 저장
+[check] DB 최신 2026-11-01  로컬 최신 None
+[sku] 2026-11-01  SKUs 664
+[sku] 2026-11-02  SKUs 0
+[sku] 2026-11-03  SKUs 0
+[sku] 2026-11-04  SKUs 0
+[sku] 2026-11-05  SKUs 0
+[sku] 2026-11-06  SKUs 0
+[sku] 2026-11-07  SKUs 0
+[sku] 2026-11-08  SKUs 0
+[sku] 2026-11-09  SKUs 0
+[sku] 2026-11-10  SKUs 0
+[sku] 2026-11-11  SKUs 0
+[sku] 2026-11-12  SKUs 0
+[sku] 2026-11-13  SKUs 0
+[sku] 2026-11-14  SKUs 0
+[sku] 2026-11-15  SKUs 0
+[sku] 2026-11-16  SKUs 0
+[sku] 2026-11-17  SKUs 0
+[sku] 2026-11-18  SKUs 0
+[sku] 2026-11-19  SKUs 0
+[sku] 2026-11-20  SKUs 0
+[sku] 2026-11-21  SKUs 0
+[sku] 2026-11-22  SKUs 0
+[sku] 2026-11-23  SKUs 0
+[sku] 2026-11-24  SKUs 0
+[sku] 2026-11-25  SKUs 0
+[sku] 2026-11-26  SKUs 0
+[sku] 2026-11-27  SKUs 0
+[sku] 2026-11-28  SKUs 0
+[sku] 2026-11-29  SKUs 0
+[sku] 2026-11-30  SKUs 0
+[sku] 2026-11.json 저장  out:4,341  in:0  amt:287,642  mgn:158,394
+[idx] 4개월 인덱스 갱신
+[git] push 완료: 판매 데이터 자동 갱신 (2026-11-02)
+=== 완료 ===
+ 
+=== 2026-11-03  8:35:02.44 === 
+[main 156eb84] 판매 데이터 자동 갱신 (2026-11-03)
+ 3 files changed, 10 insertions(+), 10 deletions(-)
+Current branch main is up to date.
+To https://github.com/tolmjj10/coupang-po.git
+   bd3fa5a..156eb84  main -> main
+Already up to date.
+scripts/refresh_sales.log already exists, no checkout
+error: could not restore untracked files from stash
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	_tmp/
+	scripts/refresh_sales.log
+
+nothing added to commit but untracked files present (use "git add" to track)
+The stash entry is kept in case you need it again.
+=== refresh_sales 2026-11-03T08:35:02 ===
+[dash] 당월 매출 147,824,883원  입고 93,591,345원  (작년 동월 1,358,595,942 / 800,256,521)
+[inbound] 허용 상품명 592개 (마진 단종제외 + 신제품)
+[inbound] 매칭 필터: 28 → 19건
+[inbound] 8개 입고일, 19품목, 총 68,133개 → KV 저장
+[check] DB 최신 2026-11-02  로컬 최신 2026-11-01
+[sku] 2026-11-01  SKUs 664
+[sku] 2026-11-02  SKUs 665
+[sku] 2026-11-03  SKUs 0
+[sku] 2026-11-04  SKUs 0
+[sku] 2026-11-05  SKUs 0
+[sku] 2026-11-06  SKUs 0
+[sku] 2026-11-07  SKUs 0
+[sku] 2026-11-08  SKUs 0
+[sku] 2026-11-09  SKUs 0
+[sku] 2026-11-10  SKUs 0
+[sku] 2026-11-11  SKUs 0
+[sku] 2026-11-12  SKUs 0
+[sku] 2026-11-13  SKUs 0
+[sku] 2026-11-14  SKUs 0
+[sku] 2026-11-15  SKUs 0
+[sku] 2026-11-16  SKUs 0
+[sku] 2026-11-17  SKUs 0
+[sku] 2026-11-18  SKUs 0
+[sku] 2026-11-19  SKUs 0
+[sku] 2026-11-20  SKUs 0
+[sku] 2026-11-21  SKUs 0
+[sku] 2026-11-22  SKUs 0
+[sku] 2026-11-23  SKUs 0
+[sku] 2026-11-24  SKUs 0
+[sku] 2026-11-25  SKUs 0
+[sku] 2026-11-26  SKUs 0
+[sku] 2026-11-27  SKUs 0
+[sku] 2026-11-28  SKUs 0
+[sku] 2026-11-29  SKUs 0
+[sku] 2026-11-30  SKUs 0
+[sku] 2026-11.json 저장  out:8,458  in:5,466  amt:147,824,883  mgn:54,233,538
+[idx] 4개월 인덱스 갱신
+[git] push 완료: 판매 데이터 자동 갱신 (2026-11-03)
+=== 완료 ===
+ 
+=== 2026-11-04  8:35:02.59 === 
+[main eb6859c] 판매 데이터 자동 갱신 (2026-11-04)
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+From https://github.com/tolmjj10/coupang-po
+   f50c2d5..2898e03  main       -> origin/main
+Rebasing (1/1)Successfully rebased and updated refs/heads/main.
+To https://github.com/tolmjj10/coupang-po.git
+   2898e03..d957f44  main -> main
+Already up to date.
+scripts/refresh_sales.log already exists, no checkout
+error: could not restore untracked files from stash
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	_tmp/
+	scripts/refresh_sales.log
+
+nothing added to commit but untracked files present (use "git add" to track)
+The stash entry is kept in case you need it again.
+=== refresh_sales 2026-11-04T08:35:03 ===
+[dash] 당월 매출 327,588,366원  입고 213,940,028원  (작년 동월 1,358,595,942 / 800,256,521)
+[inbound] 허용 상품명 592개 (마진 단종제외 + 신제품)
+[inbound] 매칭 필터: 19 → 12건
+[inbound] 5개 입고일, 12품목, 총 50,909개 → KV 저장
+[check] DB 최신 2026-11-02  로컬 최신 2026-11-02
+[sku] 당월 새 데이터 없음 — 생략
+[sku] 전월(2026-10) 지연 보고 백필
+[sku] 2026-10-01  SKUs 662
+[sku] 2026-10-02  SKUs 660
+[sku] 2026-10-03  SKUs 656
+[sku] 2026-10-04  SKUs 652
+[sku] 2026-10-05  SKUs 651
+[sku] 2026-10-06  SKUs 649
+[sku] 2026-10-07  SKUs 657
+[sku] 2026-10-08  SKUs 659
+[sku] 2026-10-09  SKUs 657
+[sku] 2026-10-10  SKUs 656
+[sku] 2026-10-11  SKUs 656
+[sku] 2026-10-12  SKUs 656
+[sku] 2026-10-13  SKUs 657
+[sku] 2026-10-14  SKUs 656
+[sku] 2026-10-15  SKUs 660
+[sku] 2026-10-16  SKUs 664
+[sku] 2026-10-17  SKUs 659
+[sku] 2026-10-18  SKUs 655
+[sku] 2026-10-19  SKUs 661
+[sku] 2026-10-20  SKUs 660
+[sku] 2026-10-21  SKUs 662
+[sku] 2026-10-22  SKUs 664
+[sku] 2026-10-23  SKUs 662
+[sku] 2026-10-24  SKUs 661
+[sku] 2026-10-25  SKUs 660
+[sku] 2026-10-26  SKUs 661
+[sku] 2026-10-27  SKUs 666
+[sku] 2026-10-28  SKUs 666
+[sku] 2026-10-29  SKUs 667
+[sku] 2026-10-30  SKUs 665
+[sku] 2026-10-31  SKUs 665
+[sku] 2026-10.json 저장  out:114,889  in:117,564  amt:1,795,392,589  mgn:621,800,929
+[idx] 4개월 인덱스 갱신
+[git] push 완료: 판매 데이터 자동 갱신 (2026-11-04)
+=== 완료 ===
+ 
+=== 2026-11-04  9:45:10.48 === 
+[main 305abca] 판매 데이터 자동 갱신 (2026-11-04)
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+Current branch main is up to date.
+To https://github.com/tolmjj10/coupang-po.git
+   283ce86..305abca  main -> main
+Already up to date.
+scripts/refresh_sales.log already exists, no checkout
+error: could not restore untracked files from stash
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	_tmp/
+	scripts/refresh_sales.log
+
+nothing added to commit but untracked files present (use "git add" to track)
+The stash entry is kept in case you need it again.
+=== refresh_sales 2026-11-04T09:45:10 ===
+[dash] 당월 매출 327,588,366원  입고 213,940,028원  (작년 동월 1,358,595,942 / 800,256,521)
+[inbound] 허용 상품명 592개 (마진 단종제외 + 신제품)
+[inbound] 매칭 필터: 19 → 12건
+[inbound] 5개 입고일, 12품목, 총 50,909개 → KV 저장
+[check] DB 최신 2026-11-03  로컬 최신 2026-11-02
+[sku] 2026-11-01  SKUs 664
+[sku] 2026-11-02  SKUs 665
+[sku] 2026-11-03  SKUs 664
+[sku] 2026-11-04  SKUs 0
+[sku] 2026-11-05  SKUs 0
+[sku] 2026-11-06  SKUs 0
+[sku] 2026-11-07  SKUs 0
+[sku] 2026-11-08  SKUs 0
+[sku] 2026-11-09  SKUs 0
+[sku] 2026-11-10  SKUs 0
+[sku] 2026-11-11  SKUs 0
+[sku] 2026-11-12  SKUs 0
+[sku] 2026-11-13  SKUs 0
+[sku] 2026-11-14  SKUs 0
+[sku] 2026-11-15  SKUs 0
+[sku] 2026-11-16  SKUs 0
+[sku] 2026-11-17  SKUs 0
+[sku] 2026-11-18  SKUs 0
+[sku] 2026-11-19  SKUs 0
+[sku] 2026-11-20  SKUs 0
+[sku] 2026-11-21  SKUs 0
+[sku] 2026-11-22  SKUs 0
+[sku] 2026-11-23  SKUs 0
+[sku] 2026-11-24  SKUs 0
+[sku] 2026-11-25  SKUs 0
+[sku] 2026-11-26  SKUs 0
+[sku] 2026-11-27  SKUs 0
+[sku] 2026-11-28  SKUs 0
+[sku] 2026-11-29  SKUs 0
+[sku] 2026-11-30  SKUs 0
+[sku] 2026-11.json 저장  out:12,367  in:12,420  amt:327,588,366  mgn:113,648,338
+[sku] 전월(2026-10) 지연 보고 백필
+[sku] 2026-10-01  SKUs 662
+[sku] 2026-10-02  SKUs 660
+[sku] 2026-10-03  SKUs 656
+[sku] 2026-10-04  SKUs 652
+[sku] 2026-10-05  SKUs 651
+[sku] 2026-10-06  SKUs 649
+[sku] 2026-10-07  SKUs 657
+[sku] 2026-10-08  SKUs 659
+[sku] 2026-10-09  SKUs 657
+[sku] 2026-10-10  SKUs 656
+[sku] 2026-10-11  SKUs 656
+[sku] 2026-10-12  SKUs 656
+[sku] 2026-10-13  SKUs 657
+[sku] 2026-10-14  SKUs 656
+[sku] 2026-10-15  SKUs 660
+[sku] 2026-10-16  SKUs 664
+[sku] 2026-10-17  SKUs 659
+[sku] 2026-10-18  SKUs 655
+[sku] 2026-10-19  SKUs 661
+[sku] 2026-10-20  SKUs 660
+[sku] 2026-10-21  SKUs 662
+[sku] 2026-10-22  SKUs 664
+[sku] 2026-10-23  SKUs 662
+[sku] 2026-10-24  SKUs 661
+[sku] 2026-10-25  SKUs 660
+[sku] 2026-10-26  SKUs 661
+[sku] 2026-10-27  SKUs 666
+[sku] 2026-10-28  SKUs 666
+[sku] 2026-10-29  SKUs 667
+[sku] 2026-10-30  SKUs 665
+[sku] 2026-10-31  SKUs 665
+[sku] 2026-10.json 저장  out:114,889  in:117,564  amt:1,795,392,589  mgn:621,800,929
+[idx] 4개월 인덱스 갱신
+[git] push 완료: 판매 데이터 자동 갱신 (2026-11-04)
+=== 완료 ===
+ 
+=== 2026-11-04  9:51:15.08 [inbound only] === 
+=== refresh_sales 2026-11-04T09:51:15 mode=inbound ===
+[inbound] 허용 상품명 592개 (마진 단종제외 + 신제품)
+[inbound] 매칭 필터: 19 → 12건
+[inbound] 5개 입고일, 12품목, 총 50,909개 → KV 저장
+[git] 변경 없음 — push 생략
+=== 완료 ===
