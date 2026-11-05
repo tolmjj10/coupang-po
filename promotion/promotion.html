@@ -235,6 +235,12 @@
   td.calc.id-cell { color: var(--hint); }
   td.calc.name-cell { color: var(--text); font-weight: 600; }
   td input[data-k="skuId"] { font-weight: 600; }
+  /* 판매현황 자동 집계된 판매량 셀 — 수기값과 구분 */
+  td input.sold-input.auto-sold {
+    color: var(--hint); font-style: italic; font-weight: 500;
+    background: #faf6f0; border-style: dashed;
+  }
+  td input.sold-input.auto-sold:focus { color: var(--text); font-style: normal; background: #fff; border-style: solid; }
   td.num { font-variant-numeric: tabular-nums; }
 
   /* 날짜 입력의 달력 아이콘 숨기기 (클릭 시 달력은 정상 열림) */
@@ -822,6 +828,76 @@ function findConflict(row) {
   return null;
 }
 
+/* ═══════════════════════ 판매현황 자동 집계 ═══════════════════════ */
+// sales-sku/YYYY-MM.json 로드. 과거 종료된 이벤트의 판매량을 자동 채움.
+let salesByMonth = {};              // ym → { dates:[], bySku:{ id: qty[] } }
+const _salesLoading = new Set();    // ym being fetched
+const _salesFailed = new Set();     // ym that 404'd (skip retry)
+const TODAY_STR = (() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+
+async function loadSalesMonth(ym, force=false) {
+  if (!force && (salesByMonth[ym] || _salesLoading.has(ym) || _salesFailed.has(ym))) return;
+  _salesLoading.add(ym);
+  try {
+    const res = await fetch(`/data/sales-sku/${ym}.json`, { cache: 'no-store' });
+    if (!res.ok) { _salesFailed.add(ym); return; }
+    const j = await res.json();
+    const bySku = {};
+    (j.metrics && j.metrics.out || []).forEach(it => { bySku[String(it.id)] = it.qty || []; });
+    salesByMonth[ym] = { dates: j.dates || [], bySku };
+    scheduleRender();
+  } catch(e) {
+    console.warn('[promotion] sales 로드 실패', ym, e.message);
+  } finally {
+    _salesLoading.delete(ym);
+  }
+}
+// 자동 집계값이 들어있는 판매량 input: 포커스 시 전체 선택(수기 덮어쓰기 쉽도록)
+document.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (el && el.matches && el.matches('input.sold-input.auto-sold')) {
+    setTimeout(() => el.select(), 0);
+  }
+});
+
+async function refreshAllSales() {
+  const months = Object.keys(salesByMonth);
+  _salesFailed.clear();
+  await Promise.all(months.map(ym => loadSalesMonth(ym, true)));
+}
+function monthsBetweenInclusive(start, end) {
+  if (!start) return [];
+  const [sy, sm] = start.slice(0,7).split('-').map(Number);
+  const [ey, em] = (end||start).slice(0,7).split('-').map(Number);
+  const out = [];
+  let y = sy, m = sm;
+  while (y < ey || (y === ey && m <= em)) {
+    out.push(`${y}-${String(m).padStart(2,'0')}`);
+    m++; if (m > 12) { m = 1; y++; }
+  }
+  return out;
+}
+// 집계 범위의 종료일이 어제 이하(완결)인 경우에만 자동 집계. 미래/오늘 포함이면 null.
+function autoSoldFromSales(skuId, startDate, endDate) {
+  const sku = String(skuId||'').trim();
+  if (!sku || !startDate) return null;
+  const end = endDate || startDate;
+  if (end >= TODAY_STR) return null;  // 아직 진행중/오늘 포함 → 자동 집계 안 함
+  const months = monthsBetweenInclusive(startDate, end);
+  let total = 0;
+  let allLoaded = true;
+  for (const ym of months) {
+    const pack = salesByMonth[ym];
+    if (!pack) { allLoaded = false; loadSalesMonth(ym); continue; }
+    const qtyArr = pack.bySku[sku];
+    if (!qtyArr) continue;  // 이 달엔 매출 없음
+    pack.dates.forEach((dStr, i) => {
+      if (dStr >= startDate && dStr <= end) total += (qtyArr[i] || 0);
+    });
+  }
+  return allLoaded ? total : null;
+}
+
 /* ═══════════════════════ 파생 계산 ═══════════════════════ */
 function derive(r) {
   const m = marginMap[String(r.skuId||'').trim()] || null;
@@ -852,10 +928,16 @@ function derive(r) {
   // 분석 지표 (골드박스/타임특가에서만 의미 있음, 다른 유형은 계산되어도 표시 안 함)
   const qty = parseN(r.qty);
   const sold = parseN(r.sold);
-  const soldRate = (sold != null && qty) ? sold/qty : null;
-  const totalRevenue = (sold != null && promoPrice != null) ? sold * promoPrice : null;
-  const totalMargin  = (sold != null && promoMargin != null) ? sold * promoMargin : null;
-  return { m, skuName, salePrice, priceBase, priceDelta, supply, curMargin, viid, pid, discAmt, promoPrice, promoMargin, promoMarginRate, soldRate, totalRevenue, totalMargin };
+  // 자동 집계: 수기 입력이 없고 이벤트 종료일이 과거면 판매현황에서 끌어옴
+  const endEff = r.endDate || r.date;
+  const autoSold = (sold == null && r.type && r.type !== '체험단')
+    ? autoSoldFromSales(r.skuId, r.date, endEff)
+    : null;
+  const soldEff = (sold != null) ? sold : autoSold;
+  const soldRate = (soldEff != null && qty) ? soldEff/qty : null;
+  const totalRevenue = (soldEff != null && promoPrice != null) ? soldEff * promoPrice : null;
+  const totalMargin  = (soldEff != null && promoMargin != null) ? soldEff * promoMargin : null;
+  return { m, skuName, salePrice, priceBase, priceDelta, supply, curMargin, viid, pid, discAmt, promoPrice, promoMargin, promoMarginRate, soldRate, totalRevenue, totalMargin, autoSold, soldEff };
 }
 
 /* ═══════════════════════ Render ═══════════════════════ */
@@ -1446,7 +1528,13 @@ function planRowHtml(r) {
     <td class="right calc num strong">${fmtN(d.promoMargin)}</td>
     <td class="right calc num">${fmtPct(d.promoMarginRate)}</td>
     <td class="right calc num">${fmtN(d.supply)}</td>
-    <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="sold" value="${esc(r.sold??'')}"></td>
+    ${(() => {
+      const isAuto = (r.sold == null || r.sold === '') && d.autoSold != null;
+      const val = isAuto ? fmtN(d.autoSold) : esc(r.sold??'');
+      const cls = isAuto ? ' auto-sold' : '';
+      const ttl = isAuto ? ' title="판매현황 자동 집계 · 입력 시 수기값 우선"' : '';
+      return `<td><input class="sold-input${cls}" type="text" inputmode="numeric" pattern="[0-9]*" data-k="sold" data-auto="${isAuto?'1':''}" value="${val}" placeholder="${d.autoSold!=null?fmtN(d.autoSold):''}"${ttl}></td>`;
+    })()}
     <td class="right calc num">${fmtN(d.totalRevenue)}</td>
     <td class="right calc num strong">${fmtN(d.totalMargin)}</td>
     <td><button class="row-del" title="삭제" data-row-id="${esc(r.id)}" onmousedown="event.preventDefault()" onclick="window.deletePromoRow(this.dataset.rowId)">✕</button></td>
@@ -1717,8 +1805,11 @@ function analyticsCellsHtml(r, d) {
     else if (d.soldRate >= 0.5) rateCls += ' rate-mid';
     else rateCls += ' rate-bad';
   }
+  const isAutoS = (r.sold == null || r.sold === '') && d.autoSold != null;
+  const soldValS = isAutoS ? fmtN(d.autoSold) : esc(r.sold??'');
+  const soldCell = `<td><input class="sold-input${isAutoS?' auto-sold':''}" type="text" inputmode="numeric" pattern="[0-9]*" data-k="sold" data-auto="${isAutoS?'1':''}" value="${soldValS}" placeholder="${d.autoSold!=null?fmtN(d.autoSold):''}"${isAutoS?' title="판매현황 자동 집계 · 입력 시 수기값 우선"':''}></td>`;
   return `
-    <td><input type="text" inputmode="numeric" pattern="[0-9]*" data-k="sold" value="${esc(r.sold??'')}"></td>
+    ${soldCell}
     <td class="right ${rateCls} strong">${fmtPct(d.soldRate)}</td>
     <td class="right calc num">${fmtN(d.totalRevenue)}</td>
     <td class="right calc num strong">${fmtN(d.totalMargin)}</td>`;
@@ -2139,7 +2230,7 @@ function calEntriesForDate(d) {
 }
 $('reloadBtn').addEventListener('click', async () => {
   saveStatus('갱신 중…');
-  await loadMargin();
+  await Promise.all([loadMargin(), refreshAllSales()]);
   render();
   saveStatus('갱신 완료');
 });
@@ -2196,6 +2287,9 @@ function applyResizeToTable(table, storageKey) {
         const widths = {};
         ths.forEach((h, i) => { widths[i] = Math.round(h.getBoundingClientRect().width); });
         try { localStorage.setItem(storageKey, JSON.stringify(widths)); } catch(_) {}
+        // 총 너비 재계산 → 테이블 최소 너비 즉시 반영 (고정 너비 유지, 다음 렌더까지 기다릴 필요 없음)
+        const tot = Object.values(widths).reduce((a,b) => a+(b||0), 0);
+        if (tot > 0) table.style.minWidth = tot + 'px';
         // 같은 view 내 다른 하위 표들도 동기화
         document.querySelectorAll(`table[data-col-widths="${storageKey}"]`).forEach(t => {
           if (t === table) return;
@@ -2210,6 +2304,16 @@ function applyResizeToTable(table, storageKey) {
       document.addEventListener('mouseup', onUp);
     });
   });
+  // 컬럼 합계를 테이블 최소너비로 강제 → 뷰포트 폭에 상관없이 지정한 px이 그대로 유지되고
+  // 좁으면 .table-wrap 의 overflow:auto 로 가로 스크롤이 생김. (동기화마다 칸이 줄어드는 현상 방지)
+  const totalW = [...ths].reduce((s, th) => {
+    const styled = parseInt(th.style.width, 10);
+    if (!isNaN(styled)) return s + styled;
+    const origW = parseInt(th.dataset.origWidth, 10);
+    if (!isNaN(origW)) return s + origW;
+    return s + Math.round(th.getBoundingClientRect().width);
+  }, 0);
+  if (totalW > 0) table.style.minWidth = totalW + 'px';
   table.dataset.colWidths = storageKey;
 }
 

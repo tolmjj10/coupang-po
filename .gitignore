@@ -5,7 +5,9 @@ settlement_files/
 
 # 로컬 데이터 파일
 *.xlsx
-!promotion/*.xlsx
+!promotion/행사제안.xlsx
+!promotion/체험단리스트.xlsx
+# promotion의 자동생성 타임특가/골드박스 파일은 커밋 안 함
 *.csv
 !data/daily/*.csv
 *.pyc
@@ -16,6 +18,8 @@ _margin_dump.json
 # 백업/스크래치 폴더
 리스트 모두 합치기 전/
 .impeccable/
+_tmp/
+*.log
 
 # 편집기 자동 생성
 __pycache__/

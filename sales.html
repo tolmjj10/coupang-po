@@ -69,7 +69,17 @@
   .month-label { position: relative; font-size: 13px; font-weight: 700; padding: 0 14px; min-width: 110px; text-align: center; cursor: pointer; }
   .month-label:hover { color: var(--accent-dark); }
   .month-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; font: inherit; }
+  .search { display: flex; align-items: center; gap: 6px; }
   .search input { font: inherit; font-size: 12.5px; padding: 6px 10px; min-width: 180px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+  .refresh-btn {
+    width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer;
+    color: var(--text-hint); transition: color .12s, border-color .12s, background .12s, transform .4s;
+  }
+  .refresh-btn:hover { color: var(--text); border-color: var(--text-hint); background: #fff; }
+  .refresh-btn svg { width: 14px; height: 14px; stroke-width: 2; }
+  .refresh-btn.spinning svg { animation: refresh-spin .8s linear infinite; }
+  @keyframes refresh-spin { to { transform: rotate(360deg); } }
 
   .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; max-width: 820px; }
   .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; transition: border-color .12s, box-shadow .12s; }
@@ -200,7 +210,12 @@
       <div class="month-label" id="month-label"><span id="month-text">—</span><input type="month" class="month-input" id="month-input"></div>
       <div class="month-btn" id="next" title="다음 달"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
     </div>
-    <div class="search" style="margin-left:auto;"><input type="search" id="search" placeholder="상품명/SKU/카테고리 검색"></div>
+    <div class="search" style="margin-left:auto;">
+      <button type="button" id="refreshBtn" class="refresh-btn" title="판매 데이터 새로고침">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      </button>
+      <input type="search" id="search" placeholder="상품명/SKU/카테고리 검색">
+    </div>
   </div>
 
   <div class="kpi-grid">
@@ -618,6 +633,45 @@
   }));
   let searchTimer;
   searchEl.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(refreshPivot, 120); });
+
+  // 새로고침 버튼: 캐시 비우고 manifest/마진/마스터/이슈맵 전부 다시 로드 → 현재 월 재적재
+  const refreshBtn = document.getElementById('refreshBtn');
+  async function hardRefresh() {
+    if (refreshBtn.classList.contains('spinning')) return;
+    refreshBtn.classList.add('spinning');
+    try {
+      Object.keys(cache).forEach(k => delete cache[k]);
+      const [m, ms, mm, issueMap] = await Promise.all([
+        fetch('data/sales-sku/index.json', { cache: 'no-store' }).then(r => r.json()),
+        fetch('/api/margin-state', { cache: 'no-store' }).then(r => r.ok ? r.json() : { rows: [] }).catch(() => ({ rows: [] })),
+        fetch('data/sales-sku/master.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : { skus: {} }).catch(() => ({ skus: {} })),
+        loadIssueMap()
+      ]);
+      manifest = m;
+      availableMonths = m.months.slice().sort();
+      monthInput.min = availableMonths[0];
+      monthInput.max = availableMonths[availableMonths.length - 1];
+      marginMap = {};
+      for (const r of ((ms && ms.rows) || [])) {
+        const sku = String(r.sku || '').trim();
+        if (!sku || !/^\d+$/.test(sku)) continue;
+        marginMap[sku] = { cat: r.cat || '', name: r.name || '', cost: r.cost || 0, price: r.price || 0 };
+      }
+      masterMap = (mm && mm.skus) || {};
+      for (const [sku, note] of Object.entries(issueMap)) {
+        if (!masterMap[sku]) masterMap[sku] = {};
+        masterMap[sku].note = note;
+      }
+      const mcount = Object.keys(marginMap).length;
+      metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${mm.as_of || '-'} · 마진 ${mcount} SKU`;
+      setMonth(currentMonth || availableMonths[availableMonths.length - 1]);
+    } catch (e) {
+      metaEl.textContent = '새로고침 실패: ' + (e.message || e);
+    } finally {
+      setTimeout(() => refreshBtn.classList.remove('spinning'), 400);
+    }
+  }
+  refreshBtn.addEventListener('click', hardRefresh);
 
   // 상품명 컬럼 리사이즈 (드래그)
   try {
