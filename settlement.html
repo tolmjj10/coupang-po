@@ -1103,6 +1103,7 @@ function renderReturnsPanel() {
   const allRows = Object.entries(returnsData)
     .map(([sku, d]) => ({ sku, ...d, cat: catOf(sku, d), brand: brandOf(sku, d) }))
     .filter(r => r.cat !== '기타');  // 기타 제외
+  if (!allRows.length) { box.innerHTML = ''; return; }
   const rows = allRows
     .filter(r => !filterReturnBrand || r.brand === filterReturnBrand)
     .sort((a, b) => a.gmvCogs - b.gmvCogs);
