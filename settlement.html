@@ -1159,8 +1159,8 @@ function render(byCat, stats) {
   const BRAND_EXCLUDE = new Set(['뷰티', '기타']);
   const brandFiltered = filterBrand !== '';
   const cats = Object.entries(byCat).filter(([k]) => !brandFiltered || !BRAND_EXCLUDE.has(k));
-  // 합계에서는 '기타'는 항상 제외 (오아/보아르만 반영)
-  const totalCats = cats.filter(([k]) => k !== '기타');
+  // 합계에서는 '기타'와 가상 '체험단 미분배' 제외 (오아/보아르만 반영)
+  const totalCats = cats.filter(([k]) => k !== '기타' && k !== '체험단 미분배');
   const totalCpc = totalCats.reduce((s,[,v]) => s + v.cpc, 0);
   const totalCpn = totalCats.reduce((s,[,v]) => s + v.coupon, 0);
   const totalGmv = totalCats.reduce((s,[,v]) => s + (v.gmv||0), 0);
@@ -1421,10 +1421,11 @@ function renderSkuTable(bySku) {
     return sb - sa;
   });
 
-  // 필터된 합계 (기타 카테고리는 합계에서 제외)
+  // 필터된 합계 (기타, 체험단 미분배 가상 카테는 합계 집계에서 제외)
   let TG=0, TC=0, TP=0, TCPC=0, TCPN=0, TTR=0;
   for (const [,d] of filtered) {
-    if ((d.cat || '기타') === '기타') continue;
+    const c = d.cat || '기타';
+    if (c === '기타' || c === '체험단 미분배') continue;
     TG+=d.gmv; TC+=d.cogs; TCPC+=d.cpcVat; TCPN+=d.coupon; TTR+=(d.trial||0); TP+=d.profit;
   }
   const _dForSku = getActiveDeductions();
@@ -1937,7 +1938,7 @@ function onDeductInput(e) {
   inp.value = fmtInput(raw);
   const store = monthsStore();
   const entry = store[activeMonth] || (store[activeMonth] = {});
-  entry.deductions = entry.deductions || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0 };
+  entry.deductions = entry.deductions || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, awardsBoarre:0 };
   entry.deductions[inp.dataset.k] = raw;
   saveMonthsStore(store);
   document.getElementById('dp-sum').textContent = fmtWon(calcDeductSum(entry.deductions));
@@ -2003,7 +2004,8 @@ const _origSwitchMonth = switchMonth;
 switchMonth = function(m) {
   _origSwitchMonth.call(this, m);
   renderDeductPanel();
-  applyDeductionsToSummary();
+  // aggregate() 내부에서 applyDeductionsToSummary가 이미 호출됨. 데이터 없는 월엔 수동 호출.
+  if (!cpcData && !couponData) applyDeductionsToSummary();
 };
 
 // 1회 마이그레이션: 기존 저장된 full premium 값을 ½로 변환 (schemaVersion 2)
@@ -2120,13 +2122,13 @@ function augmentSkuMapFromMargin() {
   restoreFromLs();
   // 2) KV의 월별 전체 스토어를 머지 (다른 PC에서 올린 값 받기)
   await restoreMonthsFromServer();
-  // 3) 마이그/패치
+  // 3) 매핑/마진/프로모션/시드 로드 — 패치는 seed 후에 돌아야 값 기반 조건이 성립
+  await Promise.all([loadMaps(), loadMargin(), loadPromotion(), loadTrialOverride(), seedDeductionsIfMissing()]);
+  // 4) 마이그/패치 (seed 로드 후)
   migratePremiumToHalf();
   patch2026_04_DA();
   patchAwardsRevertAndBrandSplit();
   patch2026_10_trial();
-  // 4) 매핑/마진/프로모션/시드 로드
-  await Promise.all([loadMaps(), loadMargin(), loadPromotion(), loadTrialOverride(), seedDeductionsIfMissing()]);
   augmentSkuMapFromMargin();
   // 5) 활성 단일 KV (최근 업로드 1건 공유)
   const hadServer = await restoreFromServer();
