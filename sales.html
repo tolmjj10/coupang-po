@@ -280,6 +280,7 @@
   const cache = {};
   let marginMap = {};  // sku_id -> {cat, name, cost, price}
   let masterMap = {};  // sku_id -> {stock, note, sn, brand, sp}
+  let rosterMap = {};  // sku_id -> {name, cat, kcat, item, owner, status, stock} (일일판매량 xlsx)
 
   function loadMonth(ym) {
     if (cache[ym]) return Promise.resolve(cache[ym]);
@@ -288,22 +289,46 @@
       .then(d => { cache[ym] = d; return d; });
   }
 
-  function filterAndOverlay(skus, metric) {
+  function filterAndOverlay(skus, metric, data) {
     const unitKey = metric === 'in' ? 'cost' : 'price';
     const out = [];
+    const seen = new Set();
     for (const s of skus) {
       const m = marginMap[s.id];
-      if (!m) continue;
+      const ro = rosterMap[s.id];
+      if (!m && !ro) continue;
       const mm = masterMap[s.id] || {};
-      const unit = Number(m[unitKey]) || 0;
+      const unit = m ? (Number(m[unitKey]) || 0) : 0;
       out.push(Object.assign({}, s, {
-        cat: m.cat || s.cat || '',
-        sn:  m.name || s.sn || mm.sn || '',
+        cat:  (m && m.cat) || s.cat || (ro && ro.cat) || '',
+        sn:   (m && m.name) || s.sn || mm.sn || (ro && ro.name) || '',
         note: mm.note || '',
-        stock: mm.stock || 0,
+        stock: mm.stock || (ro && ro.stock) || 0,
         unitPrice: unit,
         revenue: s.total * unit
       }));
+      seen.add(s.id);
+    }
+    // 판매 0인 roster SKU도 포함 — 날짜 길이에 맞춘 0 배열
+    if (data) {
+      const zeroLen = (data.dates || []).length;
+      const zeros = new Array(zeroLen).fill(0);
+      for (const id of Object.keys(rosterMap)) {
+        if (seen.has(id)) continue;
+        const ro = rosterMap[id];
+        const mm = masterMap[id] || {};
+        const m  = marginMap[id];
+        const unit = m ? (Number(m[unitKey]) || 0) : 0;
+        out.push({
+          id, total: 0, qty: zeros.slice(),
+          cat:  (m && m.cat) || ro.cat || '',
+          sn:   (m && m.name) || mm.sn || ro.name || '',
+          note: mm.note || '',
+          stock: mm.stock || ro.stock || 0,
+          unitPrice: unit,
+          revenue: 0
+        });
+      }
     }
     return out;
   }
@@ -418,7 +443,7 @@
     }
     const isIn = currentMetric === 'in';
     const q = searchEl.value.trim().toLowerCase();
-    let skus = filterAndOverlay(data.metrics[currentMetric] || [], currentMetric);
+    let skus = filterAndOverlay(data.metrics[currentMetric] || [], currentMetric, data);
     if (q) {
       skus = skus.filter(s =>
         (s.sn || '').toLowerCase().includes(q) ||
@@ -509,28 +534,35 @@
     }
     // SKU 통합: 월별 메트릭 합치기
     const skuAgg = {};
+    const ensureAgg = (id) => {
+      if (skuAgg[id]) return skuAgg[id];
+      const mm = masterMap[id] || {};
+      const mg = marginMap[id];
+      const ro = rosterMap[id];
+      if (!mg && !ro) return null;
+      skuAgg[id] = {
+        id,
+        cat: (mg && mg.cat) || (ro && ro.cat) || '',
+        sn:  (mg && mg.name) || mm.sn || (ro && ro.name) || '',
+        note: mm.note || '',
+        stock: mm.stock || (ro && ro.stock) || 0,
+        byMonth: {},
+        total: 0
+      };
+      return skuAgg[id];
+    };
     for (const ym of months) {
       const d = cache[ym];
       const arr = d.metrics[metric] || [];
       for (const s of arr) {
-        if (!marginMap[s.id]) continue;
-        if (!skuAgg[s.id]) {
-          const mm = masterMap[s.id] || {};
-          const mg = marginMap[s.id];
-          skuAgg[s.id] = {
-            id: s.id,
-            cat: mg.cat || '',
-            sn: mg.name || mm.sn || '',
-            note: mm.note || '',
-            stock: mm.stock || 0,
-            byMonth: {},
-            total: 0
-          };
-        }
-        skuAgg[s.id].byMonth[ym] = (skuAgg[s.id].byMonth[ym] || 0) + s.total;
-        skuAgg[s.id].total += s.total;
+        const e = ensureAgg(s.id);
+        if (!e) continue;
+        e.byMonth[ym] = (e.byMonth[ym] || 0) + s.total;
+        e.total += s.total;
       }
     }
+    // 판매 0인 roster SKU도 베이스로 포함
+    for (const id of Object.keys(rosterMap)) ensureAgg(id);
     let skus = Object.values(skuAgg);
     const q = searchEl.value.trim().toLowerCase();
     if (q) {
@@ -641,12 +673,14 @@
     refreshBtn.classList.add('spinning');
     try {
       Object.keys(cache).forEach(k => delete cache[k]);
-      const [m, ms, mm, issueMap] = await Promise.all([
+      const [m, ms, mm, issueMap, ro] = await Promise.all([
         fetch('data/sales-sku/index.json', { cache: 'no-store' }).then(r => r.json()),
         fetch('/api/margin-state', { cache: 'no-store' }).then(r => r.ok ? r.json() : { rows: [] }).catch(() => ({ rows: [] })),
         fetch('data/sales-sku/master.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : { skus: {} }).catch(() => ({ skus: {} })),
-        loadIssueMap()
+        loadIssueMap(),
+        fetch('data/sales-sku/roster.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : { skus: {} }).catch(() => ({ skus: {} }))
       ]);
+      rosterMap = (ro && ro.skus) || {};
       manifest = m;
       availableMonths = m.months.slice().sort();
       monthInput.min = availableMonths[0];
@@ -738,8 +772,10 @@
     fetch('data/sales-sku/index.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : Promise.reject(r.status)),
     fetch('/api/margin-state', { cache: 'no-cache' }).then(r => r.ok ? r.json() : { rows: [] }).catch(() => ({ rows: [] })),
     fetch('data/sales-sku/master.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : { skus: {} }).catch(() => ({ skus: {} })),
-    loadIssueMap()
-  ]).then(([m, ms, mm, issueMap]) => {
+    loadIssueMap(),
+    fetch('data/sales-sku/roster.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : { skus: {} }).catch(() => ({ skus: {} }))
+  ]).then(([m, ms, mm, issueMap, ro]) => {
+    rosterMap = (ro && ro.skus) || {};
     manifest = m;
     availableMonths = m.months.slice().sort();
     monthInput.min = availableMonths[0];
