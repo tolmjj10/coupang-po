@@ -2713,7 +2713,10 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
             var skuKey=keys.find(function(k){ var n=norm(k); return n==='skuid'||n==='sku'||n==='옵션코드'; })||keys[0];
             var noteKey=keys.find(function(k){ var n=norm(k); return n==='특이사항'||n==='메모'||n==='비고'||n==='note'; });
             var sku=norm(row[skuKey]);
-            if(sku) issueMap[sku]=noteKey?String(row[noteKey]||'').trim()||'확인필요':'확인필요';
+            if(!sku) return;
+            var note=noteKey?String(row[noteKey]||'').trim():'';
+            if(note==='무시') return;  // '무시'는 발주리스트에서 확인 불필요 — 이슈 플래그 안 함
+            issueMap[sku]=note||'확인필요';
           });
           console.log('[VOAR] issue loaded: '+Object.keys(issueMap).length+'건');
         } catch(e){ console.warn('[VOAR] issue parse err:', e.message); }
