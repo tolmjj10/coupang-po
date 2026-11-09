@@ -974,6 +974,26 @@ window.downloadReport = (brandFilter) => {
     if (entries.length === 0) { alert(`${brandFilter} 브랜드 SKU가 없습니다.`); return; }
     const pctStr2 = (p, g) => g > 0 ? (p/g*100).toFixed(2) + '%' : '';
 
+    // 월 라벨 추출 (예: 20261001-20261031 → 2026-10)
+    const ymRaw = (lsLoad(LS.cpcName, false) || '').match(/(\d{4})(\d{2})(\d{2})-(\d{4})(\d{2})\d{2}/);
+    const ymLabel = ymRaw ? `${ymRaw[4]}-${ymRaw[5]}` : (new Date().toISOString().slice(0,7));
+    const stamp2 = ymRaw ? `${ymRaw[4]}${ymRaw[5]}` : new Date().toISOString().slice(0,7).replace('-','');
+
+    // 반출 (해당 브랜드만)
+    const brandReturns = returnsData ? Object.entries(returnsData)
+      .filter(([sku, r]) => brandOf(sku, { name: r.name }) === brandFilter
+                            && (currentBySku[sku]?.cat || '기타') !== '기타')
+      .map(([sku, r]) => ({ sku, ...r, cat: currentBySku[sku]?.cat || '기타' }))
+      : [];
+    const returnsAmt = brandReturns.reduce((s, r) => s + r.gmvCogs, 0);  // 음수
+    const returnsQty = brandReturns.reduce((s, r) => s + r.qty, 0);
+
+    // 어워즈 상계 (오아 = 전체 − 보아르, 보아르 = awardsBoarre)
+    const dedD = getActiveDeductions();
+    const awardsTotal = dedD ? (Number(dedD.awards) || 0) : 0;
+    const boarreAwards = dedD ? (Number(dedD.awardsBoarre) || 0) : 0;
+    const brandAwards = brandFilter === '보아르' ? boarreAwards : Math.max(0, awardsTotal - boarreAwards);
+
     // 카테고리 그룹핑
     const byCat2 = {};
     for (const [sku, d] of entries) {
@@ -987,10 +1007,10 @@ window.downloadReport = (brandFilter) => {
     });
 
     const aoa = [
-      [`${brandFilter} 정산 상세`],
+      [`${brandFilter} 정산 상세 · ${ymLabel}`],
       [],
       ['[카테고리 요약]'],
-      ['카테고리','SKU 수','수량','매출','원가','광고(VAT)','쿠폰','체험단','순수익','마진%'],
+      ['카테고리','SKU 수','수량','매출','원가','광고(VAT)','쿠폰','체험단','순수익(raw)','마진%'],
     ];
     const bold = [];
     const tot = { n:0, qty:0, gmv:0, cogs:0, cpc:0, cpn:0, tr:0, p:0 };
@@ -1003,8 +1023,21 @@ window.downloadReport = (brandFilter) => {
       aoa.push([c, a.n, a.qty, a.gmv, a.cogs, a.cpc, a.cpn, a.tr, a.p, pctStr2(a.p, a.gmv)]);
       for (const k of Object.keys(tot)) tot[k] += a[k];
     }
-    aoa.push(['합계', tot.n, tot.qty, tot.gmv, tot.cogs, tot.cpc, tot.cpn, tot.tr, tot.p, pctStr2(tot.p, tot.gmv)]);
+    aoa.push(['합계(raw)', tot.n, tot.qty, tot.gmv, tot.cogs, tot.cpc, tot.cpn, tot.tr, tot.p, pctStr2(tot.p, tot.gmv)]);
     bold.push(aoa.length - 1);
+
+    // 순수익 정산 블록 (브랜드 카드와 동일 로직)
+    const finalP = tot.p + returnsAmt - brandAwards;
+    aoa.push([]);
+    aoa.push(['[순수익 정산]']);
+    bold.push(aoa.length - 1);
+    aoa.push(['항목','금액','비고']);
+    aoa.push(['SKU 순수익 합(raw)', tot.p, '매출 − 원가 − 광고 − 쿠폰 − 체험단']);
+    aoa.push(['반출 차감', returnsAmt, brandReturns.length ? `${brandReturns.length}건 · ${returnsQty.toLocaleString()}개` : '없음']);
+    aoa.push(['어워즈 차감', -brandAwards, brandAwards > 0 ? '월 상계처리 어워즈' : '없음']);
+    aoa.push(['최종 순수익', finalP, pctStr2(finalP, tot.gmv)]);
+    bold.push(aoa.length - 1);
+
     aoa.push([]);
     aoa.push(['[SKU 상세]']);
     bold.push(aoa.length - 1);
@@ -1018,8 +1051,21 @@ window.downloadReport = (brandFilter) => {
         aoa.push([sku, d.name || '', d.qty, d.gmv, d.cogs, d.cpcVat, d.coupon, d.trial||0, d.profit, pctStr2(d.profit, d.gmv)]);
       }
     }
+
+    // 반출 상세
+    if (brandReturns.length) {
+      aoa.push([]);
+      aoa.push(['[반출 내역]']);
+      bold.push(aoa.length - 1);
+      aoa.push(['SKU','상품명','카테고리','수량','반출 금액']);
+      brandReturns.sort((a,b) => a.gmvCogs - b.gmvCogs);
+      for (const r of brandReturns) aoa.push([r.sku, r.name, r.cat, r.qty, Math.round(r.gmvCogs)]);
+      aoa.push(['반출 합계','','', returnsQty, Math.round(returnsAmt)]);
+      bold.push(aoa.length - 1);
+    }
+
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:14},{wch:40},{wch:8},{wch:14},{wch:14},{wch:12},{wch:12},{wch:12},{wch:14},{wch:8}];
+    ws['!cols'] = [{wch:14},{wch:40},{wch:10},{wch:14},{wch:14},{wch:12},{wch:12},{wch:12},{wch:14},{wch:10}];
     for (const r of bold) {
       for (let c = 0; c < 10; c++) {
         const addr = XLSX.utils.encode_cell({ r, c });
@@ -1028,8 +1074,6 @@ window.downloadReport = (brandFilter) => {
       }
     }
     XLSX.utils.book_append_sheet(wb2, ws, brandFilter);
-    const ym2 = (lsLoad(LS.cpcName, false) || '').match(/\d{8}-(\d{8})/);
-    const stamp2 = ym2 ? ym2[1].slice(0,6) : new Date().toISOString().slice(0,7).replace('-','');
     XLSX.writeFile(wb2, `정산_${brandFilter}_${stamp2}.xlsx`);
     return;
   }
