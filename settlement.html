@@ -979,11 +979,10 @@ window.downloadReport = (brandFilter) => {
     const ymLabel = ymRaw ? `${ymRaw[4]}-${ymRaw[5]}` : (new Date().toISOString().slice(0,7));
     const stamp2 = ymRaw ? `${ymRaw[4]}${ymRaw[5]}` : new Date().toISOString().slice(0,7).replace('-','');
 
-    // 반출 (해당 브랜드만)
+    // 반출 (해당 브랜드 전건 — 매출 없는 SKU도 포함, 브랜드 카드 UI와 동일)
     const brandReturns = returnsData ? Object.entries(returnsData)
-      .filter(([sku, r]) => brandOf(sku, { name: r.name }) === brandFilter
-                            && (currentBySku[sku]?.cat || '기타') !== '기타')
-      .map(([sku, r]) => ({ sku, ...r, cat: currentBySku[sku]?.cat || '기타' }))
+      .filter(([sku, r]) => brandOf(sku, { name: r.name, cat: currentBySku[sku]?.cat }) === brandFilter)
+      .map(([sku, r]) => ({ sku, ...r, cat: currentBySku[sku]?.cat || '(매출없음)' }))
       : [];
     const returnsAmt = brandReturns.reduce((s, r) => s + r.gmvCogs, 0);  // 음수
     const returnsQty = brandReturns.reduce((s, r) => s + r.qty, 0);
