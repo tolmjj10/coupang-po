@@ -958,6 +958,7 @@ function aggregate() {
     d.profit = Math.round(d.gmv - d.cogs - d.cpcVat - d.coupon - (d.trial || 0));
   }
 
+  currentBySku = bySku;  // render()가 브랜드 재집계에 쓰므로 먼저 세팅
   render(byCat, { cpcMatched, cpcUnmatched, cpnMatched, cpnUnmatched, totalCpcInt });
   renderSkuTable(bySku);
   renderReturnsPanel();
