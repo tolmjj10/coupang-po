@@ -1288,11 +1288,30 @@ function renderReturnsPanel() {
 /* ─────────── 렌더 ─────────── */
 function render(byCat, stats) {
   currentByCat = byCat; currentStats = stats;
-  const BRAND_EXCLUDE = new Set(['뷰티', '기타']);
-  const brandFiltered = filterBrand !== '';
-  const cats = Object.entries(byCat).filter(([k]) => !brandFiltered || !BRAND_EXCLUDE.has(k));
-  // 합계에서는 '기타' 제외 (오아/보아르만 반영) — 가상 체험단 미할당은 '기타'로 들어가므로 자연 제외
-  const totalCats = cats.filter(([k]) => k !== '기타');
+
+  // 브랜드 필터에 따라 카테고리 테이블을 SKU 단위로 재집계 (기본 = 오아+보아르)
+  const activeBrand = filterBrand || '오아+보아르';
+  const brandMatch = (b) => {
+    if (activeBrand === '오아+보아르') return b === '오아' || b === '보아르';
+    return b === activeBrand;
+  };
+  const brandByCat = {};
+  if (currentBySku) {
+    for (const [sku, d] of Object.entries(currentBySku)) {
+      const b = brandOf(sku, d);
+      if (!brandMatch(b)) continue;
+      const c = d.cat || '기타';
+      if (c === '기타') continue;
+      const v = brandByCat[c] = brandByCat[c] || { cpc:0, coupon:0, gmv:0, trial:0 };
+      v.cpc += d.cpcVat || 0;
+      v.coupon += d.coupon || 0;
+      v.gmv += d.gmv || 0;
+      v.trial += d.trial || 0;
+    }
+  }
+  const cats = Object.entries(brandByCat);
+  const brandFiltered = true;  // 항상 브랜드 기준 집계
+  const totalCats = cats;
   const totalCpc = totalCats.reduce((s,[,v]) => s + v.cpc, 0);
   const totalCpn = totalCats.reduce((s,[,v]) => s + v.coupon, 0);
   const totalGmv = totalCats.reduce((s,[,v]) => s + (v.gmv||0), 0);
@@ -1367,7 +1386,7 @@ function render(byCat, stats) {
 
   document.getElementById('result').innerHTML = `
     <div class="result-head">
-      <div class="title">카테고리별 집계${brandFiltered ? ` <span style="font-weight:500;color:var(--accent-dark);">· ${esc(filterBrand)} 필터</span>` : ''}</div>
+      <div class="title">카테고리별 집계 <span style="font-weight:500;color:var(--accent-dark);">· ${esc(activeBrand)}</span></div>
       ${stats.cpcUnmatched + stats.cpnUnmatched ? `<div class="sub"><span style="color:var(--neg);font-weight:600;">미매칭 ${stats.cpcUnmatched + stats.cpnUnmatched}건</span></div>` : ''}
       <button class="btn-reload" onclick="downloadReport('오아')" title="오아 제품만 엑셀로 내보내기">오아 다운로드</button>
       <button class="btn-reload" onclick="downloadReport('보아르')" title="보아르 제품만 엑셀로 내보내기" style="margin-left:0;">보아르 다운로드</button>
@@ -1435,7 +1454,9 @@ const sortArrow = (state, key) => {
   return `<span class="sort-arr">${active ? (state.dir === 'desc' ? '▼' : '▲') : '⇅'}</span>`;
 };
 window.setFilterBrand = (b) => {
-  filterBrand = (filterBrand === b) ? '' : b;
+  const eff = filterBrand || '오아+보아르';
+  // 같은 카드 재클릭 시 기본(오아+보아르)으로 복귀
+  filterBrand = (eff === b) ? '' : b;
   if (currentByCat) render(currentByCat, currentStats);
   renderSkuTable();
 };
@@ -1524,7 +1545,8 @@ function renderBrands(allEntries, hasSales) {
     const showDeduct = !!opts.showDeduct;
     // 마진 분모는 발주 매출 그대로 사용 (반출은 매출 차감 아닌 비용 느낌)
     const mg = a.gmv > 0 ? (a.p / a.gmv * 100).toFixed(1) + '%' : '—';
-    const activeCls = filterBrand === key ? ' active' : '';
+    const effBrand = filterBrand || '오아+보아르';
+    const activeCls = effBrand === key ? ' active' : '';
     const onclick = `onclick="setFilterBrand('${key}')"`;
     return `
       <div class="brand-card${activeCls}" ${onclick}>
@@ -1576,10 +1598,11 @@ function renderSkuTable(bySku) {
   const filtered = allEntries.filter(([sku, d]) => {
     if ((d.cat || '기타') === '기타') return false;
     if (filterCat && d.cat !== filterCat) return false;
-    if (filterBrand) {
+    {
+      const eff = filterBrand || '오아+보아르';
       const b = brandOf(sku, d);
-      if (filterBrand === '오아+보아르') { if (b !== '오아' && b !== '보아르') return false; }
-      else if (b !== filterBrand) return false;
+      if (eff === '오아+보아르') { if (b !== '오아' && b !== '보아르') return false; }
+      else if (b !== eff) return false;
     }
     if (q) {
       const hay = (sku + ' ' + (d.name || '') + ' ' + (d.brand || '')).toLowerCase();
