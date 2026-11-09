@@ -177,6 +177,15 @@
   table.sku td.coupon { color: var(--coupon); }
   table.sku td.gmv    { color: var(--sales); font-weight: 600; }
   table.sku td.profit { color: var(--profit); font-weight: 700; }
+
+  /* 정렬 가능 헤더 */
+  table.cat th.sortable, table.sku th.sortable { cursor: pointer; user-select: none; }
+  table.cat th.sortable:hover, table.sku th.sortable:hover { color: var(--text); background: #f3ede4; }
+  table.cat th .sort-arr, table.sku th .sort-arr {
+    display: inline-block; margin-left: 4px; font-size: 10px; opacity: 0.35;
+    transition: opacity .15s;
+  }
+  table.cat th.sorted .sort-arr, table.sku th.sorted .sort-arr { opacity: 1; color: var(--accent-dark); }
   table.sku td.profit.neg { color: var(--neg); }
 
   /* 툴바 (검색/필터) */
@@ -954,8 +963,77 @@ function aggregate() {
   renderReturnsPanel();
 }
 
-window.downloadReport = () => {
+window.downloadReport = (brandFilter) => {
   if (!currentBySku || !currentByCat) { alert('먼저 CPC/쿠폰(+실입고) 파일을 올려주세요.'); return; }
+
+  // 브랜드 필터 지정 시: 해당 브랜드 SKU만 담은 단일 시트 보고서
+  if (brandFilter === '오아' || brandFilter === '보아르') {
+    const wb2 = XLSX.utils.book_new();
+    const entries = Object.entries(currentBySku)
+      .filter(([sku, d]) => brandOf(sku, d) === brandFilter && (d.cat || '기타') !== '기타');
+    if (entries.length === 0) { alert(`${brandFilter} 브랜드 SKU가 없습니다.`); return; }
+    const pctStr2 = (p, g) => g > 0 ? (p/g*100).toFixed(2) + '%' : '';
+
+    // 카테고리 그룹핑
+    const byCat2 = {};
+    for (const [sku, d] of entries) {
+      const c = d.cat || '기타';
+      (byCat2[c] = byCat2[c] || []).push([sku, d]);
+    }
+    const catOrder2 = Object.keys(byCat2).sort((a,b) => {
+      const ag = byCat2[a].reduce((s,[,d]) => s+d.gmv, 0);
+      const bg = byCat2[b].reduce((s,[,d]) => s+d.gmv, 0);
+      return bg - ag;
+    });
+
+    const aoa = [
+      [`${brandFilter} 정산 상세`],
+      [],
+      ['[카테고리 요약]'],
+      ['카테고리','SKU 수','수량','매출','원가','광고(VAT)','쿠폰','체험단','순수익','마진%'],
+    ];
+    const bold = [];
+    const tot = { n:0, qty:0, gmv:0, cogs:0, cpc:0, cpn:0, tr:0, p:0 };
+    for (const c of catOrder2) {
+      const a = { n:0, qty:0, gmv:0, cogs:0, cpc:0, cpn:0, tr:0, p:0 };
+      for (const [,d] of byCat2[c]) {
+        a.n++; a.qty += d.qty; a.gmv += d.gmv; a.cogs += d.cogs;
+        a.cpc += d.cpcVat; a.cpn += d.coupon; a.tr += (d.trial||0); a.p += d.profit;
+      }
+      aoa.push([c, a.n, a.qty, a.gmv, a.cogs, a.cpc, a.cpn, a.tr, a.p, pctStr2(a.p, a.gmv)]);
+      for (const k of Object.keys(tot)) tot[k] += a[k];
+    }
+    aoa.push(['합계', tot.n, tot.qty, tot.gmv, tot.cogs, tot.cpc, tot.cpn, tot.tr, tot.p, pctStr2(tot.p, tot.gmv)]);
+    bold.push(aoa.length - 1);
+    aoa.push([]);
+    aoa.push(['[SKU 상세]']);
+    bold.push(aoa.length - 1);
+    for (const c of catOrder2) {
+      aoa.push([]);
+      aoa.push([`▶ ${c}`]);
+      bold.push(aoa.length - 1);
+      aoa.push(['SKU','상품명','수량','매출','원가','광고(VAT)','쿠폰','체험단','순수익','마진%']);
+      const items = byCat2[c].slice().sort((a,b) => b[1].gmv - a[1].gmv);
+      for (const [sku, d] of items) {
+        aoa.push([sku, d.name || '', d.qty, d.gmv, d.cogs, d.cpcVat, d.coupon, d.trial||0, d.profit, pctStr2(d.profit, d.gmv)]);
+      }
+    }
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:14},{wch:40},{wch:8},{wch:14},{wch:14},{wch:12},{wch:12},{wch:12},{wch:14},{wch:8}];
+    for (const r of bold) {
+      for (let c = 0; c < 10; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+        ws[addr].s = { font: { bold: true }, fill: { fgColor: { rgb: 'FDFBF9' } } };
+      }
+    }
+    XLSX.utils.book_append_sheet(wb2, ws, brandFilter);
+    const ym2 = (lsLoad(LS.cpcName, false) || '').match(/\d{8}-(\d{8})/);
+    const stamp2 = ym2 ? ym2[1].slice(0,6) : new Date().toISOString().slice(0,7).replace('-','');
+    XLSX.writeFile(wb2, `정산_${brandFilter}_${stamp2}.xlsx`);
+    return;
+  }
+
   const wb = XLSX.utils.book_new();
 
   // 공통: 반출 블록 생성 (각 시트 하단에 붙임, 기타 제외)
@@ -1184,13 +1262,33 @@ function render(byCat, stats) {
 
   // 정렬 그룹: 0=오아/보아르 세분 카테, 1=브랜드(삼대오백/온살), 2=미매칭/기타
   const groupOf = k => k === '기타' ? 3 : UNMATCHED_CATS.has(k) ? 2 : (BRAND_CATS.has(k) ? 1 : 0);
-  const sorted = cats
-    .filter(([k]) => k !== '기타')  // 기타 숨김
-    .sort((a,b) => {
+  const sumOf = v => v.cpc + v.coupon + (v.trial || 0);
+  const catKeyMap = {
+    cat: ([k]) => k,
+    gmv: ([,v]) => v.gmv || 0,
+    cpc: ([,v]) => v.cpc,
+    coupon: ([,v]) => v.coupon,
+    trial: ([,v]) => v.trial || 0,
+    total: ([,v]) => sumOf(v),
+    pct: ([,v]) => sumOf(v),
+  };
+  const baseCats = cats.filter(([k]) => k !== '기타');
+  let sorted;
+  if (catSort.key && catKeyMap[catSort.key]) {
+    const kfn = catKeyMap[catSort.key];
+    const sign = catSort.dir === 'desc' ? -1 : 1;
+    sorted = baseCats.slice().sort((a,b) => {
+      const va = kfn(a), vb = kfn(b);
+      if (typeof va === 'string') return sign * va.localeCompare(vb);
+      return sign * (va - vb);
+    });
+  } else {
+    sorted = baseCats.sort((a,b) => {
       const g = groupOf(a[0]) - groupOf(b[0]);
       if (g !== 0) return g;
       return (b[1].cpc + b[1].coupon) - (a[1].cpc + a[1].coupon);
     });
+  }
 
   const maxTotal = Math.max(1, ...sorted.map(([,v]) => v.cpc + v.coupon));
   const rows = sorted.map(([cat, v]) => {
@@ -1228,19 +1326,20 @@ function render(byCat, stats) {
     <div class="result-head">
       <div class="title">카테고리별 집계${brandFiltered ? ` <span style="font-weight:500;color:var(--accent-dark);">· ${esc(filterBrand)} 필터</span>` : ''}</div>
       ${stats.cpcUnmatched + stats.cpnUnmatched ? `<div class="sub"><span style="color:var(--neg);font-weight:600;">미매칭 ${stats.cpcUnmatched + stats.cpnUnmatched}건</span></div>` : ''}
-      <button class="btn-reload" onclick="downloadReport()" title="엑셀로 내보내기">엑셀 다운로드</button>
+      <button class="btn-reload" onclick="downloadReport('오아')" title="오아 제품만 엑셀로 내보내기">오아 다운로드</button>
+      <button class="btn-reload" onclick="downloadReport('보아르')" title="보아르 제품만 엑셀로 내보내기" style="margin-left:0;">보아르 다운로드</button>
       <button class="btn-reload" onclick="resetSettleData()" title="저장된 파일 데이터 초기화" style="margin-left:0;">초기화</button>
     </div>
     <table class="cat">
       <thead>
         <tr>
-          <th class="left">카테고리</th>
-          ${hasSales ? '<th>매출</th>' : ''}
-          <th>CPC 광고비</th>
-          <th>쿠폰비</th>
-          ${hasTrial ? '<th>체험단</th>' : ''}
-          <th>합계</th>
-          <th class="left" style="padding-left:16px;">비중</th>
+          <th class="left sortable ${catSort.key==='cat'?'sorted':''}" onclick="setCatSort('cat')">카테고리${sortArrow(catSort,'cat')}</th>
+          ${hasSales ? `<th class="sortable ${catSort.key==='gmv'?'sorted':''}" onclick="setCatSort('gmv')">매출${sortArrow(catSort,'gmv')}</th>` : ''}
+          <th class="sortable ${catSort.key==='cpc'?'sorted':''}" onclick="setCatSort('cpc')">CPC 광고비${sortArrow(catSort,'cpc')}</th>
+          <th class="sortable ${catSort.key==='coupon'?'sorted':''}" onclick="setCatSort('coupon')">쿠폰비${sortArrow(catSort,'coupon')}</th>
+          ${hasTrial ? `<th class="sortable ${catSort.key==='trial'?'sorted':''}" onclick="setCatSort('trial')">체험단${sortArrow(catSort,'trial')}</th>` : ''}
+          <th class="sortable ${catSort.key==='total'?'sorted':''}" onclick="setCatSort('total')">합계${sortArrow(catSort,'total')}</th>
+          <th class="left sortable ${catSort.key==='pct'?'sorted':''}" onclick="setCatSort('pct')" style="padding-left:16px;">비중${sortArrow(catSort,'pct')}</th>
         </tr>
       </thead>
       <tbody>${rows}${sumRow}</tbody>
@@ -1271,6 +1370,27 @@ window.clearSearch = () => { filterSearch = ''; renderSkuTable(); };
 let collapsedCats = new Set(['기타', '삼대오백', '온살', '오아 미매칭', '보아르 미매칭']);  // 기본 접힘
 let filterBrand = '';  // '' | '오아' | '보아르' | '오아+보아르'
 let currentByCat = null, currentStats = null;
+let catSort = { key: '', dir: 'desc' };  // '' = 기본(그룹) 정렬
+let skuSort = { key: '', dir: 'desc' };  // '' = 기본(gmv desc) 정렬
+
+window.setCatSort = (key) => {
+  if (catSort.key === key) {
+    if (catSort.dir === 'desc') catSort.dir = 'asc';
+    else { catSort.key = ''; catSort.dir = 'desc'; }  // 세번째 클릭: 기본 복귀
+  } else { catSort.key = key; catSort.dir = 'desc'; }
+  if (currentByCat) render(currentByCat, currentStats);
+};
+window.setSkuSort = (key) => {
+  if (skuSort.key === key) {
+    if (skuSort.dir === 'desc') skuSort.dir = 'asc';
+    else { skuSort.key = ''; skuSort.dir = 'desc'; }
+  } else { skuSort.key = key; skuSort.dir = 'desc'; }
+  renderSkuTable();
+};
+const sortArrow = (state, key) => {
+  const active = state.key === key;
+  return `<span class="sort-arr">${active ? (state.dir === 'desc' ? '▼' : '▲') : '⇅'}</span>`;
+};
 window.setFilterBrand = (b) => {
   filterBrand = (filterBrand === b) ? '' : b;
   if (currentByCat) render(currentByCat, currentStats);
@@ -1448,22 +1568,47 @@ function renderSkuTable(bySku) {
   const _dForSku = getActiveDeductions();
   const hasTrialSku = allEntries.some(([,d]) => (d.trial||0) > 0) || (_dForSku && (_dForSku.trial || 0) > 0);
 
+  const sc = (k) => `sortable ${skuSort.key===k?'sorted':''}`;
   const header = `
     <tr>
-      <th class="left">SKU</th>
-      <th class="left">SKU명</th>
-      <th>수량</th>
-      ${hasSales ? '<th>매출</th><th>원가</th>' : ''}
-      <th>광고비</th>
-      <th>쿠폰</th>
-      ${hasTrialSku ? '<th>체험단</th>' : ''}
-      ${hasSales ? '<th>순수익</th><th>마진%</th>' : ''}
+      <th class="left ${sc('sku')}" onclick="setSkuSort('sku')">SKU${sortArrow(skuSort,'sku')}</th>
+      <th class="left ${sc('name')}" onclick="setSkuSort('name')">SKU명${sortArrow(skuSort,'name')}</th>
+      <th class="${sc('qty')}" onclick="setSkuSort('qty')">수량${sortArrow(skuSort,'qty')}</th>
+      ${hasSales ? `<th class="${sc('gmv')}" onclick="setSkuSort('gmv')">매출${sortArrow(skuSort,'gmv')}</th><th class="${sc('cogs')}" onclick="setSkuSort('cogs')">원가${sortArrow(skuSort,'cogs')}</th>` : ''}
+      <th class="${sc('cpc')}" onclick="setSkuSort('cpc')">광고비${sortArrow(skuSort,'cpc')}</th>
+      <th class="${sc('coupon')}" onclick="setSkuSort('coupon')">쿠폰${sortArrow(skuSort,'coupon')}</th>
+      ${hasTrialSku ? `<th class="${sc('trial')}" onclick="setSkuSort('trial')">체험단${sortArrow(skuSort,'trial')}</th>` : ''}
+      ${hasSales ? `<th class="${sc('profit')}" onclick="setSkuSort('profit')">순수익${sortArrow(skuSort,'profit')}</th><th class="${sc('margin')}" onclick="setSkuSort('margin')">마진%${sortArrow(skuSort,'margin')}</th>` : ''}
     </tr>`;
 
   const bodyParts = [];
   const colspan = (hasSales ? 9 : 5) + (hasTrialSku ? 1 : 0);
+  const skuKeyMap = {
+    sku: ([k]) => k,
+    name: ([,d]) => d.name || '',
+    qty: ([,d]) => d.qty || 0,
+    gmv: ([,d]) => d.gmv || 0,
+    cogs: ([,d]) => d.cogs || 0,
+    cpc: ([,d]) => d.cpcVat || 0,
+    coupon: ([,d]) => d.coupon || 0,
+    trial: ([,d]) => d.trial || 0,
+    profit: ([,d]) => d.profit || 0,
+    margin: ([,d]) => d.gmv > 0 ? d.profit / d.gmv : -Infinity,
+  };
+  const sortItems = (arr) => {
+    if (skuSort.key && skuKeyMap[skuSort.key]) {
+      const kfn = skuKeyMap[skuSort.key];
+      const sign = skuSort.dir === 'desc' ? -1 : 1;
+      return arr.slice().sort((a,b) => {
+        const va = kfn(a), vb = kfn(b);
+        if (typeof va === 'string') return sign * va.localeCompare(vb);
+        return sign * (va - vb);
+      });
+    }
+    return arr.sort((a,b) => b[1].gmv - a[1].gmv || b[1].cpcVat - a[1].cpcVat);
+  };
   for (const cat of catOrder) {
-    const items = groups[cat].sort((a,b) => b[1].gmv - a[1].gmv || b[1].cpcVat - a[1].cpcVat);
+    const items = sortItems(groups[cat]);
     let g=0,c=0,cp=0,cpn=0,tr=0,p=0,qty=0;
     for (const [,d] of items) { g+=d.gmv; c+=d.cogs; cp+=d.cpcVat; cpn+=d.coupon; tr+=(d.trial||0); p+=d.profit; qty+=d.qty; }
     const marginPct = g > 0 ? (p / g * 100).toFixed(1) : '—';
