@@ -1620,7 +1620,7 @@ function renderSkuTable(bySku) {
     const c = d.cat || '기타';
     allCats[c] = (allCats[c] || 0) + 1;
   }
-  const groupOf = k => k === '기타' ? 3 : UNMATCHED_CATS.has(k) ? 2 : (BRAND_CATS.has(k) || k === '뷰티' ? 1 : 0);
+  const groupOf = k => k === '기타' ? 3 : UNMATCHED_CATS.has(k) ? 2 : (BRAND_CATS.has(k) ? 1 : 0);
   const chipCats = Object.keys(allCats).filter(c => c !== '기타').sort((a,b) => groupOf(a) - groupOf(b) || a.localeCompare(b));
 
   // 필터링 (카테 + 검색) — '기타' 카테는 SKU 상세에서 완전 숨김
