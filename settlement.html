@@ -1473,7 +1473,9 @@ window.setFilterBrand = (b) => {
   renderSkuTable();
 };
 function brandOf(sku, d) {
-  const nm = (d.name || '').trim();
+  const raw = (d.name || '').trim();
+  // BOX_/box_ 접두사 제거 후 브랜드 판정
+  const nm = raw.replace(/^(?:box|BOX)[_\s]+/i, '');
   if (nm.startsWith('오아')) return '오아';
   if (nm.startsWith('보아르')) return '보아르';
   // 뷰티(올리미/히팅뷰러/히팅마스크)는 오아 산하
