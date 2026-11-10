@@ -1557,6 +1557,9 @@ function renderBrands(allEntries, hasSales) {
 
   const card = (label, key, a, opts = {}) => {
     const showDeduct = !!opts.showDeduct;
+    const foldReturns = key === '오아+보아르';
+    const gmvNet = foldReturns ? a.gmv + (a.ret || 0) : a.gmv;
+    const gmvLabel = foldReturns ? '매출(-반출)' : '매출';
     // 마진 분모는 발주 매출 그대로 사용 (반출은 매출 차감 아닌 비용 느낌)
     const mg = a.gmv > 0 ? (a.p / a.gmv * 100).toFixed(1) + '%' : '—';
     const effBrand = filterBrand || '오아+보아르';
@@ -1566,12 +1569,12 @@ function renderBrands(allEntries, hasSales) {
       <div class="brand-card${activeCls}" ${onclick}>
         <div class="b-title">${esc(label)} <span class="b-count">${a.cnt} SKU${a.qty?` · ${a.qty.toLocaleString()}개`:''}</span></div>
         <div class="b-rows">
-          ${hasSales ? `<span class="b-k">매출</span><span class="b-v gmv">${fmtWon(a.gmv)}</span>
+          ${hasSales ? `<span class="b-k">${gmvLabel}</span><span class="b-v gmv">${fmtWon(gmvNet)}</span>
           <span class="b-k">원가</span><span class="b-v" style="color:var(--neg);">-${fmtWon(a.cogs)}</span>` : ''}
           <span class="b-k">광고</span><span class="b-v cpc">-${fmtWon(a.cpc)}</span>
           <span class="b-k">쿠폰</span><span class="b-v coupon">-${fmtWon(a.cpn)}</span>
           ${(a.tr||0) > 0 ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">-${fmtWon(a.tr)}</span>` : ''}
-          ${a.ret !== 0 ? `<span class="b-k">반출</span><span class="b-v" style="color:var(--neg);font-weight:600;">${fmtWon(a.ret)}</span>` : ''}
+          ${!foldReturns && a.ret !== 0 ? `<span class="b-k">반출</span><span class="b-v" style="color:var(--neg);font-weight:600;">${fmtWon(a.ret)}</span>` : ''}
           ${a.awd > 0 ? `<span class="b-k">어워즈</span><span class="b-v" style="color:var(--neg);font-weight:600;">-${fmtWon(a.awd)}</span>` : ''}
           ${showDeduct && a.deduct > 0 ? `<span class="b-k">상계(어워즈 제외)</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="성장·프리미엄·DA·체험·PPIR 합계">-${fmtWon(a.deduct - (a.awd||0))}</span>` : ''}
           ${hasSales ? `<span class="b-k">순수익</span><span class="b-v profit${a.p<0?' neg':''}">${fmtWon(a.p)}</span>
