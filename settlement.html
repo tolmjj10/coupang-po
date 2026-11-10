@@ -1303,11 +1303,13 @@ function render(byCat, stats) {
       if (!brandMatch(b)) continue;
       const c = d.cat || '기타';
       if (c === '기타') continue;
-      const v = brandByCat[c] = brandByCat[c] || { cpc:0, coupon:0, gmv:0, trial:0 };
+      const v = brandByCat[c] = brandByCat[c] || { cpc:0, coupon:0, gmv:0, cogs:0, trial:0, profit:0 };
       v.cpc += d.cpcVat || 0;
       v.coupon += d.coupon || 0;
       v.gmv += d.gmv || 0;
+      v.cogs += d.cogs || 0;
       v.trial += d.trial || 0;
+      v.profit += d.profit || 0;
     }
   }
   const cats = Object.entries(brandByCat);
@@ -1316,7 +1318,9 @@ function render(byCat, stats) {
   const totalCpc = totalCats.reduce((s,[,v]) => s + v.cpc, 0);
   const totalCpn = totalCats.reduce((s,[,v]) => s + v.coupon, 0);
   const totalGmv = totalCats.reduce((s,[,v]) => s + (v.gmv||0), 0);
+  const totalCogs = totalCats.reduce((s,[,v]) => s + (v.cogs||0), 0);
   const totalTrial = totalCats.reduce((s,[,v]) => s + (v.trial||0), 0);
+  const totalProfit = totalCats.reduce((s,[,v]) => s + (v.profit||0), 0);
   const totalAll = totalCpc + totalCpn + totalTrial;
   const hasSales = !!salesData;
   // 체험단: SKU 집계 또는 월 상계 둘 중 하나라도 있으면 항상 column 노출
@@ -1329,9 +1333,12 @@ function render(byCat, stats) {
   const catKeyMap = {
     cat: ([k]) => k,
     gmv: ([,v]) => v.gmv || 0,
+    cogs: ([,v]) => v.cogs || 0,
     cpc: ([,v]) => v.cpc,
     coupon: ([,v]) => v.coupon,
     trial: ([,v]) => v.trial || 0,
+    profit: ([,v]) => v.profit || 0,
+    margin: ([,v]) => (v.gmv||0) > 0 ? (v.profit||0) / v.gmv : -Infinity,
     total: ([,v]) => sumOf(v),
     pct: ([,v]) => sumOf(v),
   };
@@ -1353,36 +1360,33 @@ function render(byCat, stats) {
     });
   }
 
-  const maxTotal = Math.max(1, ...sorted.map(([,v]) => v.cpc + v.coupon));
   const rows = sorted.map(([cat, v]) => {
-    const sum = v.cpc + v.coupon + (v.trial || 0);
-    const pct = (sum / totalAll * 100).toFixed(1);
-    const barPct = Math.max(2, Math.round(sum / maxTotal * 100));
+    const vGmv = v.gmv || 0;
+    const vProfit = v.profit || 0;
+    const mPct = vGmv > 0 ? (vProfit / vGmv * 100).toFixed(1) : '—';
+    const profitCls = vProfit < 0 ? 'profit neg' : 'profit';
     const isBrand = (cat === '삼대오백' || cat === '온살');
     return `
       <tr class="${isBrand ? 'brand' : ''}">
         <td class="left">${esc(cat)}</td>
-        ${hasSales ? `<td class="gmv">${fmtWon(v.gmv||0)}</td>` : ''}
+        ${hasSales ? `<td class="gmv">${fmtWon(vGmv)}</td><td>${fmtWon(v.cogs||0)}</td>` : ''}
         <td class="cpc">${fmtWon(v.cpc)}</td>
         <td class="coupon">${fmtWon(v.coupon)}</td>
         ${hasTrial ? `<td class="trial">${fmtWon(v.trial||0)}</td>` : ''}
-        <td class="total">${fmtWon(sum)}</td>
-        <td style="text-align:left; color: var(--text-hint); font-weight:500;">
-          ${pct}%
-          <span class="bar"><span style="width:${barPct}%"></span></span>
-        </td>
+        ${hasSales ? `<td class="${profitCls}">${fmtWon(vProfit)}</td><td>${mPct}${mPct==='—'?'':'%'}</td>` : ''}
       </tr>`;
   }).join('');
 
+  const totalMarginPct = totalGmv > 0 ? (totalProfit / totalGmv * 100).toFixed(1) : '—';
+  const totalProfitCls = totalProfit < 0 ? 'profit neg' : 'profit';
   const sumRow = `
     <tr class="sum">
       <td class="left">합계</td>
-      ${hasSales ? `<td class="gmv">${fmtWon(totalGmv)}</td>` : ''}
+      ${hasSales ? `<td class="gmv">${fmtWon(totalGmv)}</td><td>${fmtWon(totalCogs)}</td>` : ''}
       <td class="cpc">${fmtWon(totalCpc)}</td>
       <td class="coupon">${fmtWon(totalCpn)}</td>
       ${hasTrial ? `<td class="trial">${fmtWon(totalTrial)}</td>` : ''}
-      <td class="total">${fmtWon(totalAll)}</td>
-      <td></td>
+      ${hasSales ? `<td class="${totalProfitCls}">${fmtWon(totalProfit)}</td><td>${totalMarginPct}${totalMarginPct==='—'?'':'%'}</td>` : ''}
     </tr>`;
 
   document.getElementById('result').innerHTML = `
@@ -1397,12 +1401,11 @@ function render(byCat, stats) {
       <thead>
         <tr>
           <th class="left sortable ${catSort.key==='cat'?'sorted':''}" onclick="setCatSort('cat')">카테고리${sortArrow(catSort,'cat')}</th>
-          ${hasSales ? `<th class="sortable ${catSort.key==='gmv'?'sorted':''}" onclick="setCatSort('gmv')">매출${sortArrow(catSort,'gmv')}</th>` : ''}
-          <th class="sortable ${catSort.key==='cpc'?'sorted':''}" onclick="setCatSort('cpc')">CPC 광고비${sortArrow(catSort,'cpc')}</th>
-          <th class="sortable ${catSort.key==='coupon'?'sorted':''}" onclick="setCatSort('coupon')">쿠폰비${sortArrow(catSort,'coupon')}</th>
+          ${hasSales ? `<th class="sortable ${catSort.key==='gmv'?'sorted':''}" onclick="setCatSort('gmv')">매출${sortArrow(catSort,'gmv')}</th><th class="sortable ${catSort.key==='cogs'?'sorted':''}" onclick="setCatSort('cogs')">원가${sortArrow(catSort,'cogs')}</th>` : ''}
+          <th class="sortable ${catSort.key==='cpc'?'sorted':''}" onclick="setCatSort('cpc')">광고비${sortArrow(catSort,'cpc')}</th>
+          <th class="sortable ${catSort.key==='coupon'?'sorted':''}" onclick="setCatSort('coupon')">쿠폰${sortArrow(catSort,'coupon')}</th>
           ${hasTrial ? `<th class="sortable ${catSort.key==='trial'?'sorted':''}" onclick="setCatSort('trial')">체험단${sortArrow(catSort,'trial')}</th>` : ''}
-          <th class="sortable ${catSort.key==='total'?'sorted':''}" onclick="setCatSort('total')">합계${sortArrow(catSort,'total')}</th>
-          <th class="left sortable ${catSort.key==='pct'?'sorted':''}" onclick="setCatSort('pct')" style="padding-left:16px;">비중${sortArrow(catSort,'pct')}</th>
+          ${hasSales ? `<th class="sortable ${catSort.key==='profit'?'sorted':''}" onclick="setCatSort('profit')">순수익${sortArrow(catSort,'profit')}</th><th class="sortable ${catSort.key==='margin'?'sorted':''}" onclick="setCatSort('margin')">마진%${sortArrow(catSort,'margin')}</th>` : ''}
         </tr>
       </thead>
       <tbody>${rows}${sumRow}</tbody>
