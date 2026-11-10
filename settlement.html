@@ -1478,7 +1478,7 @@ function brandOf(sku, d) {
   if (nm.startsWith('보아르')) return '보아르';
   // 뷰티(올리미/히팅뷰러/히팅마스크)는 오아 산하
   if (nm.includes('올리미') || nm.includes('히팅뷰러') || nm.includes('히팅마스크')) return '오아';
-  if (d && (d.cat === '뷰티' || d.cat === '뷰티가전')) return '오아';
+  if (d && (d.cat === '뷰티' || d.cat === '뷰티가전' || d.cat === '이미용')) return '오아';
   return '';
 }
 window.toggleCat = (cat) => {
