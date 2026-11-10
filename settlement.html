@@ -551,6 +551,10 @@ async function loadMaps() {
       return;
     }
     maps = data;
+    // 카테 정규화: '이미용' → '뷰티' 통일
+    for (const sku in maps.sku2cat) {
+      if (maps.sku2cat[sku] && maps.sku2cat[sku].cat === '이미용') maps.sku2cat[sku].cat = '뷰티';
+    }
     info.innerHTML = `<span class="ok">매핑 로드됨</span> · VIID→SKU ${Object.keys(maps.viid2sku).length.toLocaleString()} · SKU→카테 ${Object.keys(maps.sku2cat).length.toLocaleString()} · 캠페인→VIID ${Object.keys(maps.camp2viid).length.toLocaleString()} · 갱신 ${esc(maps.updated_at || '')}`;
   } catch (e) {
     info.innerHTML = '<span class="bad">매핑 로드 실패</span>';
@@ -1489,7 +1493,7 @@ function brandOf(sku, d) {
   if (nm.startsWith('보아르')) return '보아르';
   // 뷰티(올리미/히팅뷰러/히팅마스크)는 오아 산하
   if (nm.includes('올리미') || nm.includes('히팅뷰러') || nm.includes('히팅마스크')) return '오아';
-  if (d && (d.cat === '뷰티' || d.cat === '뷰티가전' || d.cat === '이미용')) return '오아';
+  if (d && (d.cat === '뷰티' || d.cat === '뷰티가전')) return '오아';
   return '';
 }
 window.toggleCat = (cat) => {
