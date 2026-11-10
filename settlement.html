@@ -121,6 +121,7 @@
   table.cat td.trial  { font-weight: 600; }
   table.cat td.profit { color: var(--profit); font-weight: 700; }
   table.cat td.profit.neg { color: var(--neg); }
+  table.cat td.cat-link:hover { text-decoration: underline; color: var(--accent-dark); }
   table.cat td.total  { font-weight: 700; }
   table.cat .bar {
     display: inline-block; vertical-align: middle;
@@ -1370,7 +1371,7 @@ function render(byCat, stats) {
     const isBrand = (cat === '삼대오백' || cat === '온살');
     return `
       <tr class="${isBrand ? 'brand' : ''}">
-        <td class="left">${esc(cat)}</td>
+        <td class="left cat-link" onclick="jumpToCat('${cat.replace(/'/g, "\\'")}')" style="cursor:pointer;">${esc(cat)}</td>
         <td class="gmv">${fmtWon(vGmv)}</td>
         <td>${fmtWon(v.cogs||0)}</td>
         <td class="cpc">${fmtWon(v.cpc)}</td>
@@ -1423,6 +1424,14 @@ function render(byCat, stats) {
 
 /* ─────────── SKU 상세 테이블 ─────────── */
 window.setFilterCat = (cat) => { filterCat = (filterCat === cat) ? '' : cat; renderSkuTable(); };
+window.jumpToCat = (cat) => {
+  filterCat = cat;
+  // 해당 카테 그룹이 접혀있으면 펼치기
+  collapsedCats.delete(cat);
+  renderSkuTable();
+  const el = document.getElementById('result-sku');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
 let searchDebounceTimer = null;
 let searchIsComposing = false;
 window.setFilterSearch = (q) => {
