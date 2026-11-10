@@ -576,23 +576,38 @@
   document.getElementById('brand-home').addEventListener('click', () => { closeSubbar(); showTarget(null); });
   document.getElementById('nav-home').addEventListener('click', (e) => { e.stopPropagation(); closeSubbar(); showTarget(null); });
 
-  const hash = (location.hash || '').replace('#','');
-  showTarget(frames[hash] ? hash : null);
+  // ─────────── 전용 공유 모드 (?only=<target>) ───────────
+  // 예: ?only=promotion → 상단바/서브바 숨기고 해당 탭만 표시, 다른 탭 이동 차단
+  const onlyTarget = new URLSearchParams(location.search).get('only');
+  if (onlyTarget && frames[onlyTarget]) {
+    document.querySelector('.topbar').style.display = 'none';
+    document.getElementById('subbar').style.display = 'none';
+    landing.style.display = 'none';
+    ensureLoaded(onlyTarget);
+    Object.entries(frames).forEach(([k, f]) => f.classList.toggle('active', k === onlyTarget));
+    // 해시 변경이나 showTarget 호출로 다른 탭으로 못 가게 고정
+    window.addEventListener('hashchange', () => {
+      try { history.replaceState(null, '', location.pathname + location.search + '#' + onlyTarget); } catch(e) {}
+    });
+  } else {
+    const hash = (location.hash || '').replace('#','');
+    showTarget(frames[hash] ? hash : null);
 
-  // 랜딩 진입 후, 아이들 상태에서 나머지 프레임을 백그라운드로 미리 로드해 다음 클릭 시 즉시 표시
-  window.addEventListener('load', () => {
-    const preload = () => {
-      ensureLoaded('order');
-      setTimeout(() => ensureLoaded('inbound'), 150);
-      setTimeout(() => ensureLoaded('margin'), 300);
-      setTimeout(() => ensureLoaded('new'), 600);
-      setTimeout(() => ensureLoaded('promotion'), 900);
-      setTimeout(() => ensureLoaded('price'), 1200);
-      setTimeout(() => ensureLoaded('sales'), 1500);
-    };
-    if ('requestIdleCallback' in window) requestIdleCallback(preload, { timeout: 1500 });
-    else setTimeout(preload, 400);
-  });
+    // 랜딩 진입 후, 아이들 상태에서 나머지 프레임을 백그라운드로 미리 로드해 다음 클릭 시 즉시 표시
+    window.addEventListener('load', () => {
+      const preload = () => {
+        ensureLoaded('order');
+        setTimeout(() => ensureLoaded('inbound'), 150);
+        setTimeout(() => ensureLoaded('margin'), 300);
+        setTimeout(() => ensureLoaded('new'), 600);
+        setTimeout(() => ensureLoaded('promotion'), 900);
+        setTimeout(() => ensureLoaded('price'), 1200);
+        setTimeout(() => ensureLoaded('sales'), 1500);
+      };
+      if ('requestIdleCallback' in window) requestIdleCallback(preload, { timeout: 1500 });
+      else setTimeout(preload, 400);
+    });
+  }
 
   /* ──────────────────────────────────────────────────
      대시보드 렌더링 (현재는 목업 데이터)
