@@ -329,7 +329,7 @@
         cat:  (m && m.cat) || s.cat || (ro && ro.cat) || '',
         sn:   (m && m.name) || s.sn || mm.sn || (ro && ro.name) || '',
         note: mm.note || '',
-        stock: mm.stock || (ro && ro.stock) || 0,
+        stock: (ro && ro.stock) || mm.stock || 0,
         unitPrice: unit,
         revenue: s.total * unit
       }));
@@ -350,7 +350,7 @@
           cat:  (m && m.cat) || ro.cat || '',
           sn:   (m && m.name) || mm.sn || ro.name || '',
           note: mm.note || '',
-          stock: mm.stock || ro.stock || 0,
+          stock: ro.stock || mm.stock || 0,
           unitPrice: unit,
           revenue: 0
         });
@@ -572,7 +572,7 @@
         cat: (mg && mg.cat) || (ro && ro.cat) || '',
         sn:  (mg && mg.name) || mm.sn || (ro && ro.name) || '',
         note: mm.note || '',
-        stock: mm.stock || (ro && ro.stock) || 0,
+        stock: (ro && ro.stock) || mm.stock || 0,
         byMonth: {},
         total: 0
       };
@@ -759,7 +759,7 @@
       }
       const mcount = Object.keys(marginMap).length;
       rebuildCatOptions();
-      metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${mm.as_of || '-'} · 마진 ${mcount} SKU`;
+      metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${(ro && ro.as_of) || mm.as_of || '-'} · 마진 ${mcount} SKU`;
       setMonth(currentMonth || availableMonths[availableMonths.length - 1]);
     } catch (e) {
       metaEl.textContent = '새로고침 실패: ' + (e.message || e);
@@ -855,7 +855,7 @@
     }
     const mcount = Object.keys(marginMap).length;
     rebuildCatOptions();
-    metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${mm.as_of || '-'} · 마진 ${mcount} SKU`;
+    metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${(ro && ro.as_of) || mm.as_of || '-'} · 마진 ${mcount} SKU`;
     setMonth(availableMonths[availableMonths.length - 1]);
   }).catch(err => { metaEl.textContent = '데이터 로드 실패 (' + err + ')'; });
 })();
