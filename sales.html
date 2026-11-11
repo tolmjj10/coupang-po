@@ -531,7 +531,7 @@
     }
     parts.push('<th class="col-total">월합계</th>');
     const amtSum = skus.reduce((a,x) => a + (x.revenue || 0), 0);
-    parts.push(`<th class="col-amt">매출<br><span style="font-weight:600;color:var(--accent-dark);font-size:10.5px;">Σ ${fmtWon(amtSum)}</span></th>`);
+    parts.push(`<th class="col-amt">매출<br><span style="font-weight:600;color:var(--accent-dark);font-size:10.5px;">${fmtWon(amtSum)}</span></th>`);
     parts.push('</tr></thead><tbody>');
 
     for (const s of skus) {
