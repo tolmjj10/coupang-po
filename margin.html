@@ -406,13 +406,13 @@ const CFG={owner:'tolmjj10',repo:'coupang-po',branch:'main',dir:'data',file:'마
 const COLS=[
   {k:'owner',   label:'담당자',      w:52,  align:'center', editable:true, type:'select', options:['김현유','이병은','조민주']},
   {k:'cat',     label:'카테고리',    w:66,  align:'center', editable:true, type:'select', cls:'col-cat',
-    options:['이미용','욕실가전','모바일','겨울가전','여름가전','건강가전','주방가전','생활가전','인테리어/조명','제습기','공기청정기','육아','차량','애견']},
+    options:['뷰티','욕실가전','모바일','겨울가전','여름가전','건강가전','주방가전','생활가전','인테리어/조명','제습기','공기청정기','육아','차량','애견']},
   {k:'sku',     label:'SKU #',       w:70,  align:'center', editable:true, type:'text'},
   {k:'_vpToggle', label:'',           w:6,   align:'center', render:renderVpToggle, cls:'col-vp-toggle'},
   {k:'viid',    label:'VIID',        w:96,  align:'center', editable:true, type:'text', cls:'col-vp'},
   {k:'pid',     label:'PID',         w:96,  align:'center', editable:true, type:'text', cls:'col-vp'},
   {k:'name',    label:'상품명',      w:320, align:'left',   editable:true, type:'text', cls:'col-name'},
-  {k:'status',  label:'상태',        w:60,  align:'center', editable:true, type:'select', options:['판매','단종','품절','단종예정']},
+  {k:'status',  label:'상태',        w:60,  align:'center', editable:true, type:'select', options:['판매','단종','입고x','단종예정']},
   {k:'cost',    label:'매입가',      w:72,  align:'right',  editable:true, type:'num', hi:true},
   {k:'supply',  label:'공급가',      w:72,  align:'right',  calc:r=>r.cost!=null? r.cost/1.1 : null,           type:'num'},
   {k:'vat',     label:'부가세',      w:60,  align:'right',  calc:r=>r.cost!=null? r.cost - r.cost/1.1 : null,  type:'num'},
@@ -1019,6 +1019,7 @@ async function load(){
       if(typeof row.status==='string') row.status=row.status.replace(/\s+/g,''); // 공백 제거해 '단종 예정' → '단종예정' 통합
       if(row.status==='예정') row.status='단종예정'; // 옛 값 마이그레이션
       if(row.status==='중지') row.status=''; // '중지' 상태 제거
+      if(row.status==='품절') row.status='입고x'; // '품절' → '입고x' 마이그레이션
       // viid/pid 이전: state에 없고 window.viidMap 에만 있으면 자동 채움
       const sku=String(row.sku||'').trim();
       const mapped=(window.viidMap||{})[sku];
