@@ -853,6 +853,7 @@
       masterMap[sku].note = note;
     }
     const mcount = Object.keys(marginMap).length;
+    rebuildCatOptions();
     metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${mm.as_of || '-'} · 마진 ${mcount} SKU`;
     setMonth(availableMonths[availableMonths.length - 1]);
   }).catch(err => { metaEl.textContent = '데이터 로드 실패 (' + err + ')'; });
