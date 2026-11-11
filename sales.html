@@ -459,8 +459,9 @@
       document.getElementById('k-in').textContent  = fmtInt(fi.reduce((a,x)=>a+x.total,0)) + '개';
       let amt = 0, mgn = 0;
       for (const s of fo) {
-        amt += s.revenue || 0;           // cost × qty
-        mgn += skuMargin(s.id) * s.total; // (cost/1.1 - originN) × qty
+        const m = marginMap[s.id];
+        if (m) amt += (Number(m.cost) || 0) * s.total;  // 매입가 × 수량
+        mgn += skuMargin(s.id) * s.total;                // (cost/1.1 - originN) × 수량
       }
       document.getElementById('k-amt').textContent = fmtWon(amt);
       document.getElementById('k-mgn').textContent = fmtWon(mgn);
