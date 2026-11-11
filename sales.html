@@ -323,7 +323,8 @@
   }
 
   function filterAndOverlay(skus, metric, data) {
-    const unitKey = 'cost';  // 매출 = 매입가(공급가+VAT) × 판매수량
+    // 출고(실 판매) 매출 = 상시가(price) × 수량, 입고 매출 = 매입가(cost) × 수량
+    const unitKey = metric === 'in' ? 'cost' : 'price';
     const out = [];
     const seen = new Set();
     for (const s of skus) {
@@ -526,7 +527,8 @@
       parts.push(`<th class="col-date${wkCls}${otherCls}" title="${e.date} (${DOW[dowOf(e.date)]})">${label}</th>`);
     }
     parts.push('<th class="col-total">월합계</th>');
-    parts.push('<th class="col-amt">매출</th>');
+    const amtSum = skus.reduce((a,x) => a + (x.revenue || 0), 0);
+    parts.push(`<th class="col-amt">매출<br><span style="font-weight:600;color:var(--accent-dark);font-size:10.5px;">Σ ${fmtWon(amtSum)}</span></th>`);
     parts.push('</tr></thead><tbody>');
 
     for (const s of skus) {
