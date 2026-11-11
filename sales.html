@@ -71,6 +71,12 @@
   .month-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; font: inherit; }
   .search { display: flex; align-items: center; gap: 6px; }
   .search input { font: inherit; font-size: 12.5px; padding: 6px 10px; min-width: 180px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+  .cat-filter { font: inherit; font-size: 12.5px; padding: 6px 28px 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%237a706a' d='M0 0l5 6 5-6z'/></svg>") no-repeat right 10px center; color: var(--text); cursor: pointer; appearance: none; -webkit-appearance: none; min-width: 120px; }
+  .cat-filter:hover { border-color: var(--text-hint); }
+  .brand-tabs { display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 3px; user-select: none; margin-left: 4px; }
+  .brand-tab { font-size: 11.5px; font-weight: 600; padding: 4px 11px; border-radius: 5px; cursor: pointer; color: var(--text-hint); }
+  .brand-tab:hover { color: var(--text); }
+  .brand-tab.active { background: var(--accent); color: #fff; }
   .refresh-btn {
     width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
     border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer;
@@ -214,6 +220,9 @@
       <button type="button" id="refreshBtn" class="refresh-btn" title="판매 데이터 새로고침">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
       </button>
+      <select id="catFilter" class="cat-filter" title="카테고리 필터">
+        <option value="">전체 카테고리</option>
+      </select>
       <input type="search" id="search" placeholder="상품명/SKU/카테고리 검색">
     </div>
   </div>
@@ -237,6 +246,11 @@
       <button data-days="7" class="active">7일</button>
       <button data-days="14">14일</button>
       <button data-days="0">전체</button>
+      <div class="brand-tabs" role="tablist" aria-label="브랜드 필터">
+        <div class="brand-tab active" data-brand="all" role="tab">전체</div>
+        <div class="brand-tab" data-brand="oa" role="tab">오아</div>
+        <div class="brand-tab" data-brand="voar" role="tab">보아르</div>
+      </div>
     </div>
   </div>
 
@@ -269,6 +283,8 @@
   const searchEl = document.getElementById('search');
   const metricTabs = document.querySelectorAll('.metric-tab');
   const expandBtns = document.querySelectorAll('.expand-ctl button');
+  const brandTabs = document.querySelectorAll('.brand-tab');
+  const catFilter = document.getElementById('catFilter');
   const kpiOut = document.getElementById('kpi-out');
   const kpiIn = document.getElementById('kpi-in');
 
@@ -277,6 +293,15 @@
   let currentMonth = null;
   let currentMetric = 'out';
   let visibleDays = 7;
+  let currentBrand = 'all';  // all | oa | voar
+  let currentCat = '';       // '' = 전체
+
+  const brandOf = (name) => (name && String(name).trim().startsWith('보아르')) ? 'voar' : 'oa';
+  const passesBrandCat = (s) => {
+    if (currentBrand !== 'all' && brandOf(s.sn) !== currentBrand) return false;
+    if (currentCat && (s.cat || '') !== currentCat) return false;
+    return true;
+  };
   const cache = {};
   let marginMap = {};  // sku_id -> {cat, name, cost, price}
   let masterMap = {};  // sku_id -> {stock, note, sn, brand, sp}
@@ -422,8 +447,8 @@
     document.getElementById('k-mgn').textContent = t.mgn != null ? fmtWon(t.mgn) : '—';
     const d = cache[ym];
     if (d) {
-      const fo = filterAndOverlay(d.metrics.out || [], 'out');
-      const fi = filterAndOverlay(d.metrics.in  || [], 'in');
+      const fo = filterAndOverlay(d.metrics.out || [], 'out').filter(passesBrandCat);
+      const fi = filterAndOverlay(d.metrics.in  || [], 'in').filter(passesBrandCat);
       document.getElementById('k-out').textContent = fmtInt(fo.reduce((a,x)=>a+x.total,0)) + '개';
       document.getElementById('k-in').textContent  = fmtInt(fi.reduce((a,x)=>a+x.total,0)) + '개';
     } else {
@@ -444,6 +469,7 @@
     const isIn = currentMetric === 'in';
     const q = searchEl.value.trim().toLowerCase();
     let skus = filterAndOverlay(data.metrics[currentMetric] || [], currentMetric, data);
+    skus = skus.filter(passesBrandCat);
     if (q) {
       skus = skus.filter(s =>
         (s.sn || '').toLowerCase().includes(q) ||
@@ -563,7 +589,7 @@
     }
     // 판매 0인 roster SKU도 베이스로 포함
     for (const id of Object.keys(rosterMap)) ensureAgg(id);
-    let skus = Object.values(skuAgg);
+    let skus = Object.values(skuAgg).filter(passesBrandCat);
     const q = searchEl.value.trim().toLowerCase();
     if (q) {
       skus = skus.filter(s =>
@@ -666,6 +692,40 @@
   let searchTimer;
   searchEl.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(refreshPivot, 120); });
 
+  brandTabs.forEach(t => t.addEventListener('click', () => {
+    currentBrand = t.dataset.brand;
+    brandTabs.forEach(x => x.classList.toggle('active', x === t));
+    rebuildCatOptions();
+    renderKpi(currentMonth);
+    refreshPivot();
+  }));
+  catFilter.addEventListener('change', () => {
+    currentCat = catFilter.value || '';
+    renderKpi(currentMonth);
+    refreshPivot();
+  });
+
+  function rebuildCatOptions() {
+    const cats = new Set();
+    const addFrom = (src, nameKey) => {
+      for (const id of Object.keys(src)) {
+        const o = src[id] || {};
+        const nm = (marginMap[id] && marginMap[id].name) || (masterMap[id] && masterMap[id].sn) || o[nameKey] || '';
+        if (currentBrand !== 'all' && brandOf(nm) !== currentBrand) continue;
+        const cat = (marginMap[id] && marginMap[id].cat) || o.cat || '';
+        if (cat) cats.add(cat);
+      }
+    };
+    addFrom(marginMap, 'name');
+    addFrom(rosterMap, 'name');
+    const sorted = Array.from(cats).sort((a,b) => a.localeCompare(b, 'ko'));
+    const prev = currentCat;
+    catFilter.innerHTML = '<option value="">전체 카테고리</option>' +
+      sorted.map(c => `<option value="${c}">${c}</option>`).join('');
+    if (sorted.includes(prev)) { catFilter.value = prev; }
+    else { currentCat = ''; catFilter.value = ''; }
+  }
+
   // 새로고침 버튼: 캐시 비우고 manifest/마진/마스터/이슈맵 전부 다시 로드 → 현재 월 재적재
   const refreshBtn = document.getElementById('refreshBtn');
   async function hardRefresh() {
@@ -697,6 +757,7 @@
         masterMap[sku].note = note;
       }
       const mcount = Object.keys(marginMap).length;
+      rebuildCatOptions();
       metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${mm.as_of || '-'} · 마진 ${mcount} SKU`;
       setMonth(currentMonth || availableMonths[availableMonths.length - 1]);
     } catch (e) {
