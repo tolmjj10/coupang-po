@@ -443,18 +443,26 @@
   }
 
   function renderKpi(ym) {
-    const t = manifest.monthly_totals[ym] || {};
-    document.getElementById('k-amt').textContent = t.amt != null ? fmtWon(t.amt) : '—';
-    document.getElementById('k-mgn').textContent = t.mgn != null ? fmtWon(t.mgn) : '—';
     const d = cache[ym];
     if (d) {
       const fo = filterAndOverlay(d.metrics.out || [], 'out').filter(passesBrandCat);
       const fi = filterAndOverlay(d.metrics.in  || [], 'in').filter(passesBrandCat);
       document.getElementById('k-out').textContent = fmtInt(fo.reduce((a,x)=>a+x.total,0)) + '개';
       document.getElementById('k-in').textContent  = fmtInt(fi.reduce((a,x)=>a+x.total,0)) + '개';
+      let amt = 0, mgn = 0;
+      for (const s of fo) {
+        amt += s.revenue || 0;
+        const m = marginMap[s.id];
+        if (m) mgn += (Number(m.price) - Number(m.cost)) * s.total;
+      }
+      document.getElementById('k-amt').textContent = fmtWon(amt);
+      document.getElementById('k-mgn').textContent = fmtWon(mgn);
     } else {
+      const t = manifest.monthly_totals[ym] || {};
       document.getElementById('k-out').textContent = '…';
       document.getElementById('k-in').textContent  = '…';
+      document.getElementById('k-amt').textContent = t.amt != null ? fmtWon(t.amt) : '—';
+      document.getElementById('k-mgn').textContent = t.mgn != null ? fmtWon(t.mgn) : '—';
     }
     kpiOut.classList.toggle('active-out', currentMetric === 'out');
     kpiOut.classList.remove('active-in');
