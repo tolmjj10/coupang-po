@@ -303,6 +303,13 @@
     if (currentCat && (s.cat || '') !== currentCat) return false;
     return true;
   };
+  const skuMargin = (id) => {
+    const m = marginMap[id];
+    if (!m) return 0;
+    const cost = Number(m.cost) || 0;
+    const originN = Number(m.originN) || 0;
+    return (cost / 1.1) - originN;
+  };
   const cache = {};
   let marginMap = {};  // sku_id -> {cat, name, cost, price}
   let masterMap = {};  // sku_id -> {stock, note, sn, brand, sp}
@@ -316,7 +323,7 @@
   }
 
   function filterAndOverlay(skus, metric, data) {
-    const unitKey = metric === 'in' ? 'cost' : 'price';
+    const unitKey = 'cost';  // 매출 = 매입가(공급가+VAT) × 판매수량
     const out = [];
     const seen = new Set();
     for (const s of skus) {
@@ -451,9 +458,8 @@
       document.getElementById('k-in').textContent  = fmtInt(fi.reduce((a,x)=>a+x.total,0)) + '개';
       let amt = 0, mgn = 0;
       for (const s of fo) {
-        amt += s.revenue || 0;
-        const m = marginMap[s.id];
-        if (m) mgn += (Number(m.price) - Number(m.cost)) * s.total;
+        amt += s.revenue || 0;           // cost × qty
+        mgn += skuMargin(s.id) * s.total; // (cost/1.1 - originN) × qty
       }
       document.getElementById('k-amt').textContent = fmtWon(amt);
       document.getElementById('k-mgn').textContent = fmtWon(mgn);
@@ -758,7 +764,7 @@
       for (const r of ((ms && ms.rows) || [])) {
         const sku = String(r.sku || '').trim();
         if (!sku || !/^\d+$/.test(sku)) continue;
-        marginMap[sku] = { cat: r.cat || '', name: r.name || '', cost: r.cost || 0, price: r.price || 0 };
+        marginMap[sku] = { cat: r.cat || '', name: r.name || '', cost: r.cost || 0, price: r.price || 0, originN: r.originN || 0 };
       }
       masterMap = (mm && mm.skus) || {};
       for (const [sku, note] of Object.entries(issueMap)) {
@@ -853,7 +859,7 @@
     for (const r of ((ms && ms.rows) || [])) {
       const sku = String(r.sku || '').trim();
       if (!sku || !/^\d+$/.test(sku)) continue;
-      marginMap[sku] = { cat: r.cat || '', name: r.name || '', cost: r.cost || 0, price: r.price || 0 };
+      marginMap[sku] = { cat: r.cat || '', name: r.name || '', cost: r.cost || 0, price: r.price || 0, originN: r.originN || 0 };
     }
     masterMap = (mm && mm.skus) || {};
     // 이슈제품 리스트의 특이사항 덮어쓰기
