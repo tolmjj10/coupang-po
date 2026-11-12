@@ -78,6 +78,7 @@
   .brand-tab { font-size: 11.5px; font-weight: 600; padding: 4px 11px; border-radius: 5px; cursor: pointer; color: var(--text-hint); }
   .brand-tab:hover { color: var(--text); }
   .brand-tab.active { background: var(--accent); color: #fff; }
+  .brand-tab .cnt { font-size: 9.5px; font-weight: 500; margin-left: 4px; opacity: 0.7; font-variant-numeric: tabular-nums; }
   .refresh-btn {
     width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
     border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer;
@@ -248,9 +249,9 @@
       <button data-days="14">14일</button>
       <button data-days="0">전체</button>
       <div class="brand-tabs" role="tablist" aria-label="브랜드 필터">
-        <div class="brand-tab active" data-brand="all" role="tab">전체</div>
-        <div class="brand-tab" data-brand="oa" role="tab">오아</div>
-        <div class="brand-tab" data-brand="voar" role="tab">보아르</div>
+        <div class="brand-tab active" data-brand="all" role="tab">전체<span class="cnt" data-cnt="all"></span></div>
+        <div class="brand-tab" data-brand="oa" role="tab">오아<span class="cnt" data-cnt="oa"></span></div>
+        <div class="brand-tab" data-brand="voar" role="tab">보아르<span class="cnt" data-cnt="voar"></span></div>
       </div>
     </div>
   </div>
@@ -724,6 +725,23 @@
     refreshPivot();
   });
 
+  function updateBrandCounts() {
+    const seen = new Set();
+    let all = 0, oa = 0, voar = 0;
+    const consider = (id, nameHint) => {
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      const nm = (marginMap[id] && marginMap[id].name) || (masterMap[id] && masterMap[id].sn) || (rosterMap[id] && rosterMap[id].name) || nameHint || '';
+      all++;
+      if (brandOf(nm) === 'voar') voar++; else oa++;
+    };
+    Object.keys(marginMap).forEach(id => consider(id));
+    Object.keys(masterMap).forEach(id => consider(id));
+    Object.keys(rosterMap).forEach(id => consider(id));
+    const set = (k, v) => { const el = document.querySelector(`.brand-tab .cnt[data-cnt="${k}"]`); if (el) el.textContent = v ? `(${fmtInt(v)})` : ''; };
+    set('all', all); set('oa', oa); set('voar', voar);
+  }
+
   function rebuildCatOptions() {
     const cats = new Set();
     const addFrom = (src, nameKey) => {
@@ -776,6 +794,7 @@
         masterMap[sku].note = note;
       }
       const mcount = Object.keys(marginMap).length;
+      updateBrandCounts();
       rebuildCatOptions();
       metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${(ro && ro.as_of) || mm.as_of || '-'} · 마진 ${mcount} SKU`;
       setMonth(currentMonth || availableMonths[availableMonths.length - 1]);
@@ -872,6 +891,7 @@
       masterMap[sku].note = note;
     }
     const mcount = Object.keys(marginMap).length;
+    updateBrandCounts();
     rebuildCatOptions();
     metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${(ro && ro.as_of) || mm.as_of || '-'} · 마진 ${mcount} SKU`;
     setMonth(availableMonths[availableMonths.length - 1]);
