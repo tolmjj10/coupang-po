@@ -726,18 +726,13 @@
   });
 
   function updateBrandCounts() {
-    const seen = new Set();
     let all = 0, oa = 0, voar = 0;
-    const consider = (id, nameHint) => {
-      if (!id || seen.has(id)) return;
-      seen.add(id);
-      const nm = (marginMap[id] && marginMap[id].name) || (masterMap[id] && masterMap[id].sn) || (rosterMap[id] && rosterMap[id].name) || nameHint || '';
+    for (const id of Object.keys(rosterMap)) {
+      const o = rosterMap[id] || {};
+      const nm = o.name || (marginMap[id] && marginMap[id].name) || (masterMap[id] && masterMap[id].sn) || '';
       all++;
       if (brandOf(nm) === 'voar') voar++; else oa++;
-    };
-    Object.keys(marginMap).forEach(id => consider(id));
-    Object.keys(masterMap).forEach(id => consider(id));
-    Object.keys(rosterMap).forEach(id => consider(id));
+    }
     const set = (k, v) => { const el = document.querySelector(`.brand-tab .cnt[data-cnt="${k}"]`); if (el) el.textContent = v ? `(${fmtInt(v)})` : ''; };
     set('all', all); set('oa', oa); set('voar', voar);
   }
