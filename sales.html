@@ -793,10 +793,9 @@
         if (!masterMap[sku]) masterMap[sku] = {};
         masterMap[sku].note = note;
       }
-      const mcount = Object.keys(marginMap).length;
       updateBrandCounts();
       rebuildCatOptions();
-      metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${(ro && ro.as_of) || mm.as_of || '-'} · 마진 ${mcount} SKU`;
+      metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${(ro && ro.as_of) || mm.as_of || '-'}`;
       setMonth(currentMonth || availableMonths[availableMonths.length - 1]);
     } catch (e) {
       metaEl.textContent = '새로고침 실패: ' + (e.message || e);
@@ -890,10 +889,9 @@
       if (!masterMap[sku]) masterMap[sku] = {};
       masterMap[sku].note = note;
     }
-    const mcount = Object.keys(marginMap).length;
     updateBrandCounts();
     rebuildCatOptions();
-    metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${(ro && ro.as_of) || mm.as_of || '-'} · 마진 ${mcount} SKU`;
+    metaEl.textContent = `업데이트: ${m.updated_at} · 재고 ${(ro && ro.as_of) || mm.as_of || '-'}`;
     setMonth(availableMonths[availableMonths.length - 1]);
   }).catch(err => { metaEl.textContent = '데이터 로드 실패 (' + err + ')'; });
 })();
