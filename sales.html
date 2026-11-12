@@ -300,6 +300,8 @@
 
   const brandOf = (name) => (name && String(name).trim().startsWith('보아르')) ? 'voar' : 'oa';
   const passesBrandCat = (s) => {
+    const id = String(s.id || '');
+    if (!rosterMap[id]) return false;  // 일일판매량 xlsx에 등록된 SKU만
     if (currentBrand !== 'all' && brandOf(s.sn) !== currentBrand) return false;
     if (currentCat && (s.cat || '') !== currentCat) return false;
     return true;
