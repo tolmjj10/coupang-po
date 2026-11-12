@@ -729,7 +729,6 @@
     let all = 0, oa = 0, voar = 0;
     for (const id of Object.keys(rosterMap)) {
       const o = rosterMap[id] || {};
-      if ((o.status || '').trim()) continue;  // 활성(status 공백)만 집계
       const nm = o.name || (marginMap[id] && marginMap[id].name) || (masterMap[id] && masterMap[id].sn) || '';
       all++;
       if (brandOf(nm) === 'voar') voar++; else oa++;
