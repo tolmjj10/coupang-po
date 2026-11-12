@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-12",
+  "updated_at": "2026-11-13",
   "source": "oa_ops.crawl_coupang_daily (출고/입고) + mart_sales_daily (매출/마진) · channel=coupang",
   "months": [
     "2026-08",
@@ -27,10 +27,10 @@
       "mgn": 621399386
     },
     "2026-11": {
-      "out": 45217,
-      "in": 52982,
-      "amt": 1015030445,
-      "mgn": 359241658
+      "out": 49268,
+      "in": 57689,
+      "amt": 1118862005,
+      "mgn": 396834049
     }
   }
 }

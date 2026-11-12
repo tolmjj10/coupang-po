@@ -1,10 +1,10 @@
 {
-  "updated_at": "2026-11-12",
+  "updated_at": "2026-11-13",
   "source": "oa_ops.mart_sales_daily · partner_name=쿠팡",
   "current_month": "2026-11",
   "kpi": {
-    "sales_this": 1015030445,
-    "cost_this": 655788787,
+    "sales_this": 1118862005,
+    "cost_this": 722027956,
     "sales_ly": 1358595942,
     "cost_ly": 800256521
   },
@@ -31,7 +31,7 @@
     },
     {
       "ym": "2026-11",
-      "cost": 655788787
+      "cost": 722027956
     }
   ]
 }
