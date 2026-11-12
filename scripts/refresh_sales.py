@@ -272,8 +272,8 @@ def refresh_sales_sku_month(mcp, ym):
     total_out = sum(s["total_out"] for s in skus.values())
     total_in  = sum(s["total_in"]  for s in skus.values())
 
-    out_metrics = sorted(skus.values(), key=lambda s: -s["total_out"])[:500]
-    in_metrics  = sorted(skus.values(), key=lambda s: -s["total_in"])[:500]
+    out_metrics = sorted(skus.values(), key=lambda s: -s["total_out"])
+    in_metrics  = sorted(skus.values(), key=lambda s: -s["total_in"])
 
     data = {
         "month": ym,
