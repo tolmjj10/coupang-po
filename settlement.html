@@ -78,6 +78,16 @@
   .drop-hint  { font-size: 10px; color: var(--text-hint); margin-top: 4px; }
   .drop-path-inline { font-size: 10px; font-weight: 500; opacity: 0.7; letter-spacing: -0.01em; margin-left: 4px; }
   .drop-file  { font-size: 12px; font-weight: 600; color: var(--accent-dark); margin-top: 8px; word-break: break-all; }
+  .drop-undo {
+    position: absolute; top: 8px; right: 8px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--surface); border: 1px solid var(--border-strong);
+    color: var(--text-hint); font-size: 14px; font-weight: 700; line-height: 1;
+    cursor: pointer; display: none; align-items: center; justify-content: center;
+    padding: 0;
+  }
+  .drop.loaded .drop-undo { display: flex; }
+  .drop-undo:hover { background: #fdebea; border-color: var(--neg); color: var(--neg); }
   input[type="file"] { display: none; }
 
   /* 결과 테이블 */
@@ -393,6 +403,7 @@
       <div class="drop-title">광고 정산 엑셀</div>
       <div class="drop-hint">A00065399-dailySettlement-…xlsx</div>
       <div class="drop-file" id="file-cpc" hidden></div>
+      <button class="drop-undo" type="button" title="이 파일만 삭제">×</button>
       <input type="file" accept=".xlsx,.xls" />
     </div>
     <div class="drop coupon" id="drop-coupon">
@@ -400,6 +411,7 @@
       <div class="drop-title">쿠폰 정산 파일</div>
       <div class="drop-hint">coupon_YYYY_MM_DD (N).xls</div>
       <div class="drop-file" id="file-coupon" hidden></div>
+      <button class="drop-undo" type="button" title="이 파일만 삭제">×</button>
       <input type="file" accept=".xlsx,.xls" />
     </div>
     <div class="drop sales" id="drop-sales">
@@ -407,6 +419,7 @@
       <div class="drop-title">실입고 (발주/반출)</div>
       <div class="drop-hint">Coupang_Stocked_Data_List…xlsx</div>
       <div class="drop-file" id="file-sales" hidden></div>
+      <button class="drop-undo" type="button" title="이 파일만 삭제">×</button>
       <input type="file" accept=".xlsx,.xls" />
     </div>
     <div class="drop patotal" id="drop-patotal">
@@ -414,6 +427,7 @@
       <div class="drop-title">매출성장광고보고서 엑셀</div>
       <div class="drop-hint">매출성장광고보고서_YYYYMMDD_YYYYMMDD.xlsx</div>
       <div class="drop-file" id="file-patotal" hidden></div>
+      <button class="drop-undo" type="button" title="이 파일만 삭제">×</button>
       <input type="file" accept=".xlsx,.xls" />
     </div>
     <div class="drop salesanalysis" id="drop-salesanalysis">
@@ -421,6 +435,7 @@
       <div class="drop-title">일간종합성과지표 CSV</div>
       <div class="drop-hint">A00065399_SALES_ANALYSIS_…csv</div>
       <div class="drop-file" id="file-salesanalysis" hidden></div>
+      <button class="drop-undo" type="button" title="이 파일만 삭제">×</button>
       <input type="file" accept=".csv" />
     </div>
   </div>
@@ -2111,6 +2126,54 @@ setupDrop('drop-coupon', 'coupon');
 setupDrop('drop-sales', 'sales');
 setupDrop('drop-patotal', 'patotal');
 setupDrop('drop-salesanalysis', 'salesanalysis');
+
+/* 단일 파일 되돌리기 — 활성 월(또는 단일 모드)에서 해당 종류 파일만 삭제 */
+function clearFileFromState(kind) {
+  if (kind === 'cpc') { cpcData = null; lsSave(LS.cpc, null); lsSave(LS.cpcName, ''); window.cpcBilled = null; }
+  else if (kind === 'coupon') { couponData = null; lsSave(LS.coupon, null); lsSave(LS.couponName, ''); }
+  else if (kind === 'sales') { salesData = null; returnsData = null; lsSave(LS.sales, null); lsSave(LS.salesName, ''); lsSave('settle_returns', null); }
+  else if (kind === 'patotal') { paTotalData = null; lsSave(LS.patotal, null); lsSave(LS.patotalName, ''); rebuildMonthMaps(); }
+  else if (kind === 'salesanalysis') { salesAnalysisData = null; lsSave(LS.salesanalysis, null); lsSave(LS.salesanalysisName, ''); rebuildMonthMaps(); }
+}
+
+function clearFileFromMonth(kind, ym) {
+  const store = monthsStore();
+  if (!store[ym]) return;
+  const keyMap = { cpc:['cpc','cpcName'], coupon:['coupon','couponName'], sales:['sales','salesName'], patotal:['patotal','patotalName'], salesanalysis:['salesanalysis','salesanalysisName'] };
+  const [dataKey, nameKey] = keyMap[kind] || [];
+  if (!dataKey) return;
+  store[ym][dataKey] = null;
+  store[ym][nameKey] = '';
+  if (kind === 'sales') store[ym].returns = null;
+  saveMonthsStore(store);
+}
+
+['cpc','coupon','sales','patotal','salesanalysis'].forEach(kind => {
+  const btn = document.querySelector(`#drop-${kind} .drop-undo`);
+  if (!btn) return;
+  btn.addEventListener('click', e => {
+    e.stopPropagation(); e.preventDefault();
+    const ymLabel = activeMonth && activeMonth !== 'ALL' ? `${activeMonth} ` : '';
+    if (!confirm(`${ymLabel}파일 삭제할까요? (${kind})`)) return;
+    // 1) 상태에서 제거
+    clearFileFromState(kind);
+    // 2) 월별 스토어에서도 제거
+    if (activeMonth && activeMonth !== 'ALL') clearFileFromMonth(kind, activeMonth);
+    // 3) UI 복원
+    const zone = document.getElementById(`drop-${kind}`);
+    const label = zone.querySelector('.drop-file');
+    const title = zone.querySelector('.drop-title');
+    const hint = zone.querySelector('.drop-hint');
+    label.hidden = true; label.textContent = '';
+    title.hidden = false; hint.hidden = false;
+    zone.classList.remove('loaded');
+    zone.querySelector('input[type="file"]').value = '';
+    // 4) 재집계
+    if (cpcData || couponData) aggregate();
+    else renderEmptyResult();
+    queueServerSave();
+  });
+});
 window.addEventListener('dragover', e => { if (!e.target.closest('.drop')) e.preventDefault(); });
 window.addEventListener('drop',     e => { if (!e.target.closest('.drop')) e.preventDefault(); });
 
