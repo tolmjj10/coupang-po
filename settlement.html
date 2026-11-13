@@ -616,6 +616,32 @@ async function loadMargin() {
 /* 제외 브랜드 키워드 (오아+보아르 집계에서 제외) */
 const EXCLUDED_BRAND_KEYWORDS = ['뉴트리커먼', '삼대오백', '매시브', '엠엑시브'];
 
+/* 캠페인의 최종 브랜드 결정 (오아/보아르/'')
+ *   1) inferCampMeta 수동매핑/제외/보아르/오아 명시 → 결과
+ *   2) VIID 체인: camp2viid → viid2sku[v].brand 다수결
+ *   3) VIID의 SKU 이름 접두사 ('오아'/'보아르'로 시작)
+ *   4) N_카테_X 패턴 → 오아
+ *   5) '' (기타/외부)
+ */
+function resolveCampBrand(campId, campName) {
+  const meta = inferCampMeta(campId, campName);
+  if (meta.brand === '오아' || meta.brand === '보아르') return meta.brand;
+  if (meta.brand === '제외') return '';
+  // VIID 체인
+  const viids = (maps.camp2viid && maps.camp2viid[String(campId)]) || [];
+  const tally = { '오아': 0, '보아르': 0 };
+  for (const v of viids) {
+    const m = maps.viid2sku && maps.viid2sku[v];
+    if (!m) continue;
+    if (m.brand === '오아' || m.brand === '보아르') { tally[m.brand]++; continue; }
+    const nm = (m.name || '').replace(/^(?:box|BOX)[_\s]+/i, '');
+    if (nm.startsWith('오아')) tally['오아']++;
+    else if (nm.startsWith('보아르')) tally['보아르']++;
+  }
+  if (tally['오아'] || tally['보아르']) return tally['오아'] >= tally['보아르'] ? '오아' : '보아르';
+  return '';
+}
+
 /* 캠페인 ID/명으로 브랜드·카테 추론. 우선순위:
  *   1) maps.manual_camp_brand[campId]  (수동 매핑)
  *   2) 제외 키워드 매칭
@@ -686,15 +712,27 @@ function catForCamp(campId, campName) {
 /* ─────────── 엑셀 파싱 ─────────── */
 function parseCPC(wb) {
   // dailySettlement 구조 (0-indexed):
-  //   col 7 = 캠페인 ID, col 8 = 캠페인명, col 16 = 청구 소진 광고비
-  // row 0 헤더, row 1 = '전체' 요약 (스킵), row 2+ 일별+캠페인별 상세.
+  //   col 7 = 캠페인 ID, col 8 = 캠페인명, col 16 = 청구 소진 광고비(raw), col 18 = 청구금액(VAT포함)
+  // row 0 헤더, row 1 = '전체' 요약 (이 행에서 billed 총액 추출), row 2+ 일별+캠페인별 상세.
+  // 반환: [sentinel, ...campaigns]
+  //   sentinel = { camp_id: '__TOTAL__', cost: 0, camp_name: '__TOTAL__', billed_raw, billed_vat }
+  //   per-campaign sum은 row 1 col 16 billed_raw보다 다소 큰 경우가 있음 (쿠팡 청구 조정).
+  //   브랜드 카드 총액은 billed_vat 기준, 비-오아/보아르 차감으로 계산.
   const ws = wb.Sheets[wb.SheetNames[0]];
   const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-  const byCamp = {}; // camp_id → { cost, camp_name }
+  const byCamp = {};
+  let billedRaw = 0, billedVat = 0;
   for (let i = 1; i < aoa.length; i++) {
     const r = aoa[i];
     const campId = r[7];
-    if (!campId || typeof campId !== 'number') continue;  // 요약행/일별소계 스킵
+    // row 1 '전체' 요약 — col 16 = billed raw, col 18 = billed VAT
+    if (!campId || typeof campId !== 'number') {
+      if (!billedVat && Number(r[18])) {
+        billedRaw = Number(r[16]) || 0;
+        billedVat = Number(r[18]) || 0;
+      }
+      continue;
+    }
     const cid = String(Math.round(campId));
     const campName = String(r[8] || '').trim();
     const cost = Number(r[16]) || 0;
@@ -703,7 +741,9 @@ function parseCPC(wb) {
     byCamp[cid].cost += cost;
     if (campName && !byCamp[cid].camp_name) byCamp[cid].camp_name = campName;
   }
-  return Object.entries(byCamp).map(([camp_id, v]) => ({ camp_id, cost: v.cost, camp_name: v.camp_name }));
+  const rows = Object.entries(byCamp).map(([camp_id, v]) => ({ camp_id, cost: v.cost, camp_name: v.camp_name }));
+  const sentinel = { camp_id: '__TOTAL__', cost: 0, camp_name: '__TOTAL__', billed_raw: billedRaw, billed_vat: billedVat };
+  return [sentinel, ...rows];
 }
 
 async function parseSales(file) {
@@ -869,19 +909,29 @@ function aggregate() {
 
   // CPC: 카테별 + SKU별 동시 집계
   let cpcMatched = 0, cpcUnmatched = 0, totalRawCost = 0;
+  let billedTotalRaw = 0, billedTotalVat = 0;
+  let nonBrandRaw = 0;  // brandOf='' 캠페인 raw 합 (브랜드 카드 총액 차감용)
   for (const row of cpcData) {
+    // 센티넬 — 파일 row 1 청구 총액
+    if (row.camp_id === '__TOTAL__') {
+      billedTotalRaw += Number(row.billed_raw) || 0;
+      billedTotalVat += Number(row.billed_vat) || 0;
+      continue;
+    }
     const cat = catForCamp(row.camp_id, row.camp_name);
     bump(cat, 'cpc', row.cost);
     totalRawCost += row.cost;
     if (UNMATCHED_CATS.has(cat)) cpcUnmatched++; else cpcMatched++;
-    // SKU 분배 + 추론 브랜드 주입 (가상 SKU가 오아/보아르 브랜드 카드에 들어가도록)
-    const campMeta = inferCampMeta(row.camp_id, row.camp_name);
-    const effBrand = (campMeta.brand === '오아' || campMeta.brand === '보아르') ? campMeta.brand : '';
+    // SKU 분배 + 최종 브랜드 결정 (수동매핑 → 캠페인명 추론 → VIID 체인 다수결)
+    const effBrand = resolveCampBrand(row.camp_id, row.camp_name);
+    if (!effBrand) nonBrandRaw += row.cost;
     const dist = distributeCampCost(row.camp_id, row.cost, cat);
     for (const [sku, cost] of Object.entries(dist)) {
       skuEnsure(sku, effBrand ? { brand: effBrand } : undefined).cpc += cost;
     }
   }
+  // 전역에 billed 총액 저장 (renderBrands에서 오아+보아르 CPC 총액 계산에 사용)
+  window.cpcBilled = { totalRaw: billedTotalRaw, totalVat: billedTotalVat, nonBrandRaw };
 
   // 쿠폰 — sku2cat 없을 때는 쿠폰 파일의 SKU명에서 브랜드 추론
   let cpnMatched = 0, cpnUnmatched = 0;
@@ -1618,6 +1668,16 @@ function renderBrands(allEntries, hasSales) {
   }
   const total = { cnt: agg['오아'].cnt + agg['보아르'].cnt };
   for (const k of ['gmv','cogs','cpc','cpn','tr','p','qty','ret']) total[k] = agg['오아'][k] + agg['보아르'][k];
+  // 오아+보아르 CPC는 파일 청구 총액 VAT - 비오아/보아르 캠페인 raw × 1.1 로 재계산
+  // (per-campaign sum ≠ 파일 row 1 청구 총액이기 때문 — 쿠팡 청구 조정분)
+  const bill = window.cpcBilled;
+  if (bill && bill.totalVat && total.cpc > 0) {
+    const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1));
+    const ratio = brandBilledVat / total.cpc;
+    agg['오아'].cpc = Math.round(agg['오아'].cpc * ratio);
+    agg['보아르'].cpc = brandBilledVat - agg['오아'].cpc;  // 반올림 오차 보정
+    total.cpc = brandBilledVat;
+  }
   const hasTrialBrand = total.tr > 0;
 
   // 상계처리 — 대부분은 합계에만 반영, '어워즈'만 브랜드별 분배 (설정: awardsBoarre)
