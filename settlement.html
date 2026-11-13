@@ -39,8 +39,11 @@
 
   /* 드롭존 */
   .drops {
-    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
     margin-bottom: 12px;
+  }
+  @media (max-width: 1200px) {
+    .drops { grid-template-columns: repeat(3, 1fr); }
   }
   .drop {
     background: var(--surface);
@@ -63,13 +66,17 @@
     padding: 2px 8px; border-radius: 10px;
     background: var(--accent-light); color: var(--accent-dark);
   }
-  .drop.cpc .drop-tag    { background: #e8e1dc; color: var(--cpc); }
-  .drop.coupon .drop-tag { background: #f3e2d2; color: var(--coupon); }
-  .drop.sales .drop-tag  { background: #e0e8df; color: var(--sales); }
-  .drop.sales.loaded     { border-color: var(--sales); }
+  .drop.cpc .drop-tag          { background: #e8e1dc; color: var(--cpc); }
+  .drop.coupon .drop-tag       { background: #f3e2d2; color: var(--coupon); }
+  .drop.sales .drop-tag        { background: #e0e8df; color: var(--sales); }
+  .drop.patotal .drop-tag      { background: #e1e4ec; color: #4a5a85; }
+  .drop.salesanalysis .drop-tag{ background: #ece1e8; color: #7a4f6a; }
+  .drop.sales.loaded           { border-color: var(--sales); }
+  .drop.patotal.loaded         { border-color: #7284b0; }
+  .drop.salesanalysis.loaded   { border-color: #a07489; }
   .drop-title { font-size: 14px; font-weight: 700; margin-top: 6px; }
   .drop-hint  { font-size: 11.5px; color: var(--text-hint); margin-top: 4px; }
-  .drop-path  { font-size: 10.5px; color: var(--text-hint); opacity: 0.75; margin-top: 6px; letter-spacing: -0.005em; }
+  .drop-path-inline { font-size: 10px; font-weight: 500; opacity: 0.7; letter-spacing: -0.01em; margin-left: 4px; }
   .drop-file  { font-size: 12px; font-weight: 600; color: var(--accent-dark); margin-top: 8px; word-break: break-all; }
   input[type="file"] { display: none; }
 
@@ -382,42 +389,37 @@
 
   <div class="drops">
     <div class="drop cpc" id="drop-cpc">
-      <div class="drop-tag">파일 1 · CPC 광고비</div>
+      <div class="drop-tag">파일 1 · CPC 광고비 <span class="drop-path-inline" data-key="cpc"></span></div>
       <div class="drop-title">광고 정산 엑셀</div>
       <div class="drop-hint">A00065399-dailySettlement-…xlsx</div>
-      <div class="drop-path">허브 › 광고 관리 › 일별 광고 › 일별 광고비 정산내역 보고서</div>
       <div class="drop-file" id="file-cpc" hidden></div>
       <input type="file" accept=".xlsx,.xls" />
     </div>
     <div class="drop coupon" id="drop-coupon">
-      <div class="drop-tag">파일 2 · 쿠폰비</div>
+      <div class="drop-tag">파일 2 · 쿠폰비 <span class="drop-path-inline" data-key="coupon"></span></div>
       <div class="drop-title">쿠폰 정산 파일</div>
       <div class="drop-hint">coupon_YYYY_MM_DD (N).xls</div>
-      <div class="drop-path">허브 › 정산 › 공제금액계정 › 쿠폰프로모션</div>
       <div class="drop-file" id="file-coupon" hidden></div>
       <input type="file" accept=".xlsx,.xls" />
     </div>
     <div class="drop sales" id="drop-sales">
-      <div class="drop-tag">파일 3 · 실입고수량</div>
+      <div class="drop-tag">파일 3 · 실입고수량 <span class="drop-path-inline" data-key="sales"></span></div>
       <div class="drop-title">실입고 (발주/반출)</div>
       <div class="drop-hint">Coupang_Stocked_Data_List…xlsx</div>
-      <div class="drop-path">허브 › 물류 › 입고 상세내역</div>
       <div class="drop-file" id="file-sales" hidden></div>
       <input type="file" accept=".xlsx,.xls" />
     </div>
     <div class="drop patotal" id="drop-patotal">
-      <div class="drop-tag">파일 4 · 매출성장광고보고서</div>
-      <div class="drop-title">캠페인→VIID 매핑</div>
+      <div class="drop-tag">파일 4 · 매출성장광고보고서 <span class="drop-path-inline" data-key="patotal"></span></div>
+      <div class="drop-title">매출성장광고보고서 엑셀</div>
       <div class="drop-hint">매출성장광고보고서_YYYYMMDD_YYYYMMDD.xlsx</div>
-      <div class="drop-path">허브 › 광고 관리 › 리포트 › 매출성장광고보고서</div>
       <div class="drop-file" id="file-patotal" hidden></div>
       <input type="file" accept=".xlsx,.xls" />
     </div>
     <div class="drop salesanalysis" id="drop-salesanalysis">
-      <div class="drop-tag">파일 5 · 일간종합성과지표</div>
-      <div class="drop-title">VIID→SKU·브랜드 매핑</div>
-      <div class="drop-hint">A00065399_SALES_ANALYSIS_DAILY_PERFORMANCE_…csv</div>
-      <div class="drop-path">허브 › 셀러인사이트 › 성과지표 › 일간종합성과지표 (CSV 다운로드)</div>
+      <div class="drop-tag">파일 5 · 일간종합성과지표 <span class="drop-path-inline" data-key="salesanalysis"></span></div>
+      <div class="drop-title">일간종합성과지표 CSV</div>
+      <div class="drop-hint">A00065399_SALES_ANALYSIS_…csv</div>
       <div class="drop-file" id="file-salesanalysis" hidden></div>
       <input type="file" accept=".csv" />
     </div>
