@@ -555,6 +555,11 @@ async function loadMaps() {
     for (const sku in maps.sku2cat) {
       if (maps.sku2cat[sku] && maps.sku2cat[sku].cat === '이미용') maps.sku2cat[sku].cat = '뷰티';
     }
+    // SKU → brand 역색인 (viid2sku에서 추출) — brandOf 이름 접두사 실패 시 fallback
+    maps.sku2brand = {};
+    for (const v of Object.values(maps.viid2sku || {})) {
+      if (v && v.sku && v.brand && !maps.sku2brand[v.sku]) maps.sku2brand[v.sku] = v.brand;
+    }
     info.innerHTML = `<span class="ok">매핑 로드됨</span> · VIID→SKU ${Object.keys(maps.viid2sku).length.toLocaleString()} · SKU→카테 ${Object.keys(maps.sku2cat).length.toLocaleString()} · 캠페인→VIID ${Object.keys(maps.camp2viid).length.toLocaleString()} · 갱신 ${esc(maps.updated_at || '')}`;
   } catch (e) {
     info.innerHTML = '<span class="bad">매핑 로드 실패</span>';
@@ -608,6 +613,34 @@ async function loadMargin() {
 }
 
 /* ─────────── 분류 룰 ─────────── */
+/* 제외 브랜드 키워드 (오아+보아르 집계에서 제외) */
+const EXCLUDED_BRAND_KEYWORDS = ['뉴트리커먼', '삼대오백', '매시브', '엠엑시브'];
+
+/* 캠페인 ID/명으로 브랜드·카테 추론. 우선순위:
+ *   1) maps.manual_camp_brand[campId]  (수동 매핑)
+ *   2) 제외 키워드 매칭
+ *   3) '보아르' 포함 → 보아르
+ *   4) '오아 '/'[오아]' 접두사 → 오아
+ *   5) 'N_카테_...' 패턴 → 오아 + 해당 카테
+ *   6) 추론 실패 → { brand: '', cat: '' } (상위 VIID 다수결 로직 사용)
+ */
+function inferCampMeta(campId, campName) {
+  const manual = maps.manual_camp_brand && maps.manual_camp_brand[String(campId)];
+  if (manual) return { brand: manual.brand || '', cat: manual.cat || '' };
+  const name = (campName || '').trim();
+  if (!name) return { brand: '', cat: '' };
+  if (EXCLUDED_BRAND_KEYWORDS.some(k => name.includes(k))) return { brand: '제외', cat: '기타' };
+  if (name.includes('보아르')) return { brand: '보아르', cat: '' };
+  if (name.startsWith('[오아]') || name.startsWith('오아 ')) return { brand: '오아', cat: '' };
+  const mCat = name.match(/^\d+_([^_]+)_/);
+  if (mCat) {
+    let c = mCat[1];
+    if (c === '뷰티가전' || c === '이미용') c = '뷰티';
+    return { brand: '오아', cat: c };
+  }
+  return { brand: '', cat: '' };
+}
+
 function classify(sku, brand, campName) {
   const b = (brand || '').trim();
   const nameHint = sku && maps.sku2cat[sku] ? (maps.sku2cat[sku].name || '') : '';
@@ -644,6 +677,9 @@ function catForCamp(campId, campName) {
     if (!best || tally[c] > tally[best]) best = c;
   }
   if (best && best !== '기타') return best;
+  // VIID 다수결 실패 → 캠페인명 추론 사용
+  const meta = inferCampMeta(campId, campName);
+  if (meta.cat && meta.cat !== '기타') return meta.cat;
   return '기타';  // 매핑 전혀 없거나 '기타' → 전부 '기타' (삼대오백 미매핑 등 포함)
 }
 
@@ -838,10 +874,12 @@ function aggregate() {
     bump(cat, 'cpc', row.cost);
     totalRawCost += row.cost;
     if (UNMATCHED_CATS.has(cat)) cpcUnmatched++; else cpcMatched++;
-    // SKU 분배
+    // SKU 분배 + 추론 브랜드 주입 (가상 SKU가 오아/보아르 브랜드 카드에 들어가도록)
+    const campMeta = inferCampMeta(row.camp_id, row.camp_name);
+    const effBrand = (campMeta.brand === '오아' || campMeta.brand === '보아르') ? campMeta.brand : '';
     const dist = distributeCampCost(row.camp_id, row.cost, cat);
     for (const [sku, cost] of Object.entries(dist)) {
-      skuEnsure(sku).cpc += cost;
+      skuEnsure(sku, effBrand ? { brand: effBrand } : undefined).cpc += cost;
     }
   }
 
@@ -966,6 +1004,7 @@ function aggregate() {
   }
 
   currentBySku = bySku;  // render()가 브랜드 재집계에 쓰므로 먼저 세팅
+  window.currentBySku = bySku; window.currentByCat = byCat; window.brandOf = brandOf; window.maps = maps; window.cpcData = cpcData;
   render(byCat, { cpcMatched, cpcUnmatched, cpnMatched, cpnUnmatched, totalCpcInt });
   renderSkuTable(bySku);
   renderReturnsPanel();
@@ -1513,6 +1552,12 @@ window.setFilterBrand = (b) => {
   renderSkuTable();
 };
 function brandOf(sku, d) {
+  // 집계 시 주입된 brand (수동 매핑/캠페인명 추론 결과) 최우선
+  if (d && d.brand === '오아') return '오아';
+  if (d && d.brand === '보아르') return '보아르';
+  // viid2sku에서 역색인한 브랜드 (SKU 이름이 오아/보아르로 시작 안 해도 인식)
+  const sb = maps && maps.sku2brand && maps.sku2brand[sku];
+  if (sb === '오아' || sb === '보아르') return sb;
   const raw = (d.name || '').trim();
   // BOX_/box_ 접두사 제거 후 브랜드 판정
   const nm = raw.replace(/^(?:box|BOX)[_\s]+/i, '');
