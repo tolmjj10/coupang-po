@@ -405,6 +405,22 @@
       <div class="drop-file" id="file-sales" hidden></div>
       <input type="file" accept=".xlsx,.xls" />
     </div>
+    <div class="drop patotal" id="drop-patotal">
+      <div class="drop-tag">파일 4 · 매출성장광고보고서</div>
+      <div class="drop-title">캠페인→VIID 매핑</div>
+      <div class="drop-hint">매출성장광고보고서_YYYYMMDD_YYYYMMDD.xlsx</div>
+      <div class="drop-path">허브 › 광고 관리 › 리포트 › 매출성장광고보고서</div>
+      <div class="drop-file" id="file-patotal" hidden></div>
+      <input type="file" accept=".xlsx,.xls" />
+    </div>
+    <div class="drop salesanalysis" id="drop-salesanalysis">
+      <div class="drop-tag">파일 5 · 일간종합성과지표</div>
+      <div class="drop-title">VIID→SKU·브랜드 매핑</div>
+      <div class="drop-hint">A00065399_SALES_ANALYSIS_DAILY_PERFORMANCE_…csv</div>
+      <div class="drop-path">허브 › 셀러인사이트 › 성과지표 › 일간종합성과지표 (CSV 다운로드)</div>
+      <div class="drop-file" id="file-salesanalysis" hidden></div>
+      <input type="file" accept=".csv" />
+    </div>
   </div>
 
   <div class="deduct-panel" id="deduct-panel">
@@ -456,6 +472,8 @@ let salesData = null;        // { sku: {qty, gmvCogs, name, brand} }  (실입고
 let returnsData = null;      // { sku: {qty, gmvCogs, name} }  (반출만 분리 집계)
 let promotionData = null;    // promotion-state 전체 (체험단 집계용)
 let trialOverride = null;    // /settlement/trial-by-sku.json — 월별 SKU별 체험단 (VAT제외) 수동 매핑
+let paTotalData = null;       // { campId: {viids: [], prodname, name} }  매출성장광고보고서 기반 월별 camp→VIID
+let salesAnalysisData = null; // { viid: {sku, name, brand, cat} }  일간종합성과지표 기반 월별 VIID→SKU
 const EXPERIENCE_BASE_COST = 125000;
 let currentBySku = null;     // 집계된 SKU 상세 (필터링 재렌더용)
 let filterCat = '';          // '' = 전체
@@ -466,6 +484,8 @@ const LS = {
   cpc: 'settle_cpc', cpcName: 'settle_cpc_name',
   coupon: 'settle_coupon', couponName: 'settle_coupon_name',
   sales: 'settle_sales', salesName: 'settle_sales_name',
+  patotal: 'settle_patotal', patotalName: 'settle_patotal_name',
+  salesanalysis: 'settle_salesanalysis', salesanalysisName: 'settle_salesanalysis_name',
 };
 function lsSave(key, val) {
   try { localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val)); }
@@ -498,9 +518,17 @@ function restoreFromLs() {
   couponData = lsLoad(LS.coupon);
   salesData = lsLoad(LS.sales);
   returnsData = lsLoad('settle_returns');
-  for (const [kind, nameKey] of [['cpc', LS.cpcName], ['coupon', LS.couponName], ['sales', LS.salesName]]) {
+  paTotalData = lsLoad(LS.patotal);
+  salesAnalysisData = lsLoad(LS.salesanalysis);
+  const pairs = [
+    ['cpc', LS.cpcName, cpcData],
+    ['coupon', LS.couponName, couponData],
+    ['sales', LS.salesName, salesData],
+    ['patotal', LS.patotalName, paTotalData],
+    ['salesanalysis', LS.salesanalysisName, salesAnalysisData],
+  ];
+  for (const [kind, nameKey, data] of pairs) {
     const name = lsLoad(nameKey, false);
-    const data = kind === 'cpc' ? cpcData : kind === 'coupon' ? couponData : salesData;
     if (name && data) applyDropLabel(kind, name + ' · 저장됨');
   }
 }
@@ -555,11 +583,7 @@ async function loadMaps() {
     for (const sku in maps.sku2cat) {
       if (maps.sku2cat[sku] && maps.sku2cat[sku].cat === '이미용') maps.sku2cat[sku].cat = '뷰티';
     }
-    // SKU → brand 역색인 (viid2sku에서 추출) — brandOf 이름 접두사 실패 시 fallback
-    maps.sku2brand = {};
-    for (const v of Object.values(maps.viid2sku || {})) {
-      if (v && v.sku && v.brand && !maps.sku2brand[v.sku]) maps.sku2brand[v.sku] = v.brand;
-    }
+    // sku2brand는 rebuildMonthMaps에서 월별+중앙 KV 합성해서 구축함
     info.innerHTML = `<span class="ok">매핑 로드됨</span> · VIID→SKU ${Object.keys(maps.viid2sku).length.toLocaleString()} · SKU→카테 ${Object.keys(maps.sku2cat).length.toLocaleString()} · 캠페인→VIID ${Object.keys(maps.camp2viid).length.toLocaleString()} · 갱신 ${esc(maps.updated_at || '')}`;
   } catch (e) {
     info.innerHTML = '<span class="bad">매핑 로드 실패</span>';
@@ -616,6 +640,38 @@ async function loadMargin() {
 /* 제외 브랜드 키워드 (오아+보아르 집계에서 제외) */
 const EXCLUDED_BRAND_KEYWORDS = ['뉴트리커먼', '삼대오백', '매시브', '엠엑시브'];
 
+/* 월별 매핑 재구축: paTotalData + salesAnalysisData가 로드돼 있으면,
+ * maps 위에 월별 camp2viid/viid2sku/camp_prodname을 덮어씀 (해당 월만).
+ * 월 매핑이 없으면 중앙 KV 유지. */
+function rebuildMonthMaps() {
+  if (!maps) return;
+  // 기존 월별 매핑 삭제 (재적용 전 정리)
+  maps.month_camp2viid = null;
+  maps.month_viid2sku = null;
+  maps.month_camp_prodname = null;
+  if (paTotalData) {
+    const c2v = {}, cProd = {};
+    for (const [cid, v] of Object.entries(paTotalData)) {
+      if (v.viids && v.viids.length) c2v[cid] = v.viids;
+      if (v.prodname) cProd[cid] = v.prodname;
+    }
+    maps.month_camp2viid = c2v;
+    maps.month_camp_prodname = cProd;
+  }
+  if (salesAnalysisData) {
+    maps.month_viid2sku = salesAnalysisData;
+  }
+  // sku2brand 역색인 재구축 (월별 + 중앙 KV 합성)
+  maps.sku2brand = {};
+  const combine = [maps.viid2sku, maps.month_viid2sku];
+  for (const dict of combine) {
+    if (!dict) continue;
+    for (const v of Object.values(dict)) {
+      if (v && v.sku && v.brand && !maps.sku2brand[v.sku]) maps.sku2brand[v.sku] = v.brand;
+    }
+  }
+}
+
 /* 캠페인의 최종 브랜드 결정 (오아/보아르/'')
  *   1) inferCampMeta 수동매핑/제외/보아르/오아 명시 → 결과
  *   2) VIID 체인: camp2viid → viid2sku[v].brand 다수결
@@ -627,11 +683,13 @@ function resolveCampBrand(campId, campName) {
   const meta = inferCampMeta(campId, campName);
   if (meta.brand === '오아' || meta.brand === '보아르') return meta.brand;
   if (meta.brand === '제외') return '';
-  // VIID 체인
-  const viids = (maps.camp2viid && maps.camp2viid[String(campId)]) || [];
+  const cidS = String(campId);
+  // VIID 체인 — 월별 매핑 우선, 없으면 중앙 KV
+  const viids = (maps.month_camp2viid && maps.month_camp2viid[cidS]) || (maps.camp2viid && maps.camp2viid[cidS]) || [];
+  const v2s = maps.month_viid2sku || maps.viid2sku || {};
   const tally = { '오아': 0, '보아르': 0 };
   for (const v of viids) {
-    const m = maps.viid2sku && maps.viid2sku[v];
+    const m = v2s[v];
     if (!m) continue;
     if (m.brand === '오아' || m.brand === '보아르') { tally[m.brand]++; continue; }
     const nm = (m.name || '').replace(/^(?:box|BOX)[_\s]+/i, '');
@@ -639,6 +697,10 @@ function resolveCampBrand(campId, campName) {
     else if (nm.startsWith('보아르')) tally['보아르']++;
   }
   if (tally['오아'] || tally['보아르']) return tally['오아'] >= tally['보아르'] ? '오아' : '보아르';
+  // prodname fallback (월별 매핑 — SALES에 없는 VIID 캠페인 대응)
+  const prod = (maps.month_camp_prodname && maps.month_camp_prodname[cidS]) || '';
+  if (prod.startsWith('오아')) return '오아';
+  if (prod.startsWith('보아르')) return '보아르';
   return '';
 }
 
@@ -773,6 +835,62 @@ async function parseSales(file) {
     if (name && !d.name) d.name = name;
   }
   return { purchases, returns };
+}
+
+/* 매출성장광고보고서 (pa_total_campaign) → 캠페인별 VIID 목록 + 대표 prodname
+ *   col 3 = 캠페인 ID, col 4 = 캠페인명, col 6 = 상품명(prodname), col 7 = 벤더아이템 ID(VIID)
+ */
+async function parsePaTotal(file) {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  const camp = {};   // cid → { viids: Set, prodname, name }
+  for (let i = 1; i < aoa.length; i++) {
+    const r = aoa[i];
+    const cid = r[3];
+    if (!cid) continue;
+    const cidS = String(typeof cid === 'number' ? Math.round(cid) : cid).trim();
+    const name = String(r[4] || '').trim();
+    const prod = String(r[6] || '').trim();
+    const viid = r[7];
+    const viidS = viid ? String(typeof viid === 'number' ? Math.round(viid) : viid).trim() : '';
+    if (!camp[cidS]) camp[cidS] = { viids: new Set(), prodname: '', name: '' };
+    if (viidS) camp[cidS].viids.add(viidS);
+    if (!camp[cidS].name && name) camp[cidS].name = name;
+    if (!camp[cidS].prodname && prod) camp[cidS].prodname = prod;
+  }
+  // Set → Array (JSON 직렬화)
+  const out = {};
+  for (const [cid, v] of Object.entries(camp)) {
+    out[cid] = { viids: [...v.viids], prodname: v.prodname, name: v.name };
+  }
+  return out;
+}
+
+/* 일간종합성과지표 (SALES_ANALYSIS) → VIID → {sku, name, brand, cat}
+ *   col 3 = SKU ID, col 4 = SKU명, col 5 = 벤더아이템 ID(VIID), col 8 = 상품카테고리, col 11 = 브랜드
+ */
+async function parseSalesAnalysis(file) {
+  const text = await file.text();
+  // CSV 파싱 (BOM 제거)
+  const parsed = Papa.parse(text.replace(/^﻿/, ''), { header: false, skipEmptyLines: true });
+  const rows = parsed.data;
+  if (!rows.length) return {};
+  // 헤더 스킵
+  const viid2sku = {};
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.length < 12) continue;
+    const sku = String(r[3] || '').trim();
+    const name = String(r[4] || '').trim();
+    const viid = String(r[5] || '').trim();
+    const cat = String(r[8] || '').trim();
+    const brand = String(r[11] || '').trim();
+    if (!viid || !sku) continue;
+    if (!viid2sku[viid]) viid2sku[viid] = { sku, name, brand, cat };
+  }
+  return viid2sku;
 }
 
 function parseCoupon(file) {
@@ -1956,6 +2074,14 @@ function setupDrop(id, kind) {
         returnsData = parsed.returns;
         lsSave(LS.sales, salesData); lsSave(LS.salesName, file.name);
         lsSave('settle_returns', returnsData);
+      } else if (kind === 'patotal') {
+        paTotalData = await parsePaTotal(file);
+        lsSave(LS.patotal, paTotalData); lsSave(LS.patotalName, file.name);
+        rebuildMonthMaps();
+      } else if (kind === 'salesanalysis') {
+        salesAnalysisData = await parseSalesAnalysis(file);
+        lsSave(LS.salesanalysis, salesAnalysisData); lsSave(LS.salesanalysisName, file.name);
+        rebuildMonthMaps();
       }
       label.textContent = file.name;
       queueServerSave();
@@ -1981,6 +2107,8 @@ function setupDrop(id, kind) {
 setupDrop('drop-cpc', 'cpc');
 setupDrop('drop-coupon', 'coupon');
 setupDrop('drop-sales', 'sales');
+setupDrop('drop-patotal', 'patotal');
+setupDrop('drop-salesanalysis', 'salesanalysis');
 window.addEventListener('dragover', e => { if (!e.target.closest('.drop')) e.preventDefault(); });
 window.addEventListener('drop',     e => { if (!e.target.closest('.drop')) e.preventDefault(); });
 
@@ -2025,9 +2153,13 @@ async function restoreMonthsFromServer() {
         coupon: srv.coupon || loc.coupon || null,
         sales: srv.sales || loc.sales || null,
         returns: srv.returns || loc.returns || null,
+        patotal: srv.patotal || loc.patotal || null,
+        salesanalysis: srv.salesanalysis || loc.salesanalysis || null,
         cpcName: srv.cpcName || loc.cpcName || '',
         couponName: srv.couponName || loc.couponName || '',
         salesName: srv.salesName || loc.salesName || '',
+        patotalName: srv.patotalName || loc.patotalName || '',
+        salesanalysisName: srv.salesanalysisName || loc.salesanalysisName || '',
         deductions: srv.deductions || loc.deductions || null,
       };
     }
@@ -2036,14 +2168,14 @@ async function restoreMonthsFromServer() {
   } catch (e) { console.warn('월별 데이터 공유 로드 실패:', e); return false; }
 }
 
-// 파일명에서 YYYY-MM 추출 — CPC/쿠폰/실입고 각기 다른 패턴
+// 파일명에서 YYYY-MM 추출 — 파일 타입별 패턴
 function detectYm(name) {
   if (!name) return null;
   const n = String(name);
-  // CPC: ...dailySettlement-20260101-20260131.xlsx
-  let m = n.match(/dailySettlement-(\d{4})(\d{2})\d{2}-\d{8}/);
+  // CPC: ...dailySettlement-20260101-20260131.xlsx / 일별광고비정산보고서-20260101-20260131.xlsx
+  let m = n.match(/(?:dailySettlement|일별광고비정산보고서)-(\d{4})(\d{2})\d{2}-\d{8}/);
   if (m) return `${m[1]}-${m[2]}`;
-  // 쿠폰 신규: coupon_YYYY_MM_DD_N월.xls → 뒤쪽 N월이 목표 월 (다운로드 날짜 무시)
+  // 쿠폰 신규: coupon_YYYY_MM_DD_N월.xls
   m = n.match(/coupon.*?(\d{4}).*?(\d{1,2})월/);
   if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}`;
   // 쿠폰 구버전: coupon_YYYY_MM_DD (N).xls
@@ -2054,6 +2186,10 @@ function detectYm(name) {
   if (m) return `${m[1]}-${m[2]}`;
   m = n.match(/Stocked.*?(\d{4})(\d{2})\d{2}/);
   if (m) return `${m[1]}-${m[2]}`;
+  // 매출성장광고보고서_20260101_20260131.xlsx
+  m = n.match(/매출성장광고보고서[_-](\d{4})(\d{2})\d{2}[_-]\d{8}/);
+  if (m) return `${m[1]}-${m[2]}`;
+  // SALES_ANALYSIS 파일명에는 월정보 없음 (업로드 당일 기준) — null 반환해 activeMonth로 분기
   return null;
 }
 
@@ -2094,6 +2230,7 @@ function loadMonthDataIntoState(m) {
     const store = monthsStore();
     const cpcAll = [], couAll = [];
     const slAll = {}, rtAll = {};
+    const paAll = {}, saAll = {};
     for (const d of Object.values(store)) {
       if (Array.isArray(d.cpc)) cpcAll.push(...d.cpc);
       if (Array.isArray(d.coupon)) couAll.push(...d.coupon);
@@ -2105,27 +2242,46 @@ function loadMonthDataIntoState(m) {
         const e = rtAll[sku] || (rtAll[sku] = { qty:0, gmvCogs:0, name:v.name||'' });
         e.qty += Number(v.qty)||0; e.gmvCogs += Number(v.gmvCogs)||0;
       }
+      // patotal/salesanalysis — 월별 매핑 병합 (모든 월 VIID/캠페인 포함)
+      for (const [cid, v] of Object.entries(d.patotal || {})) {
+        if (!paAll[cid]) paAll[cid] = { viids: [], prodname: v.prodname || '', name: v.name || '' };
+        const set = new Set(paAll[cid].viids);
+        for (const vid of (v.viids || [])) set.add(vid);
+        paAll[cid].viids = [...set];
+      }
+      for (const [viid, v] of Object.entries(d.salesanalysis || {})) {
+        if (!saAll[viid]) saAll[viid] = v;
+      }
     }
     cpcData = cpcAll.length ? cpcAll : null;
     couponData = couAll.length ? couAll : null;
     salesData = Object.keys(slAll).length ? slAll : null;
     returnsData = Object.keys(rtAll).length ? rtAll : null;
+    paTotalData = Object.keys(paAll).length ? paAll : null;
+    salesAnalysisData = Object.keys(saAll).length ? saAll : null;
     lsSave(LS.cpcName, '(전체 합산)');
+    rebuildMonthMaps();
     return;
   }
   const d = monthsStore()[m];
   if (!d) {
-    cpcData = couponData = salesData = returnsData = null;
+    cpcData = couponData = salesData = returnsData = paTotalData = salesAnalysisData = null;
     lsSave(LS.cpcName, '');
+    rebuildMonthMaps();
     return;
   }
   cpcData = d.cpc || null;
   couponData = d.coupon || null;
   salesData = d.sales || null;
   returnsData = d.returns || null;
+  paTotalData = d.patotal || null;
+  salesAnalysisData = d.salesanalysis || null;
   lsSave(LS.cpcName, d.cpcName || '');
   lsSave(LS.couponName, d.couponName || '');
   lsSave(LS.salesName, d.salesName || '');
+  lsSave(LS.patotalName, d.patotalName || '');
+  lsSave(LS.salesanalysisName, d.salesanalysisName || '');
+  rebuildMonthMaps();
 }
 
 function switchMonth(m) {
@@ -2160,10 +2316,14 @@ function updateDropLabelsFromState(m) {
     setLabel('cpc', '(전체 합산)');
     setLabel('coupon', '(전체 합산)');
     setLabel('sales', '(전체 합산)');
+    setLabel('patotal', '(전체 합산)');
+    setLabel('salesanalysis', '(전체 합산)');
   } else {
     setLabel('cpc', d.cpcName || '');
     setLabel('coupon', d.couponName || '');
     setLabel('sales', d.salesName || '');
+    setLabel('patotal', d.patotalName || '');
+    setLabel('salesanalysis', d.salesanalysisName || '');
   }
 }
 
@@ -2190,23 +2350,30 @@ function saveCurrentToMonth(ym) {
     coupon: couponData || prev.coupon || null,
     sales: salesData || prev.sales || null,
     returns: returnsData || prev.returns || null,
+    patotal: paTotalData || prev.patotal || null,
+    salesanalysis: salesAnalysisData || prev.salesanalysis || null,
     cpcName: lsLoad(LS.cpcName, false) || prev.cpcName || '',
     couponName: lsLoad(LS.couponName, false) || prev.couponName || '',
     salesName: lsLoad(LS.salesName, false) || prev.salesName || '',
+    patotalName: lsLoad(LS.patotalName, false) || prev.patotalName || '',
+    salesanalysisName: lsLoad(LS.salesanalysisName, false) || prev.salesanalysisName || '',
+    deductions: prev.deductions || null,
   };
   saveMonthsStore(store);
   renderMonthTabs();
 }
 
 // 단일 업로드 handle() 후 자동 월 분류 — setupDrop을 교체하지 않고 외부에서 후처리
-['cpc','coupon','sales'].forEach(kind => {
+// patotal/salesanalysis는 파일명 월 추출이 부정확해서 activeMonth 기준으로 저장
+['cpc','coupon','sales','patotal','salesanalysis'].forEach(kind => {
   const zone = document.getElementById(`drop-${kind}`);
   const input = zone.querySelector('input[type="file"]');
   input.addEventListener('change', e => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
-    const ym = detectYm(f.name);
-    if (ym) setTimeout(() => saveCurrentToMonth(ym), 500);  // 파싱 완료 후
+    const detected = detectYm(f.name);
+    const ym = detected || (activeMonth && activeMonth !== 'ALL' ? activeMonth : null);
+    if (ym) setTimeout(() => saveCurrentToMonth(ym), 500);
   });
 });
 
@@ -2526,6 +2693,8 @@ function augmentSkuMapFromMargin() {
   await restoreMonthsFromServer();
   // 3) 매핑/마진/프로모션/시드 로드 — 패치는 seed 후에 돌아야 값 기반 조건이 성립
   await Promise.all([loadMaps(), loadMargin(), loadPromotion(), loadTrialOverride(), seedDeductionsIfMissing()]);
+  // 월별 매핑 + sku2brand 재구축 (LS에서 복원한 patotal/salesanalysis 반영)
+  rebuildMonthMaps();
   // 4) 마이그/패치 (seed 로드 후)
   migratePremiumToHalf();
   patch2026_04_DA();
