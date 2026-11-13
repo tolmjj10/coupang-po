@@ -2103,6 +2103,10 @@ function setupDrop(id, kind) {
       label.textContent = file.name;
       queueServerSave();
       aggregate();
+      // 월별 자동저장 — 드롭/클릭 상관없이 반드시 실행
+      const detected = detectYm(file.name);
+      const ym = detected || (activeMonth && activeMonth !== 'ALL' ? activeMonth : null);
+      if (ym) saveCurrentToMonth(ym);
     } catch (err) {
       label.textContent = '파싱 오류: ' + err.message;
       label.style.color = 'var(--neg)';
