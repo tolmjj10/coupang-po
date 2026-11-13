@@ -464,7 +464,7 @@
       for (const s of fi) {                              // 매출/마진 모두 입고기준
         const m = marginMap[s.id];
         if (!m) continue;
-        amt += (Number(m.cost) || 0) * s.total;          // 매출 = 매입가 × 입고수량
+        amt += ((Number(m.cost) || 0) / 1.1) * s.total;  // 매출 = 공급가(VAT 제외) × 입고수량
         mgn += skuMargin(s.id) * s.total;                // 마진 = 오아마진(-VAT) × 입고수량
       }
       document.getElementById('k-amt').textContent = fmtWon(amt);
