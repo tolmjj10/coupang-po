@@ -1570,6 +1570,24 @@ function render(byCat, stats) {
       v.profit += d.profit || 0;
     }
   }
+  // billed 기반 스케일링 — 상단 카테 집계 총합을 브랜드 카드 총합과 일치시킴
+  // (쿠팡 청구 조정값 반영)
+  const bill = window.cpcBilled;
+  if (bill && bill.totalVat && activeBrand === '오아+보아르') {
+    const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1));
+    const sumPre = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
+    if (sumPre > 0) {
+      const ratio = brandBilledVat / sumPre;
+      for (const v of Object.values(brandByCat)) v.cpc = Math.round(v.cpc * ratio);
+      // 반올림 보정: 최대 cpc 카테에 차액 흡수
+      const after = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
+      const diff = brandBilledVat - after;
+      if (diff !== 0) {
+        const topCat = Object.entries(brandByCat).sort((a,b)=>b[1].cpc-a[1].cpc)[0];
+        if (topCat) topCat[1].cpc += diff;
+      }
+    }
+  }
   const cats = Object.entries(brandByCat);
   const brandFiltered = true;  // 항상 브랜드 기준 집계
   const totalCats = cats;
