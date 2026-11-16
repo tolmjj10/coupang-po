@@ -666,18 +666,32 @@ function rebuildMonthMaps() {
   maps.month_camp2viid = null;
   maps.month_viid2sku = null;
   maps.month_camp_prodname = null;
-  if (paTotalData) {
-    const c2v = {}, cProd = {};
-    for (const [cid, v] of Object.entries(paTotalData)) {
-      if (v.viids && v.viids.length) c2v[cid] = v.viids;
-      if (v.prodname) cProd[cid] = v.prodname;
+  // 모든 월의 patotal/salesanalysis를 합쳐서 매핑 구축 (단일 월 보기에서도 전체 커버리지 유지)
+  // + 현재 메모리의 paTotalData/salesAnalysisData도 포함 (단일 드롭 반영)
+  const store = (typeof monthsStore === 'function') ? monthsStore() : {};
+  const c2v = {}, cProd = {}, v2s = {};
+  const addPatotal = (dict) => {
+    if (!dict) return;
+    for (const [cid, v] of Object.entries(dict)) {
+      if (v?.viids?.length) {
+        const set = new Set(c2v[cid] || []);
+        for (const vid of v.viids) set.add(vid);
+        c2v[cid] = [...set];
+      }
+      if (v?.prodname && !cProd[cid]) cProd[cid] = v.prodname;
     }
-    maps.month_camp2viid = c2v;
-    maps.month_camp_prodname = cProd;
-  }
-  if (salesAnalysisData) {
-    maps.month_viid2sku = salesAnalysisData;
-  }
+  };
+  const addSales = (dict) => {
+    if (!dict) return;
+    for (const [viid, v] of Object.entries(dict)) {
+      if (!v2s[viid]) v2s[viid] = v;
+    }
+  };
+  for (const d of Object.values(store)) { addPatotal(d.patotal); addSales(d.salesanalysis); }
+  addPatotal(paTotalData);
+  addSales(salesAnalysisData);
+  if (Object.keys(c2v).length) { maps.month_camp2viid = c2v; maps.month_camp_prodname = cProd; }
+  if (Object.keys(v2s).length) { maps.month_viid2sku = v2s; }
   // sku2brand 역색인 재구축 (월별 + 중앙 KV 합성)
   maps.sku2brand = {};
   const combine = [maps.viid2sku, maps.month_viid2sku];
