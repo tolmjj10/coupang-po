@@ -1084,6 +1084,11 @@ function aggregate() {
     }
   }
   // 전역에 billed 총액 저장 (renderBrands에서 오아+보아르 CPC 총액 계산에 사용)
+  // 파일에 __TOTAL__ 센티넬이 없으면 캠페인별 raw 합 × 1.1을 청구 총액으로 폴백
+  if (!billedTotalVat && totalRawCost) {
+    billedTotalRaw = totalRawCost;
+    billedTotalVat = Math.round(totalRawCost * 1.1);
+  }
   window.cpcBilled = { totalRaw: billedTotalRaw, totalVat: billedTotalVat, nonBrandRaw };
   window.settlementDebug = {
     billedTotalRaw, billedTotalVat, nonBrandRaw,
