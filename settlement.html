@@ -1060,6 +1060,7 @@ function aggregate() {
   let cpcMatched = 0, cpcUnmatched = 0, totalRawCost = 0;
   let billedTotalRaw = 0, billedTotalVat = 0;
   let nonBrandRaw = 0;  // brandOf='' 캠페인 raw 합 (브랜드 카드 총액 차감용)
+  const _dbgNonBrand = [];  // 디버그: 비-브랜드 캠페인 내역
   for (const row of cpcData) {
     // 센티넬 — 파일 row 1 청구 총액
     if (row.camp_id === '__TOTAL__') {
@@ -1073,7 +1074,10 @@ function aggregate() {
     if (UNMATCHED_CATS.has(cat)) cpcUnmatched++; else cpcMatched++;
     // SKU 분배 + 최종 브랜드 결정 (수동매핑 → 캠페인명 추론 → VIID 체인 다수결)
     const effBrand = resolveCampBrand(row.camp_id, row.camp_name);
-    if (!effBrand) nonBrandRaw += row.cost;
+    if (!effBrand) {
+      nonBrandRaw += row.cost;
+      _dbgNonBrand.push({ camp_id: row.camp_id, camp_name: row.camp_name, cost: row.cost, cat });
+    }
     const dist = distributeCampCost(row.camp_id, row.cost, cat);
     for (const [sku, cost] of Object.entries(dist)) {
       skuEnsure(sku, effBrand ? { brand: effBrand } : undefined).cpc += cost;
@@ -1081,6 +1085,15 @@ function aggregate() {
   }
   // 전역에 billed 총액 저장 (renderBrands에서 오아+보아르 CPC 총액 계산에 사용)
   window.cpcBilled = { totalRaw: billedTotalRaw, totalVat: billedTotalVat, nonBrandRaw };
+  window.settlementDebug = {
+    billedTotalRaw, billedTotalVat, nonBrandRaw,
+    brandBilledVat: Math.max(0, billedTotalVat - Math.round(nonBrandRaw * 1.1)),
+    nonBrandCamps: _dbgNonBrand.sort((a,b) => b.cost - a.cost),
+  };
+  console.log('[settlement] billedVat=', billedTotalVat, ' nonBrandRaw=', nonBrandRaw,
+    ' brandCardVat=', window.settlementDebug.brandBilledVat,
+    ' nonBrand 캠페인 수=', _dbgNonBrand.length,
+    ' → window.settlementDebug.nonBrandCamps 에서 전체 확인');
 
   // 쿠폰 — sku2cat 없을 때는 쿠폰 파일의 SKU명에서 브랜드 추론
   let cpnMatched = 0, cpnUnmatched = 0;
