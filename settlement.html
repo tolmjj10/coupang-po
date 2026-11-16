@@ -2222,8 +2222,8 @@ function clearFileFromMonth(kind, ym) {
     title.hidden = false; hint.hidden = false;
     zone.classList.remove('loaded');
     zone.querySelector('input[type="file"]').value = '';
-    // 4) 재집계
-    if (cpcData || couponData) aggregate();
+    // 4) 재집계 — 둘 다 있어야 집계 (한쪽만 있으면 빈 화면)
+    if (cpcData && couponData) aggregate();
     else renderEmptyResult();
     queueServerSave();
   });
