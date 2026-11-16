@@ -2501,17 +2501,36 @@ async function onBatchMaps(e) {
   if (!months.length) { alert('파일 4·5 패턴에 맞는 파일을 찾지 못했습니다.\n(매출성장광고보고서*.xlsx / *SALES_ANALYSIS*.csv + 파일명에 YYYY-MM)'); return; }
 
   const store = monthsStore();
-  let okCount = 0;
+  // 기존 월 데이터에서 이미 수집된 VIID/캠페인ID 파악 (중복 제거용)
+  const seenViids = new Set();
+  const seenCamps = new Set();
+  for (const d of Object.values(store)) {
+    for (const v of Object.keys(d?.salesanalysis || {})) seenViids.add(v);
+    for (const c of Object.keys(d?.patotal || {})) seenCamps.add(c);
+  }
+  let okCount = 0, dupViid = 0, dupCamp = 0;
   for (const ym of months) {
     const slot = byMonth[ym];
     const entry = store[ym] || {};
     try {
       if (slot.patotalFile) {
-        entry.patotal = await parsePaTotal(slot.patotalFile);
+        const full = await parsePaTotal(slot.patotalFile);
+        const dedup = {};
+        for (const [c, v] of Object.entries(full)) {
+          if (seenCamps.has(c)) { dupCamp++; continue; }
+          dedup[c] = v; seenCamps.add(c);
+        }
+        entry.patotal = dedup;
         entry.patotalName = slot.patotalFile.name;
       }
       if (slot.salesFile) {
-        entry.salesanalysis = await parseSalesAnalysis(slot.salesFile);
+        const full = await parseSalesAnalysis(slot.salesFile);
+        const dedup = {};
+        for (const [vid, v] of Object.entries(full)) {
+          if (seenViids.has(vid)) { dupViid++; continue; }
+          dedup[vid] = v; seenViids.add(vid);
+        }
+        entry.salesanalysis = dedup;
         entry.salesanalysisName = slot.salesFile.name;
       }
       store[ym] = entry;
@@ -2520,8 +2539,17 @@ async function onBatchMaps(e) {
       console.error(`[${ym}] 처리 실패:`, err);
     }
   }
-  saveMonthsStore(store);
-  alert(`${okCount}개 월 처리 완료\n${months.join(', ')}` + (skipped.length ? `\n\n미분류 ${skipped.length}개 (콘솔 확인)` : ''));
+  // localStorage 쿼터 체크 — 저장 실패 시 사용자에게 알림
+  let saveOk = true;
+  try { localStorage.setItem(MONTHS_LS, JSON.stringify(store)); }
+  catch (err) { saveOk = false; console.error('localStorage 쿼터 초과:', err); }
+  if (saveOk) queueMonthsRemoteSave();
+  const sizeKb = Math.round(JSON.stringify(store).length / 1024);
+  const msg = `${okCount}개 월 처리 완료 (${sizeKb}KB)\n${months.join(', ')}`
+    + (dupViid || dupCamp ? `\n\n중복 제거: VIID ${dupViid}건, 캠페인 ${dupCamp}건` : '')
+    + (skipped.length ? `\n\n미분류 ${skipped.length}개 (콘솔 확인)` : '')
+    + (!saveOk ? `\n\n⚠️ localStorage 저장 실패 (용량 초과) — 일부 데이터가 세션 종료 시 유실될 수 있음` : '');
+  alert(msg);
   if (skipped.length) console.warn('미분류:', skipped);
   rebuildMonthMaps();
   renderMonthTabs();
