@@ -393,8 +393,8 @@
   <div class="month-bar" id="month-bar">
     <!-- 월별 탭 JS 렌더 -->
     <div class="spacer"></div>
-    <button class="batch-btn" id="batch-btn" title="po/settlement_files/ 폴더 선택 → 하위 1/(광고비) 2/(쿠폰비) 3/(입고내역)에서 파일을 읽고 파일명 월(YYYY-MM)로 자동 분류">📁 폴더 일괄 처리</button>
-    <input type="file" id="batch-input" webkitdirectory directory multiple style="display:none">
+    <button class="batch-btn" id="batch-maps-btn" title="폴더 선택 → 매출성장광고보고서*.xlsx / *SALES_ANALYSIS*.csv 파일을 파일명 월(YYYY-MM)별로 자동 분류">📁 파일 4·5 일괄 처리</button>
+    <input type="file" id="batch-maps-input" webkitdirectory directory multiple style="display:none">
   </div>
 
   <div class="drops">
@@ -2276,7 +2276,19 @@ function detectYm(name) {
   // 매출성장광고보고서_20260101_20260131.xlsx
   m = n.match(/매출성장광고보고서[_-](\d{4})(\d{2})\d{2}[_-]\d{8}/);
   if (m) return `${m[1]}-${m[2]}`;
-  // SALES_ANALYSIS 파일명에는 월정보 없음 (업로드 당일 기준) — null 반환해 activeMonth로 분기
+  // 매출성장광고보고서 신규: MMDD-MMDD (예: 0201-0228) — 연도 생략, 올해로 간주
+  m = n.match(/(\d{2})(\d{2})-(\d{2})(\d{2})(?!\d)/);
+  if (m) {
+    const mm = m[1], dd1 = m[2], mm2 = m[3], dd2 = m[4];
+    // 같은 달 범위(또는 연속월 말일)인 경우만 월 판별로 사용
+    if (mm === mm2 || (dd1 === '01' && (dd2 === '28' || dd2 === '29' || dd2 === '30' || dd2 === '31'))) {
+      return `${new Date().getFullYear()}-${mm}`;
+    }
+  }
+  // SALES_ANALYSIS_DAILY_PERFORMANCE_YYYYMMDD...(N).csv — 맨 오른쪽 괄호 숫자가 월
+  m = n.match(/SALES_ANALYSIS.*\((\d{1,2})\)\.csv$/i);
+  if (m) return `${new Date().getFullYear()}-${String(m[1]).padStart(2,'0')}`;
+  // SALES_ANALYSIS 파일명에 월정보 없음 (업로드 당일 기준) — null 반환해 activeMonth로 분기
   return null;
 }
 
@@ -2304,11 +2316,11 @@ function renderMonthTabs() {
   const allTab = `<button class="mtab all ${allCls}" data-m="ALL">전체</button>`;
   bar.innerHTML = tabsHtml + allTab +
     '<div class="spacer"></div>' +
-    '<button class="batch-btn" id="batch-btn" title="po/settlement_files/ 폴더 선택 → 하위 1/(광고비) 2/(쿠폰비) 3/(입고내역)에서 파일을 읽고 파일명 월(YYYY-MM)로 자동 분류">📁 폴더 일괄 처리</button>' +
-    '<input type="file" id="batch-input" webkitdirectory directory multiple style="display:none">';
+    '<button class="batch-btn" id="batch-maps-btn" title="폴더 선택 → 매출성장광고보고서*.xlsx / *SALES_ANALYSIS*.csv 파일을 파일명 월(YYYY-MM)별로 자동 분류">📁 파일 4·5 일괄 처리</button>' +
+    '<input type="file" id="batch-maps-input" webkitdirectory directory multiple style="display:none">';
   bar.querySelectorAll('.mtab').forEach(b => b.addEventListener('click', () => switchMonth(b.dataset.m)));
-  document.getElementById('batch-btn').addEventListener('click', () => document.getElementById('batch-input').click());
-  document.getElementById('batch-input').addEventListener('change', onBatchFolder);
+  document.getElementById('batch-maps-btn').addEventListener('click', () => document.getElementById('batch-maps-input').click());
+  document.getElementById('batch-maps-input').addEventListener('change', onBatchMaps);
 }
 
 function loadMonthDataIntoState(m) {
@@ -2464,28 +2476,29 @@ function saveCurrentToMonth(ym) {
   });
 });
 
-// 폴더 일괄 처리: webkitdirectory로 1/2/3 하위폴더 스캔
-// 1/=광고비(CPC), 2/=쿠폰비, 3/=입고내역. 월은 파일명에서 자동 추출.
-async function onBatchFolder(e) {
+// 파일 4·5 일괄: 폴더(또는 하위폴더)에서 매출성장광고보고서*.xlsx / *SALES_ANALYSIS*.csv 수집
+// 파일명에서 kind 자동 판별, 월(YYYY-MM) 자동 추출
+async function onBatchMaps(e) {
   const files = Array.from(e.target.files || []);
   if (!files.length) { alert('파일이 없습니다.'); return; }
-  const byMonth = {};  // { 'YYYY-MM': { cpcFile, couponFile, salesFile } }
+  const byMonth = {};  // { 'YYYY-MM': { patotalFile, salesFile } }
   const skipped = [];
   for (const f of files) {
     const rel = f.webkitRelativePath || f.name;
-    // 상위폴더 번호(1/2/3) 추출: ".../1/파일명.xlsx"
-    const km = rel.match(/(?:^|\/)([123])\//);
-    if (!km) { skipped.push(rel + ' (1/2/3 폴더 아님)'); continue; }
-    const kindNum = km[1];
-    const ym = detectYm(f.name);
+    const name = f.name;
+    let kind = null;
+    if (/매출성장광고보고서.*\.xlsx$/i.test(name)) kind = 'patotal';
+    else if (/\.xlsx$/i.test(name) && /(\d{4})-(\d{4})(?!\d)/.test(name)) kind = 'patotal';  // MMDD-MMDD 패턴
+    else if (/SALES_ANALYSIS.*\.csv$/i.test(name)) kind = 'salesanalysis';
+    if (!kind) { skipped.push(rel + ' (파일명 패턴 불일치)'); continue; }
+    const ym = detectYm(name);
     if (!ym) { skipped.push(rel + ' (파일명에서 YYYY-MM 인식 실패)'); continue; }
     const slot = byMonth[ym] || (byMonth[ym] = {});
-    if (kindNum === '1') slot.cpcFile = f;
-    else if (kindNum === '2') slot.couponFile = f;
-    else if (kindNum === '3') slot.salesFile = f;
+    if (kind === 'patotal') slot.patotalFile = f;
+    else slot.salesFile = f;
   }
   const months = Object.keys(byMonth).sort();
-  if (!months.length) { alert('1/2/3 하위폴더에서 파일을 찾지 못했습니다.\n(파일명에서 YYYY-MM도 인식돼야 합니다)'); return; }
+  if (!months.length) { alert('파일 4·5 패턴에 맞는 파일을 찾지 못했습니다.\n(매출성장광고보고서*.xlsx / *SALES_ANALYSIS*.csv + 파일명에 YYYY-MM)'); return; }
 
   const store = monthsStore();
   let okCount = 0;
@@ -2493,21 +2506,13 @@ async function onBatchFolder(e) {
     const slot = byMonth[ym];
     const entry = store[ym] || {};
     try {
-      if (slot.cpcFile) {
-        const buf = await slot.cpcFile.arrayBuffer();
-        const wb = XLSX.read(buf, { type: 'array' });
-        entry.cpc = parseCPC(wb);
-        entry.cpcName = slot.cpcFile.name;
-      }
-      if (slot.couponFile) {
-        entry.coupon = await parseCoupon(slot.couponFile);
-        entry.couponName = slot.couponFile.name;
+      if (slot.patotalFile) {
+        entry.patotal = await parsePaTotal(slot.patotalFile);
+        entry.patotalName = slot.patotalFile.name;
       }
       if (slot.salesFile) {
-        const p = await parseSales(slot.salesFile);
-        entry.sales = p.purchases;
-        entry.returns = p.returns;
-        entry.salesName = slot.salesFile.name;
+        entry.salesanalysis = await parseSalesAnalysis(slot.salesFile);
+        entry.salesanalysisName = slot.salesFile.name;
       }
       store[ym] = entry;
       okCount++;
@@ -2518,8 +2523,8 @@ async function onBatchFolder(e) {
   saveMonthsStore(store);
   alert(`${okCount}개 월 처리 완료\n${months.join(', ')}` + (skipped.length ? `\n\n미분류 ${skipped.length}개 (콘솔 확인)` : ''));
   if (skipped.length) console.warn('미분류:', skipped);
+  rebuildMonthMaps();
   renderMonthTabs();
-  // 처리한 첫 월로 자동 전환
   if (months.length) switchMonth(months[0]);
 }
 
