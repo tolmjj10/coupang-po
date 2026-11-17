@@ -2345,10 +2345,15 @@ function detectYm(name) {
       return `${new Date().getFullYear()}-${mm}`;
     }
   }
-  // SALES_ANALYSIS_DAILY_PERFORMANCE_YYYYMMDD...(N).csv — 맨 오른쪽 괄호 숫자가 월
-  m = n.match(/SALES_ANALYSIS.*\((\d{1,2})\)\.csv$/i);
-  if (m) return `${new Date().getFullYear()}-${String(m[1]).padStart(2,'0')}`;
-  // SALES_ANALYSIS 파일명에 월정보 없음 (업로드 당일 기준) — null 반환해 activeMonth로 분기
+  // CSV/XLSX 파일명 끝에 ` (N).ext` — 괄호 안 숫자를 월로 인식 (올해 기준)
+  // 예: 일간종합성과지표_20261112143420 (8).csv → 2026-08
+  //     SALES_ANALYSIS_DAILY_PERFORMANCE (1).csv → 2026-01
+  m = n.match(/\((\d{1,2})\)\.(?:csv|xlsx?)$/i);
+  if (m) {
+    const mm = Number(m[1]);
+    if (mm >= 1 && mm <= 12) return `${new Date().getFullYear()}-${String(mm).padStart(2,'0')}`;
+  }
+  // 월정보 없음 — null 반환
   return null;
 }
 
