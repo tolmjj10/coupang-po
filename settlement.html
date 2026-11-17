@@ -1128,6 +1128,12 @@ function aggregate() {
     billedTotalRaw = totalRawCost;
     billedTotalVat = Math.round(totalRawCost * 1.1);
   }
+  // 월별 추가 nonBrand raw 수동 override (쿠팡 대시보드 분류 보정)
+  const extraNonBrand = (MANUAL_MONTH_EXTRA_NONBRAND_RAW || {})[activeMonth] || 0;
+  if (extraNonBrand) {
+    nonBrandRaw += extraNonBrand;
+    console.log(`[settlement] ${activeMonth} nonBrand override +${extraNonBrand.toLocaleString()} raw`);
+  }
   // BPA(VAT 포함)는 오아+보아르 브랜드 광고비에 합산
   const bpaVat = Math.round(bpaRawTotal * 1.1);
   window.cpcBilled = { totalRaw: billedTotalRaw, totalVat: billedTotalVat, nonBrandRaw, bpaRaw: bpaRawTotal, bpaVat };
@@ -2942,6 +2948,13 @@ async function seedDeductionsIfMissing() {
 
 /* 수동 캠페인→SKU 매핑 — 매출성장광고보고서(pa_total)에 누락된 캠페인용.
  * SKU 리스트에 광고비 균등 분배 (distributeCampCost → manual_camp_sku 분기). */
+/* 월별 추가 nonBrand raw — 쿠팡 대시보드와 일치시키려는 수동 보정.
+ * 뉴트리커먼 자동 분류 외에 추가로 nonBrand로 집계할 금액 (raw, VAT 제외).
+ * 예: 7월 BPA 338,379 raw는 쿠팡 대시보드가 nonBrand로 집계. */
+const MANUAL_MONTH_EXTRA_NONBRAND_RAW = {
+  '2026-07': 338379,  // BPA (인지도 상승) col5='BPA' 전체 — 쿠팡 대시보드 뉴트리에 포함
+};
+
 const MANUAL_CAMP_SKU = {
   // 캠페인 105178238 [오아]AI_TEST_여름가전_스퀘어미니선풍기 — 8월 pa_total 미등록
   // VIID 80949600012 / 80949599996 → SKU 23200605 / 23200603
