@@ -1702,7 +1702,8 @@ function render(byCat, stats) {
     sorted = baseCats.sort((a,b) => {
       const g = groupOf(a[0]) - groupOf(b[0]);
       if (g !== 0) return g;
-      return (b[1].cpc + b[1].coupon) - (a[1].cpc + a[1].coupon);
+      // 매출(gmv) desc 로 정렬 — SKU 상세 테이블 그룹 순서와 일치
+      return (b[1].gmv || 0) - (a[1].gmv || 0);
     });
   }
 
