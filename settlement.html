@@ -2907,6 +2907,43 @@ async function seedDeductionsIfMissing() {
   } catch (e) { console.warn('seed 로딩 실패:', e); }
 }
 
+/* 1회 마이그: 구버전 parseCPC로 떨어진 cpcData는 sentinel에 bpa_total_raw가 없어서
+ * BPA를 분리 집계할 수 없음. 해당 월의 cpc를 자동 삭제하고 사용자에게 재업로드 유도.
+ * 대상: 센티넬이 없거나(= 완전 구버전) 센티넬에 bpa_total_raw가 undefined인 cpcData. */
+function migrateCpcSentinelForBpa() {
+  const MARK = 'settle_migrate_cpc_bpa_v1';
+  if (localStorage.getItem(MARK) === 'done') return;
+  const store = monthsStore();
+  const cleared = [];
+  for (const [ym, d] of Object.entries(store)) {
+    const cpc = d && d.cpc;
+    if (!Array.isArray(cpc) || cpc.length === 0) continue;
+    const sentinel = cpc.find(r => r && r.camp_id === '__TOTAL__');
+    if (!sentinel || sentinel.bpa_total_raw === undefined) {
+      delete d.cpc; delete d.cpcName;
+      cleared.push(ym);
+    }
+  }
+  // 활성 단일 LS 도 동일 처리
+  const liveCpc = lsLoad(LS.cpc);
+  if (Array.isArray(liveCpc)) {
+    const s = liveCpc.find(r => r && r.camp_id === '__TOTAL__');
+    if (!s || s.bpa_total_raw === undefined) {
+      lsSave(LS.cpc, null); lsSave(LS.cpcName, '');
+      cpcData = null;
+    }
+  }
+  if (cleared.length) {
+    saveMonthsStore(store);
+    console.warn('[migrate] 구버전 cpcData 삭제 (재업로드 필요):', cleared);
+    try {
+      const msg = `광고목표(G열) 분기가 새 포맷으로 바뀌어 CPC 파일 재업로드가 필요합니다.\n\n대상 월: ${cleared.join(', ')}\n\n파일 1에 8월 dailySettlement xlsx 다시 올려주세요.`;
+      setTimeout(() => alert(msg), 300);
+    } catch(_) {}
+  }
+  localStorage.setItem(MARK, 'done');
+}
+
 // sku2cat에 없는 SKU는 마진테이블에서 보강 → '오아/보아르 미매칭' 최소화
 function augmentSkuMapFromMargin() {
   if (!maps || !maps.sku2cat || !marginMap) return;
@@ -2937,6 +2974,7 @@ function augmentSkuMapFromMargin() {
   patch2026_04_DA();
   patchAwardsRevertAndBrandSplit();
   patch2026_10_trial();
+  migrateCpcSentinelForBpa();
   augmentSkuMapFromMargin();
   // 5) 활성 단일 KV (최근 업로드 1건 공유)
   const hadServer = await restoreFromServer();
