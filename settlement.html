@@ -1645,27 +1645,8 @@ function render(byCat, stats) {
       }
     }
   }
-  // BPA(VAT) 분배 — 오아+보아르 뷰에서만, 카테별 현재 cpc 비율로 가산
-  if (activeBrand === '오아+보아르') {
-    const bpaVatCat = (bill && bill.bpaVat) || (getActiveDeductions && (getActiveDeductions()?.bpa || 0)) || 0;
-    if (bpaVatCat > 0) {
-      const sumNow = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
-      if (sumNow > 0) {
-        const entries = Object.entries(brandByCat);
-        let allocated = 0;
-        entries.forEach(([k,v], i) => {
-          const share = (i === entries.length - 1)
-            ? bpaVatCat - allocated
-            : Math.round(bpaVatCat * v.cpc / sumNow);
-          v.cpc += share; allocated += share;
-        });
-      } else {
-        // 카테 없으면 '기타' 하나로
-        brandByCat['기타'] = brandByCat['기타'] || { cpc:0, coupon:0, gmv:0, cogs:0, trial:0, profit:0 };
-        brandByCat['기타'].cpc += bpaVatCat;
-      }
-    }
-  }
+  // BPA는 특정 카테에 귀속되지 않으므로 카테고리별 집계에는 포함하지 않음
+  // (브랜드 카드 광고비에만 가산 — renderBrands 참조)
   const cats = Object.entries(brandByCat);
   const brandFiltered = true;  // 항상 브랜드 기준 집계
   const totalCats = cats;
