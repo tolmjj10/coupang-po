@@ -1013,11 +1013,14 @@ function distributeCampCost(campId, totalRawCost, campCat) {
   const base = Math.floor(totalRawCost / n);
   const rem = totalRawCost - base * n;
   const pickIdx = rem > 0 ? Math.floor(Math.random() * n) : -1;
+  const v2s = maps.month_viid2sku || {};
   for (let i = 0; i < n; i++) {
     const v = viids[i];
     const share = base + (i === pickIdx ? rem : 0);
     if (!share) continue;
-    const sku = (maps.viid2sku[v] && maps.viid2sku[v].sku) || `__viid_${v}`;
+    // 월별 viid2sku 우선 → 전역 viid2sku 폴백 → 가상 SKU
+    const hit = v2s[v] || maps.viid2sku[v];
+    const sku = (hit && hit.sku) || `__viid_${v}`;
     out[sku] = (out[sku] || 0) + share;
   }
   return out;
