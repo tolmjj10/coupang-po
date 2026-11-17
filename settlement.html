@@ -1876,19 +1876,27 @@ function renderBrands(allEntries, hasSales) {
   }
   const total = { cnt: agg['오아'].cnt + agg['보아르'].cnt };
   for (const k of ['gmv','cogs','cpc','cpn','tr','p','qty','ret']) total[k] = agg['오아'][k] + agg['보아르'][k];
-  // 브랜드 CPC = SKU 상세 cpcVat 단순 합산 (스케일링 없음). SKU 분배가 정확하다고 신뢰.
+  // 브랜드 카드 광고비 = 스케일링 공식 (기대값 일치용)
+  //   = (파일 전체 CPC VAT − 비브랜드 캠페인 raw × 1.1) + BPA VAT
+  // 카테 합계(SKU cpcVat 단순 합)와는 다를 수 있음 — 사용자가 기대값 일치 우선 선택.
   const bill = window.cpcBilled;
-  // BPA(VAT) — 항상 오아+보아르 광고비에 추가. bill 없으면 deductions.bpa 폴백.
   const bpaVatBrand = (bill && bill.bpaVat) || (getActiveDeductions && (getActiveDeductions()?.bpa || 0)) || 0;
-  if (bpaVatBrand > 0) {
+  if (bill && bill.totalVat) {
+    const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1));
     const preSum = agg['오아'].cpc + agg['보아르'].cpc;
     if (preSum > 0) {
-      const oaShare = Math.round(bpaVatBrand * agg['오아'].cpc / preSum);
-      agg['오아'].cpc += oaShare;
-      agg['보아르'].cpc += bpaVatBrand - oaShare;
+      const ratio = brandBilledVat / preSum;
+      agg['오아'].cpc = Math.round(agg['오아'].cpc * ratio);
+      agg['보아르'].cpc = brandBilledVat - agg['오아'].cpc;
     } else {
-      agg['오아'].cpc += bpaVatBrand;
+      agg['오아'].cpc = brandBilledVat;
+      agg['보아르'].cpc = 0;
     }
+    total.cpc = brandBilledVat;
+  }
+  // BPA 추가 (오아에 전액 — BPA는 브랜드 레벨 비용이라 분할 불필요)
+  if (bpaVatBrand > 0) {
+    agg['오아'].cpc += bpaVatBrand;
     total.cpc += bpaVatBrand;
   }
   const hasTrialBrand = total.tr > 0;
