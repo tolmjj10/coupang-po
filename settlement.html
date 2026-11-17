@@ -1640,8 +1640,24 @@ function render(byCat, stats) {
       v.profit += d.profit || 0;
     }
   }
-  // 카테고리 광고비 = SKU 상세 cpcVat 단순 합산 (스케일링 없음).
-  // BPA는 특정 카테에 귀속되지 않으므로 포함하지 않음 (브랜드 카드에만 가산).
+  // 카테고리 광고비 = brandBilledVat에 맞춰 스케일링 (브랜드 카드와 일치용).
+  // 카테 합 + BPA = 브랜드 카드 광고 성립.
+  const _bill_cat = window.cpcBilled;
+  if (_bill_cat && _bill_cat.totalVat && activeBrand === '오아+보아르') {
+    const brandBilledVat = Math.max(0, _bill_cat.totalVat - Math.round(_bill_cat.nonBrandRaw * 1.1));
+    const sumPre = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
+    if (sumPre > 0) {
+      const ratio = brandBilledVat / sumPre;
+      for (const v of Object.values(brandByCat)) v.cpc = Math.round(v.cpc * ratio);
+      const after = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
+      const diff = brandBilledVat - after;
+      if (diff !== 0) {
+        const topCat = Object.entries(brandByCat).sort((a,b)=>b[1].cpc-a[1].cpc)[0];
+        if (topCat) topCat[1].cpc += diff;
+      }
+    }
+  }
+  // BPA는 특정 카테에 귀속되지 않으므로 카테 합에는 미포함 (브랜드 카드에만 가산)
   const cats = Object.entries(brandByCat);
   const brandFiltered = true;  // 항상 브랜드 기준 집계
   const totalCats = cats;
