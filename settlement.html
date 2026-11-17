@@ -854,15 +854,18 @@ function parseCPC(wb) {
     if (campName && !byCamp[cid].camp_name) byCamp[cid].camp_name = campName;
   }
   const rows = Object.entries(byCamp).map(([camp_id, v]) => ({ camp_id, cost: v.cost, camp_name: v.camp_name }));
-  // 파일 row 1 billed 총액은 CPC+BPA 전체 기준이라 그대로 쓸 수 없음.
-  // CPC(매출 성장)만의 raw 합을 billed_raw로 두고, VAT는 ×1.1 반올림 폴백.
+  // billed_vat = 파일 row 1 col 18 (쿠팡 실제 청구금액, 청구조정 반영, CPC+BPA 전체)
+  // 대시보드 스케일링과 일치하도록 file 값 그대로 사용. 폴백은 캠페인 raw × 1.1.
   const cpcRawSum = rows.reduce((s, r) => s + (Number(r.cost) || 0), 0);
+  const useBilledVat = billedVat || Math.round((cpcRawSum + bpaTotalRaw) * 1.1);
+  const useBilledRaw = billedRaw || (cpcRawSum + bpaTotalRaw);
   const sentinel = {
     camp_id: '__TOTAL__', cost: 0, camp_name: '__TOTAL__',
-    billed_raw: cpcRawSum,
-    billed_vat: Math.round(cpcRawSum * 1.1),
+    billed_raw: useBilledRaw,
+    billed_vat: useBilledVat,
     file_billed_raw: billedRaw,
     file_billed_vat: billedVat,
+    cpc_raw_sum: cpcRawSum,
     bpa_total_raw: bpaTotalRaw,
   };
   return [sentinel, ...rows];
@@ -1640,24 +1643,25 @@ function render(byCat, stats) {
       v.profit += d.profit || 0;
     }
   }
-  // 카테고리 광고비 = brandBilledVat에 맞춰 스케일링 (브랜드 카드와 일치용).
-  // 카테 합 + BPA = 브랜드 카드 광고 성립.
+  // 카테고리 광고비 = (브랜드 카드 광고 − BPA) 에 맞춰 스케일링.
+  // 카테 합 + BPA = 브랜드 카드 광고 성립 (브랜드 카드 광고는 bill.totalVat에 BPA 이미 포함).
   const _bill_cat = window.cpcBilled;
   if (_bill_cat && _bill_cat.totalVat && activeBrand === '오아+보아르') {
     const brandBilledVat = Math.max(0, _bill_cat.totalVat - Math.round(_bill_cat.nonBrandRaw * 1.1));
+    const bpaVat = _bill_cat.bpaVat || 0;
+    const catTarget = Math.max(0, brandBilledVat - bpaVat);  // 카테 합 목표 = 브랜드 광고 − BPA
     const sumPre = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
     if (sumPre > 0) {
-      const ratio = brandBilledVat / sumPre;
+      const ratio = catTarget / sumPre;
       for (const v of Object.values(brandByCat)) v.cpc = Math.round(v.cpc * ratio);
       const after = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
-      const diff = brandBilledVat - after;
+      const diff = catTarget - after;
       if (diff !== 0) {
         const topCat = Object.entries(brandByCat).sort((a,b)=>b[1].cpc-a[1].cpc)[0];
         if (topCat) topCat[1].cpc += diff;
       }
     }
   }
-  // BPA는 특정 카테에 귀속되지 않으므로 카테 합에는 미포함 (브랜드 카드에만 가산)
   const cats = Object.entries(brandByCat);
   const brandFiltered = true;  // 항상 브랜드 기준 집계
   const totalCats = cats;
@@ -1893,11 +1897,10 @@ function renderBrands(allEntries, hasSales) {
   }
   const total = { cnt: agg['오아'].cnt + agg['보아르'].cnt };
   for (const k of ['gmv','cogs','cpc','cpn','tr','p','qty','ret']) total[k] = agg['오아'][k] + agg['보아르'][k];
-  // 브랜드 카드 광고비 = 스케일링 공식 (기대값 일치용)
-  //   = (파일 전체 CPC VAT − 비브랜드 캠페인 raw × 1.1) + BPA VAT
-  // 카테 합계(SKU cpcVat 단순 합)와는 다를 수 있음 — 사용자가 기대값 일치 우선 선택.
+  // 브랜드 카드 광고비 = 파일 row 1 청구금액(+VAT) − 비브랜드 캠페인 raw × 1.1
+  //   bill.totalVat 는 이미 CPC+BPA 전체이고 쿠팡 청구조정 반영됨.
+  //   별도 + BPA 하지 않음 (이미 포함).
   const bill = window.cpcBilled;
-  const bpaVatBrand = (bill && bill.bpaVat) || (getActiveDeductions && (getActiveDeductions()?.bpa || 0)) || 0;
   if (bill && bill.totalVat) {
     const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1));
     const preSum = agg['오아'].cpc + agg['보아르'].cpc;
@@ -1910,11 +1913,6 @@ function renderBrands(allEntries, hasSales) {
       agg['보아르'].cpc = 0;
     }
     total.cpc = brandBilledVat;
-  }
-  // BPA 추가 (오아에 전액 — BPA는 브랜드 레벨 비용이라 분할 불필요)
-  if (bpaVatBrand > 0) {
-    agg['오아'].cpc += bpaVatBrand;
-    total.cpc += bpaVatBrand;
   }
   const hasTrialBrand = total.tr > 0;
 
