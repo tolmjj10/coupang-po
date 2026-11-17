@@ -2636,32 +2636,34 @@ async function onBatchMaps(e) {
     const slot = byMonth[ym];
     const entry = store[ym] || {};
     const t0 = performance.now();
+    // 같은 파일명으로 이미 파싱된 데이터 있으면 재파싱 스킵 (v2 cpc는 cpc_raw_sum 센티넬 확인)
+    const cpcIsCurrent = Array.isArray(entry.cpc) && entry.cpc.some(r => r?.camp_id === '__TOTAL__' && r.cpc_raw_sum !== undefined);
     try {
-      if (slot.cpcFile) {
+      if (slot.cpcFile && !(cpcIsCurrent && entry.cpcName === slot.cpcFile.name)) {
         const buf = await slot.cpcFile.arrayBuffer();
         const wb = XLSX.read(buf, { type: 'array' });
         entry.cpc = parseCPC(wb);
         entry.cpcName = slot.cpcFile.name;
         kindCounts.cpc++;
       }
-      if (slot.couponFile) {
+      if (slot.couponFile && entry.couponName !== slot.couponFile.name) {
         entry.coupon = await parseCoupon(slot.couponFile);
         entry.couponName = slot.couponFile.name;
         kindCounts.coupon++;
       }
-      if (slot.salesFile) {
+      if (slot.salesFile && entry.salesName !== slot.salesFile.name) {
         const parsed = await parseSales(slot.salesFile);
         entry.sales = parsed.purchases;
         entry.returns = parsed.returns;
         entry.salesName = slot.salesFile.name;
         kindCounts.sales++;
       }
-      if (slot.patotalFile) {
+      if (slot.patotalFile && entry.patotalName !== slot.patotalFile.name) {
         entry.patotal = await parsePaTotal(slot.patotalFile);
         entry.patotalName = slot.patotalFile.name;
         kindCounts.patotal++;
       }
-      if (slot.salesanalysisFile) {
+      if (slot.salesanalysisFile && entry.salesanalysisName !== slot.salesanalysisFile.name) {
         entry.salesanalysis = await parseSalesAnalysis(slot.salesanalysisFile);
         entry.salesanalysisName = slot.salesanalysisFile.name;
         kindCounts.salesanalysis++;
