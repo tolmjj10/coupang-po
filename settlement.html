@@ -2655,15 +2655,17 @@ function getActiveDeductions() {
   return (store[activeMonth] && store[activeMonth].deductions) || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, bpa:0, awardsBoarre:0 };
 }
 
-/* CPC 파일의 BPA 합계(신규 구매 고객 + 인지도 상승)를 활성 월의 상계 테이블에 자동 주입 */
+/* CPC 파일의 BPA 합계(신규 구매 고객 + 인지도 상승)를 활성 월의 상계 테이블에 자동 주입.
+ * UI 표시는 VAT 포함(×1.1 반올림). 상계 합계에는 포함되지 않음(오아+보아르 광고비로 별도 반영). */
 function applyBpaFromCpcToActive() {
   if (!cpcData || !activeMonth || activeMonth === 'ALL') return;
   const sentinel = cpcData.find(r => r && r.camp_id === '__TOTAL__');
   const bpaRaw = sentinel ? (Number(sentinel.bpa_total_raw) || 0) : 0;
+  const bpaVat = Math.round(bpaRaw * 1.1);
   const store = monthsStore();
   const entry = store[activeMonth] || (store[activeMonth] = {});
   entry.deductions = entry.deductions || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, bpa:0, awardsBoarre:0 };
-  entry.deductions.bpa = bpaRaw;
+  entry.deductions.bpa = bpaVat;
   saveMonthsStore(store);
 }
 
