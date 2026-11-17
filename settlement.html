@@ -393,7 +393,7 @@
   <div class="month-bar" id="month-bar">
     <!-- 월별 탭 JS 렌더 -->
     <div class="spacer"></div>
-    <button class="batch-btn" id="batch-maps-btn" title="폴더 선택 → 매출성장광고보고서*.xlsx / *SALES_ANALYSIS*.csv 파일을 파일명 월(YYYY-MM)별로 자동 분류">📁 파일 4·5 일괄 처리</button>
+    <button class="batch-btn" id="batch-maps-btn" title="폴더 선택 → 파일 1~5 전부 자동 분류/파싱 (파일명 패턴으로 월 매칭). dailySettlement*.xlsx, coupon_*.xls, Coupang_Stocked_Data_List*.xlsx, 매출성장광고보고서*.xlsx, *일간종합성과지표*.csv / *SALES_ANALYSIS*.csv">📁 전체 파일 일괄 처리</button>
     <input type="file" id="batch-maps-input" webkitdirectory directory multiple style="display:none">
   </div>
 
@@ -2376,7 +2376,7 @@ function renderMonthTabs() {
   const allTab = `<button class="mtab all ${allCls}" data-m="ALL">전체</button>`;
   bar.innerHTML = tabsHtml + allTab +
     '<div class="spacer"></div>' +
-    '<button class="batch-btn" id="batch-maps-btn" title="폴더 선택 → 매출성장광고보고서*.xlsx / *SALES_ANALYSIS*.csv 파일을 파일명 월(YYYY-MM)별로 자동 분류">📁 파일 4·5 일괄 처리</button>' +
+    '<button class="batch-btn" id="batch-maps-btn" title="폴더 선택 → 파일 1~5 전부 자동 분류/파싱 (파일명 패턴으로 월 매칭). dailySettlement*.xlsx, coupon_*.xls, Coupang_Stocked_Data_List*.xlsx, 매출성장광고보고서*.xlsx, *일간종합성과지표*.csv / *SALES_ANALYSIS*.csv">📁 전체 파일 일괄 처리</button>' +
     '<input type="file" id="batch-maps-input" webkitdirectory directory multiple style="display:none">';
   bar.querySelectorAll('.mtab').forEach(b => b.addEventListener('click', () => switchMonth(b.dataset.m)));
   document.getElementById('batch-maps-btn').addEventListener('click', () => document.getElementById('batch-maps-input').click());
@@ -2537,32 +2537,44 @@ function saveCurrentToMonth(ym) {
   });
 });
 
-// 파일 4·5 일괄: 폴더(또는 하위폴더)에서 매출성장광고보고서*.xlsx / *SALES_ANALYSIS*.csv 수집
-// 파일명에서 kind 자동 판별, 월(YYYY-MM) 자동 추출
+// 전체 파일 일괄: 폴더에 파일 1~5 모두 넣고 파일명 패턴으로 kind + 월 자동 판별 → 월별 저장
+// 파일명 규칙:
+//   파일1 CPC: dailySettlement / 일별광고비정산보고서 (xlsx)
+//   파일2 쿠폰: coupon_*.xls
+//   파일3 실입고: Coupang_Stocked_Data_List_*.xlsx
+//   파일4 매출성장광고보고서: 매출성장광고보고서_*.xlsx 또는 MMDD-MMDD.xlsx
+//   파일5 SALES_ANALYSIS / 일간종합성과지표: *.csv
+function detectBatchKind(name) {
+  if (/dailySettlement|일별광고비정산보고서/i.test(name) && /\.xlsx?$/i.test(name)) return 'cpc';
+  if (/^coupon/i.test(name) && /\.xls$/i.test(name)) return 'coupon';
+  if (/Stocked_Data_List/i.test(name) && /\.xlsx?$/i.test(name)) return 'sales';
+  if (/매출성장광고보고서/.test(name) && /\.xlsx$/i.test(name)) return 'patotal';
+  if (/\.xlsx$/i.test(name) && /^\d{4}-\d{4}(?!\d)/.test(name)) return 'patotal';  // MMDD-MMDD
+  if (/\.csv$/i.test(name) && (/SALES_ANALYSIS/i.test(name) || /일간종합성과지표/.test(name))) return 'salesanalysis';
+  return null;
+}
+
 async function onBatchMaps(e) {
   const files = Array.from(e.target.files || []);
   if (!files.length) { alert('파일이 없습니다.'); return; }
-  const byMonth = {};  // { 'YYYY-MM': { patotalFile, salesFile } }
+  // slotKey → { cpcFile, couponFile, salesFile, patotalFile, salesanalysisFile }
+  const byMonth = {};
   const skipped = [];
   for (const f of files) {
     const rel = f.webkitRelativePath || f.name;
     const name = f.name;
-    let kind = null;
-    if (/매출성장광고보고서.*\.xlsx$/i.test(name)) kind = 'patotal';
-    else if (/\.xlsx$/i.test(name) && /(\d{4})-(\d{4})(?!\d)/.test(name)) kind = 'patotal';  // MMDD-MMDD 패턴
-    else if (/SALES_ANALYSIS.*\.csv$/i.test(name)) kind = 'salesanalysis';
+    const kind = detectBatchKind(name);
     if (!kind) { skipped.push(rel + ' (파일명 패턴 불일치)'); continue; }
     const ym = detectYm(name);
-    if (!ym) { skipped.push(rel + ' (파일명에서 YYYY-MM 인식 실패)'); continue; }
+    if (!ym) { skipped.push(rel + ' (파일명에서 월(YYYY-MM) 인식 실패)'); continue; }
     const slot = byMonth[ym] || (byMonth[ym] = {});
-    if (kind === 'patotal') slot.patotalFile = f;
-    else slot.salesFile = f;
+    slot[kind + 'File'] = f;
   }
   const months = Object.keys(byMonth).sort();
-  if (!months.length) { alert('파일 4·5 패턴에 맞는 파일을 찾지 못했습니다.\n(매출성장광고보고서*.xlsx / *SALES_ANALYSIS*.csv + 파일명에 YYYY-MM)'); return; }
+  if (!months.length) { alert('처리 가능한 파일을 찾지 못했습니다.\n파일명에 월(YYYY-MM/YYYYMM/MMDD-MMDD) 포함 필수.'); return; }
 
   const store = monthsStore();
-  // 기존 월 데이터에서 이미 수집된 VIID/캠페인ID 파악 (중복 제거용)
+  // salesanalysis/patotal은 월 간 중복 제거 (기존 패턴 유지)
   const seenViids = new Set();
   const seenCamps = new Set();
   for (const d of Object.values(store)) {
@@ -2570,10 +2582,30 @@ async function onBatchMaps(e) {
     for (const c of Object.keys(d?.patotal || {})) seenCamps.add(c);
   }
   let okCount = 0, dupViid = 0, dupCamp = 0;
+  const kindCounts = { cpc:0, coupon:0, sales:0, patotal:0, salesanalysis:0 };
   for (const ym of months) {
     const slot = byMonth[ym];
     const entry = store[ym] || {};
     try {
+      if (slot.cpcFile) {
+        const buf = await slot.cpcFile.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        entry.cpc = parseCPC(wb);
+        entry.cpcName = slot.cpcFile.name;
+        kindCounts.cpc++;
+      }
+      if (slot.couponFile) {
+        entry.coupon = await parseCoupon(slot.couponFile);
+        entry.couponName = slot.couponFile.name;
+        kindCounts.coupon++;
+      }
+      if (slot.salesFile) {
+        const parsed = await parseSales(slot.salesFile);
+        entry.sales = parsed.purchases;
+        entry.returns = parsed.returns;
+        entry.salesName = slot.salesFile.name;
+        kindCounts.sales++;
+      }
       if (slot.patotalFile) {
         const full = await parsePaTotal(slot.patotalFile);
         const dedup = {};
@@ -2583,38 +2615,42 @@ async function onBatchMaps(e) {
         }
         entry.patotal = dedup;
         entry.patotalName = slot.patotalFile.name;
+        kindCounts.patotal++;
       }
-      if (slot.salesFile) {
-        const full = await parseSalesAnalysis(slot.salesFile);
+      if (slot.salesanalysisFile) {
+        const full = await parseSalesAnalysis(slot.salesanalysisFile);
         const dedup = {};
         for (const [vid, v] of Object.entries(full)) {
           if (seenViids.has(vid)) { dupViid++; continue; }
           dedup[vid] = v; seenViids.add(vid);
         }
         entry.salesanalysis = dedup;
-        entry.salesanalysisName = slot.salesFile.name;
+        entry.salesanalysisName = slot.salesanalysisFile.name;
+        kindCounts.salesanalysis++;
       }
       store[ym] = entry;
       okCount++;
     } catch (err) {
       console.error(`[${ym}] 처리 실패:`, err);
+      skipped.push(`${ym} 파싱 실패: ${err.message}`);
     }
   }
-  // localStorage 쿼터 체크 — 저장 실패 시 사용자에게 알림
+  // localStorage 쿼터 체크
   let saveOk = true;
   try { localStorage.setItem(MONTHS_LS, JSON.stringify(store)); }
   catch (err) { saveOk = false; console.error('localStorage 쿼터 초과:', err); }
   if (saveOk) queueMonthsRemoteSave();
   const sizeKb = Math.round(JSON.stringify(store).length / 1024);
-  const msg = `${okCount}개 월 처리 완료 (${sizeKb}KB)\n${months.join(', ')}`
+  const kindMsg = Object.entries(kindCounts).filter(([,n])=>n>0).map(([k,n])=>`${k} ${n}건`).join(', ');
+  const msg = `${okCount}개 월 처리 완료 (${sizeKb}KB)\n파일: ${kindMsg}\n월: ${months.join(', ')}`
     + (dupViid || dupCamp ? `\n\n중복 제거: VIID ${dupViid}건, 캠페인 ${dupCamp}건` : '')
-    + (skipped.length ? `\n\n미분류 ${skipped.length}개 (콘솔 확인)` : '')
-    + (!saveOk ? `\n\n⚠️ localStorage 저장 실패 (용량 초과) — 일부 데이터가 세션 종료 시 유실될 수 있음` : '');
+    + (skipped.length ? `\n\n미분류/실패 ${skipped.length}개 (콘솔 확인)` : '')
+    + (!saveOk ? `\n\n⚠️ localStorage 저장 실패 (용량 초과)` : '');
   alert(msg);
-  if (skipped.length) console.warn('미분류:', skipped);
+  if (skipped.length) console.warn('미분류/실패:', skipped);
   rebuildMonthMaps();
   renderMonthTabs();
-  if (months.length) switchMonth(months[0]);
+  if (months.length) switchMonth(months[months.length - 1]);  // 가장 최근 월로
 }
 
 /* ═══════════════════════ 상계처리 (상계금액) ═══════════════════════ */
