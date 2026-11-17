@@ -2585,14 +2585,8 @@ async function onBatchMaps(e) {
   if (!months.length) { alert('처리 가능한 파일을 찾지 못했습니다.\n파일명에 월(YYYY-MM/YYYYMM/MMDD-MMDD) 포함 필수.'); return; }
 
   const store = monthsStore();
-  // salesanalysis/patotal은 월 간 중복 제거 (기존 패턴 유지)
-  const seenViids = new Set();
-  const seenCamps = new Set();
-  for (const d of Object.values(store)) {
-    for (const v of Object.keys(d?.salesanalysis || {})) seenViids.add(v);
-    for (const c of Object.keys(d?.patotal || {})) seenCamps.add(c);
-  }
-  let okCount = 0, dupViid = 0, dupCamp = 0;
+  // 월 간 중복 제거 제거 — 파일이 월별(또는 각 월 스냅샷)로 들어오므로 전부 그대로 저장
+  let okCount = 0;
   const kindCounts = { cpc:0, coupon:0, sales:0, patotal:0, salesanalysis:0 };
   for (const ym of months) {
     const slot = byMonth[ym];
@@ -2618,24 +2612,12 @@ async function onBatchMaps(e) {
         kindCounts.sales++;
       }
       if (slot.patotalFile) {
-        const full = await parsePaTotal(slot.patotalFile);
-        const dedup = {};
-        for (const [c, v] of Object.entries(full)) {
-          if (seenCamps.has(c)) { dupCamp++; continue; }
-          dedup[c] = v; seenCamps.add(c);
-        }
-        entry.patotal = dedup;
+        entry.patotal = await parsePaTotal(slot.patotalFile);
         entry.patotalName = slot.patotalFile.name;
         kindCounts.patotal++;
       }
       if (slot.salesanalysisFile) {
-        const full = await parseSalesAnalysis(slot.salesanalysisFile);
-        const dedup = {};
-        for (const [vid, v] of Object.entries(full)) {
-          if (seenViids.has(vid)) { dupViid++; continue; }
-          dedup[vid] = v; seenViids.add(vid);
-        }
-        entry.salesanalysis = dedup;
+        entry.salesanalysis = await parseSalesAnalysis(slot.salesanalysisFile);
         entry.salesanalysisName = slot.salesanalysisFile.name;
         kindCounts.salesanalysis++;
       }
@@ -2654,7 +2636,6 @@ async function onBatchMaps(e) {
   const sizeKb = Math.round(JSON.stringify(store).length / 1024);
   const kindMsg = Object.entries(kindCounts).filter(([,n])=>n>0).map(([k,n])=>`${k} ${n}건`).join(', ');
   const msg = `${okCount}개 월 처리 완료 (${sizeKb}KB)\n파일: ${kindMsg}\n월: ${months.join(', ')}`
-    + (dupViid || dupCamp ? `\n\n중복 제거: VIID ${dupViid}건, 캠페인 ${dupCamp}건` : '')
     + (skipped.length ? `\n\n미분류/실패 ${skipped.length}개 (콘솔 확인)` : '')
     + (!saveOk ? `\n\n⚠️ localStorage 저장 실패 (용량 초과)` : '');
   alert(msg);
@@ -2913,6 +2894,21 @@ async function seedDeductionsIfMissing() {
   } catch (e) { console.warn('seed 로딩 실패:', e); }
 }
 
+/* 1회 마이그: 단일 월 LS 페이로드(settle_cpc 등) 삭제 — monthsStore와 중복되어 로드/저장 속도 저하.
+ * 이름 라벨(settle_cpc_name 등)은 UI 용으로 유지. */
+function migrateRemoveStaleLsPayloads() {
+  const MARK = 'settle_migrate_remove_stale_ls_v1';
+  if (localStorage.getItem(MARK) === 'done') return;
+  const keys = ['settle_cpc','settle_coupon','settle_sales','settle_patotal','settle_salesanalysis','settle_returns'];
+  let freed = 0;
+  for (const k of keys) {
+    const v = localStorage.getItem(k);
+    if (v) { freed += v.length; localStorage.removeItem(k); }
+  }
+  localStorage.setItem(MARK, 'done');
+  if (freed) console.log(`[migrate] 중복 LS payload ${(freed/1024).toFixed(1)}KB 삭제`);
+}
+
 /* 1회 마이그: 구버전 parseCPC로 떨어진 cpcData는 sentinel에 bpa_total_raw가 없어서
  * BPA를 분리 집계할 수 없음. 해당 월의 cpc를 자동 삭제하고 사용자에게 재업로드 유도.
  * 대상: 센티넬이 없거나(= 완전 구버전) 센티넬에 bpa_total_raw가 undefined인 cpcData. */
@@ -2981,6 +2977,7 @@ function augmentSkuMapFromMargin() {
   patchAwardsRevertAndBrandSplit();
   patch2026_10_trial();
   migrateCpcSentinelForBpa();
+  migrateRemoveStaleLsPayloads();
   augmentSkuMapFromMargin();
   // 5) 활성 단일 KV (최근 업로드 1건 공유)
   const hadServer = await restoreFromServer();
