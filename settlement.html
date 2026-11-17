@@ -2618,12 +2618,24 @@ async function onBatchMaps(e) {
   if (!months.length) { alert('처리 가능한 파일을 찾지 못했습니다.\n파일명에 월(YYYY-MM/YYYYMM/MMDD-MMDD) 포함 필수.'); return; }
 
   const store = monthsStore();
-  // 월 간 중복 제거 제거 — 파일이 월별(또는 각 월 스냅샷)로 들어오므로 전부 그대로 저장
   let okCount = 0;
   const kindCounts = { cpc:0, coupon:0, sales:0, patotal:0, salesanalysis:0 };
-  for (const ym of months) {
+  const btn = document.getElementById('batch-maps-btn');
+  const origLabel = btn ? btn.textContent : '';
+  const updateBtn = (txt) => { if (btn) btn.textContent = txt; };
+  const yieldUi = () => new Promise(r => setTimeout(r, 0));
+  let saveOk = true;
+  const saveOnce = () => {
+    try { localStorage.setItem(MONTHS_LS, JSON.stringify(store)); }
+    catch (err) { saveOk = false; console.error('localStorage 쿼터 초과:', err); }
+  };
+  for (let i = 0; i < months.length; i++) {
+    const ym = months[i];
+    updateBtn(`⏳ ${ym} 처리중 (${i+1}/${months.length})`);
+    await yieldUi();
     const slot = byMonth[ym];
     const entry = store[ym] || {};
+    const t0 = performance.now();
     try {
       if (slot.cpcFile) {
         const buf = await slot.cpcFile.arrayBuffer();
@@ -2656,15 +2668,14 @@ async function onBatchMaps(e) {
       }
       store[ym] = entry;
       okCount++;
+      saveOnce();  // 월 단위 저장 — 중간 크래시 대비
+      console.log(`[batch] ${ym} 완료 (${((performance.now()-t0)/1000).toFixed(1)}s)`);
     } catch (err) {
       console.error(`[${ym}] 처리 실패:`, err);
       skipped.push(`${ym} 파싱 실패: ${err.message}`);
     }
   }
-  // localStorage 쿼터 체크
-  let saveOk = true;
-  try { localStorage.setItem(MONTHS_LS, JSON.stringify(store)); }
-  catch (err) { saveOk = false; console.error('localStorage 쿼터 초과:', err); }
+  updateBtn(origLabel);
   if (saveOk) queueMonthsRemoteSave();
   const sizeKb = Math.round(JSON.stringify(store).length / 1024);
   const kindMsg = Object.entries(kindCounts).filter(([,n])=>n>0).map(([k,n])=>`${k} ${n}건`).join(', ');
