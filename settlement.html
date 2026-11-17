@@ -2537,19 +2537,25 @@ function saveCurrentToMonth(ym) {
   });
 });
 
-// 전체 파일 일괄: 폴더에 파일 1~5 모두 넣고 파일명 패턴으로 kind + 월 자동 판별 → 월별 저장
-// 파일명 규칙:
-//   파일1 CPC: dailySettlement / 일별광고비정산보고서 (xlsx)
-//   파일2 쿠폰: coupon_*.xls
-//   파일3 실입고: Coupang_Stocked_Data_List_*.xlsx
-//   파일4 매출성장광고보고서: 매출성장광고보고서_*.xlsx 또는 MMDD-MMDD.xlsx
-//   파일5 SALES_ANALYSIS / 일간종합성과지표: *.csv
-function detectBatchKind(name) {
+// 전체 파일 일괄: 폴더 구조 `루트/1|2|3|4|5/파일.xlsx` 기준 (상위 폴더명이 파일번호).
+// 월(YYYY-MM)은 파일명에서 detectYm으로 자동 추출.
+// 폴더명이 없을 경우 파일명 패턴으로 폴백.
+const FOLDER_TO_KIND = { '1':'cpc', '2':'coupon', '3':'sales', '4':'patotal', '5':'salesanalysis' };
+function detectBatchKind(file) {
+  const rel = file.webkitRelativePath || file.name;
+  const parts = rel.split(/[\/\\]/);
+  // 역순으로 검색 — 파일 바로 위 폴더가 1~5면 그 kind
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const folder = String(parts[i] || '').trim();
+    if (FOLDER_TO_KIND[folder]) return FOLDER_TO_KIND[folder];
+  }
+  // 폴백: 파일명 패턴
+  const name = file.name;
   if (/dailySettlement|일별광고비정산보고서/i.test(name) && /\.xlsx?$/i.test(name)) return 'cpc';
   if (/^coupon/i.test(name) && /\.xls$/i.test(name)) return 'coupon';
   if (/Stocked_Data_List/i.test(name) && /\.xlsx?$/i.test(name)) return 'sales';
   if (/매출성장광고보고서/.test(name) && /\.xlsx$/i.test(name)) return 'patotal';
-  if (/\.xlsx$/i.test(name) && /^\d{4}-\d{4}(?!\d)/.test(name)) return 'patotal';  // MMDD-MMDD
+  if (/\.xlsx$/i.test(name) && /^\d{4}-\d{4}(?!\d)/.test(name)) return 'patotal';
   if (/\.csv$/i.test(name) && (/SALES_ANALYSIS/i.test(name) || /일간종합성과지표/.test(name))) return 'salesanalysis';
   return null;
 }
@@ -2563,7 +2569,7 @@ async function onBatchMaps(e) {
   for (const f of files) {
     const rel = f.webkitRelativePath || f.name;
     const name = f.name;
-    const kind = detectBatchKind(name);
+    const kind = detectBatchKind(f);
     if (!kind) { skipped.push(rel + ' (파일명 패턴 불일치)'); continue; }
     const ym = detectYm(name);
     if (!ym) { skipped.push(rel + ' (파일명에서 월(YYYY-MM) 인식 실패)'); continue; }
