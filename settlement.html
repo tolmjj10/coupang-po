@@ -1081,6 +1081,7 @@ function aggregate() {
   // CPC: 카테별 + SKU별 동시 집계
   let cpcMatched = 0, cpcUnmatched = 0, totalRawCost = 0;
   let billedTotalRaw = 0, billedTotalVat = 0;
+  let bpaRawTotal = 0;  // 파일1 BPA(신규구매+인지도) raw 합 — 오아+보아르 광고비에 합산
   let nonBrandRaw = 0;  // brandOf='' 캠페인 raw 합 (브랜드 카드 총액 차감용)
   const _dbgNonBrand = [];  // 디버그: 비-브랜드 캠페인 내역
   for (const row of cpcData) {
@@ -1088,6 +1089,7 @@ function aggregate() {
     if (row.camp_id === '__TOTAL__') {
       billedTotalRaw += Number(row.billed_raw) || 0;
       billedTotalVat += Number(row.billed_vat) || 0;
+      bpaRawTotal += Number(row.bpa_total_raw) || 0;
       continue;
     }
     const cat = catForCamp(row.camp_id, row.camp_name);
@@ -1111,10 +1113,12 @@ function aggregate() {
     billedTotalRaw = totalRawCost;
     billedTotalVat = Math.round(totalRawCost * 1.1);
   }
-  window.cpcBilled = { totalRaw: billedTotalRaw, totalVat: billedTotalVat, nonBrandRaw };
+  // BPA(VAT 포함)는 오아+보아르 브랜드 광고비에 합산
+  const bpaVat = Math.round(bpaRawTotal * 1.1);
+  window.cpcBilled = { totalRaw: billedTotalRaw, totalVat: billedTotalVat, nonBrandRaw, bpaRaw: bpaRawTotal, bpaVat };
   window.settlementDebug = {
-    billedTotalRaw, billedTotalVat, nonBrandRaw,
-    brandBilledVat: Math.max(0, billedTotalVat - Math.round(nonBrandRaw * 1.1)),
+    billedTotalRaw, billedTotalVat, nonBrandRaw, bpaRaw: bpaRawTotal, bpaVat,
+    brandBilledVat: Math.max(0, billedTotalVat - Math.round(nonBrandRaw * 1.1)) + bpaVat,
     nonBrandCamps: _dbgNonBrand.sort((a,b) => b.cost - a.cost),
   };
   console.log('[settlement] billedVat=', billedTotalVat, ' nonBrandRaw=', nonBrandRaw,
@@ -1628,7 +1632,7 @@ function render(byCat, stats) {
   // (쿠팡 청구 조정값 반영)
   const bill = window.cpcBilled;
   if (bill && bill.totalVat && activeBrand === '오아+보아르') {
-    const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1));
+    const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1)) + (bill.bpaVat || 0);
     const sumPre = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
     if (sumPre > 0) {
       const ratio = brandBilledVat / sumPre;
@@ -1879,7 +1883,7 @@ function renderBrands(allEntries, hasSales) {
   // (per-campaign sum ≠ 파일 row 1 청구 총액이기 때문 — 쿠팡 청구 조정분)
   const bill = window.cpcBilled;
   if (bill && bill.totalVat && total.cpc > 0) {
-    const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1));
+    const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1)) + (bill.bpaVat || 0);
     const ratio = brandBilledVat / total.cpc;
     agg['오아'].cpc = Math.round(agg['오아'].cpc * ratio);
     agg['보아르'].cpc = brandBilledVat - agg['오아'].cpc;  // 반올림 오차 보정
@@ -1928,7 +1932,7 @@ function renderBrands(allEntries, hasSales) {
           ${(a.tr||0) > 0 ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">-${fmtWon(a.tr)}</span>` : ''}
           ${!foldReturns && a.ret !== 0 ? `<span class="b-k">반출</span><span class="b-v" style="color:var(--neg);font-weight:600;">${fmtWon(a.ret)}</span>` : ''}
           ${a.awd > 0 ? `<span class="b-k">어워즈</span><span class="b-v" style="color:var(--neg);font-weight:600;">-${fmtWon(a.awd)}</span>` : ''}
-          ${showDeduct && a.deduct > 0 ? `<span class="b-k">상계(어워즈 제외)</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="성장·프리미엄·DA·BPA·체험·PPIR 합계">-${fmtWon(a.deduct - (a.awd||0))}</span>` : ''}
+          ${showDeduct && a.deduct > 0 ? `<span class="b-k">상계(어워즈 제외)</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="성장·프리미엄·DA·체험·PPIR 합계">-${fmtWon(a.deduct - (a.awd||0))}</span>` : ''}
           ${hasSales ? `<span class="b-k">순수익</span><span class="b-v profit${a.p<0?' neg':''}">${fmtWon(a.p)}</span>
           <span class="b-k">마진</span><span class="b-v margin">${mg}</span>` : ''}
         </div>
@@ -2632,7 +2636,8 @@ function calcDeductSum(d) {
   if (!d) return 0;
   // premium은 이미 ½ 적용된 값으로 저장됨
   // trial(체험단)은 per-SKU로 각 SKU profit에서 이미 차감됨 — 중복 방지
-  return (d.growth||0) + (d.awards||0) + (d.premium||0) + (d.ppir||0) + (d.da||0) + (d.bpa||0);
+  // bpa는 상계가 아님 (오아+보아르 광고비로 별도 반영)
+  return (d.growth||0) + (d.awards||0) + (d.premium||0) + (d.ppir||0) + (d.da||0);
 }
 
 function getActiveDeductions() {
@@ -2748,7 +2753,7 @@ function applyDeductionsToSummary() {
     <div class="dp-break">
       오아+보아르 순수익 <strong class="profit">${fmtWon(brandP)}</strong>
       − 상계 <strong class="neg">${fmtWon(extra + trialResidual)}</strong>
-      <span class="detail">= 성장 ${fmtWon(d.growth)} + 프리미엄 ${fmtWon(d.premium)} + DA ${fmtWon(d.da)} + BPA ${fmtWon(d.bpa||0)} + 어워즈 ${fmtWon(d.awards)} + PPIR ${fmtWon(d.ppir)}
+      <span class="detail">= 성장 ${fmtWon(d.growth)} + 프리미엄 ${fmtWon(d.premium)} + DA ${fmtWon(d.da)} + 어워즈 ${fmtWon(d.awards)} + PPIR ${fmtWon(d.ppir)}
       <em style="opacity:.6">· 체험단 ${fmtWon(d.trial)} (브랜드 반영 ${fmtWon(brandTrialSum)}${trialResidual?`, 미할당 ${fmtWon(trialResidual)}`:''})</em></span>
     </div>
     <div class="dp-final-v ${finalProfit<0?'neg':'ok'}">${label} ${fmtWon(finalProfit)}</div>`;
