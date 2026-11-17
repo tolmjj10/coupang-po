@@ -2898,19 +2898,19 @@ async function seedDeductionsIfMissing() {
   } catch (e) { console.warn('seed 로딩 실패:', e); }
 }
 
-/* 수동 캠페인→VIID 매핑 — 매출성장광고보고서(pa_total)에 누락된 캠페인용.
- * 주로 AI_TEST 같은 특수 캠페인이 pa_total에 안 올라올 때 사용. */
-const MANUAL_CAMP_VIID = {
+/* 수동 캠페인→SKU 매핑 — 매출성장광고보고서(pa_total)에 누락된 캠페인용.
+ * SKU 리스트에 광고비 균등 분배 (distributeCampCost → manual_camp_sku 분기). */
+const MANUAL_CAMP_SKU = {
   // 캠페인 105178238 [오아]AI_TEST_여름가전_스퀘어미니선풍기 — 8월 pa_total 미등록
-  '105178238': ['80949600012', '80949599996'],
+  // VIID 80949600012 / 80949599996 → SKU 23200605 / 23200603
+  '105178238': { cat: '여름가전', skus: ['23200605', '23200603'] },
 };
 function applyManualCampViidOverrides() {
   if (!maps) return;
-  maps.camp2viid = maps.camp2viid || {};
-  for (const [cid, viids] of Object.entries(MANUAL_CAMP_VIID)) {
-    const existing = maps.camp2viid[cid];
-    if (!existing || !existing.length) {
-      maps.camp2viid[cid] = [...viids];
+  maps.manual_camp_sku = maps.manual_camp_sku || {};
+  for (const [cid, v] of Object.entries(MANUAL_CAMP_SKU)) {
+    if (!maps.manual_camp_sku[cid]) {
+      maps.manual_camp_sku[cid] = v;
     }
   }
 }
