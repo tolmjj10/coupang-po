@@ -2963,7 +2963,7 @@ function migrateRemoveStaleLsPayloads() {
  * BPA를 분리 집계할 수 없음. 해당 월의 cpc를 자동 삭제하고 사용자에게 재업로드 유도.
  * 대상: 센티넬이 없거나(= 완전 구버전) 센티넬에 bpa_total_raw가 undefined인 cpcData. */
 function migrateCpcSentinelForBpa() {
-  const MARK = 'settle_migrate_cpc_bpa_v1';
+  const MARK = 'settle_migrate_cpc_bpa_v2';  // v2: cpc_raw_sum 필드 추가 요구 (file billed_vat 복귀)
   if (localStorage.getItem(MARK) === 'done') return;
   const store = monthsStore();
   const cleared = [];
@@ -2971,7 +2971,7 @@ function migrateCpcSentinelForBpa() {
     const cpc = d && d.cpc;
     if (!Array.isArray(cpc) || cpc.length === 0) continue;
     const sentinel = cpc.find(r => r && r.camp_id === '__TOTAL__');
-    if (!sentinel || sentinel.bpa_total_raw === undefined) {
+    if (!sentinel || sentinel.bpa_total_raw === undefined || sentinel.cpc_raw_sum === undefined) {
       delete d.cpc; delete d.cpcName;
       cleared.push(ym);
     }
