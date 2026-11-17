@@ -715,17 +715,21 @@ function resolveCampBrand(campId, campName) {
   if (meta.brand === '오아' || meta.brand === '보아르') return meta.brand;
   if (meta.brand === '제외') return '';
   const cidS = String(campId);
-  // VIID 체인 — 월별 매핑 우선, 없으면 중앙 KV
+  // VIID 체인 — 월별 + 중앙 KV 모두 조회 (per-VIID 폴백)
   const viids = (maps.month_camp2viid && maps.month_camp2viid[cidS]) || (maps.camp2viid && maps.camp2viid[cidS]) || [];
-  const v2s = maps.month_viid2sku || maps.viid2sku || {};
+  const mv = maps.month_viid2sku || {};
+  const gv = maps.viid2sku || {};
   const tally = { '오아': 0, '보아르': 0 };
   for (const v of viids) {
-    const m = v2s[v];
+    const m = mv[v] || gv[v];
     if (!m) continue;
     if (m.brand === '오아' || m.brand === '보아르') { tally[m.brand]++; continue; }
     const nm = (m.name || '').replace(/^(?:box|BOX)[_\s]+/i, '');
     if (nm.startsWith('오아')) tally['오아']++;
     else if (nm.startsWith('보아르')) tally['보아르']++;
+    // sku2brand 역색인 체크 — viid2sku에 brand 비어있고 이름 접두사도 아닌 경우
+    const sb = maps.sku2brand && maps.sku2brand[m.sku];
+    if (sb === '오아' || sb === '보아르') tally[sb]++;
   }
   if (tally['오아'] || tally['보아르']) return tally['오아'] >= tally['보아르'] ? '오아' : '보아르';
   // prodname fallback (월별 매핑 — SALES에 없는 VIID 캠페인 대응)
@@ -2894,6 +2898,23 @@ async function seedDeductionsIfMissing() {
   } catch (e) { console.warn('seed 로딩 실패:', e); }
 }
 
+/* 수동 캠페인→VIID 매핑 — 매출성장광고보고서(pa_total)에 누락된 캠페인용.
+ * 주로 AI_TEST 같은 특수 캠페인이 pa_total에 안 올라올 때 사용. */
+const MANUAL_CAMP_VIID = {
+  // 캠페인 105178238 [오아]AI_TEST_여름가전_스퀘어미니선풍기 — 8월 pa_total 미등록
+  '105178238': ['80949600012', '80949599996'],
+};
+function applyManualCampViidOverrides() {
+  if (!maps) return;
+  maps.camp2viid = maps.camp2viid || {};
+  for (const [cid, viids] of Object.entries(MANUAL_CAMP_VIID)) {
+    const existing = maps.camp2viid[cid];
+    if (!existing || !existing.length) {
+      maps.camp2viid[cid] = [...viids];
+    }
+  }
+}
+
 /* 1회 마이그: 단일 월 LS 페이로드(settle_cpc 등) 삭제 — monthsStore와 중복되어 로드/저장 속도 저하.
  * 이름 라벨(settle_cpc_name 등)은 UI 용으로 유지. */
 function migrateRemoveStaleLsPayloads() {
@@ -2978,6 +2999,7 @@ function augmentSkuMapFromMargin() {
   patch2026_10_trial();
   migrateCpcSentinelForBpa();
   migrateRemoveStaleLsPayloads();
+  applyManualCampViidOverrides();
   augmentSkuMapFromMargin();
   // 5) 활성 단일 KV (최근 업로드 1건 공유)
   const hadServer = await restoreFromServer();
