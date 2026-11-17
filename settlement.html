@@ -448,7 +448,7 @@
     <div class="dp-grid">
       <div class="dp-cell"><label>성장장려금</label><input type="text" data-k="growth" inputmode="numeric" placeholder="0"></div>
       <div class="dp-cell"><label>프리미엄 데이터 <small>(½ 적용된 값)</small><small id="csvs-note" style="color:var(--neg); margin-left:4px; display:none;">· CSVS 포함</small></label><input type="text" data-k="premium" inputmode="numeric" placeholder="0"></div>
-      <div class="dp-cell"><label>DA <small>Display AD &amp; Rocket Insight</small></label><input type="text" data-k="da" inputmode="numeric" placeholder="0"></div>
+      <div class="dp-cell"><label>DA / BPA <small style="color:var(--neg);">(BPA는 상계X)</small></label><div style="display:flex; align-items:center; gap:6px;"><input type="text" data-k="da" inputmode="numeric" placeholder="0" style="flex:1; min-width:0; text-align:right;"><span style="color:var(--text-hint); font-weight:600;">/</span><input type="text" data-k="bpa" inputmode="numeric" placeholder="0" readonly title="파일 1에서 신규 구매 고객 + 인지도 상승 광고비 자동 산출" style="flex:1; min-width:0; text-align:right; background:var(--bg-hint, #f2f2f2); color:var(--text-hint);"></div></div>
       <div class="dp-cell"><label>쿠팡 체험단</label><input type="text" data-k="trial" inputmode="numeric" placeholder="0"></div>
       <div class="dp-cell"><label>어워즈패키지</label><input type="text" data-k="awards" inputmode="numeric" placeholder="0"></div>
       <div class="dp-cell"><label>PPIR <small>리뷰 이벤트</small></label><input type="text" data-k="ppir" inputmode="numeric" placeholder="0"></div>
@@ -805,16 +805,20 @@ function catForCamp(campId, campName) {
 /* ─────────── 엑셀 파싱 ─────────── */
 function parseCPC(wb) {
   // dailySettlement 구조 (0-indexed):
-  //   col 7 = 캠페인 ID, col 8 = 캠페인명, col 16 = 청구 소진 광고비(raw), col 18 = 청구금액(VAT포함)
-  // row 0 헤더, row 1 = '전체' 요약 (이 행에서 billed 총액 추출), row 2+ 일별+캠페인별 상세.
+  //   col 6 = 광고 목표, col 7 = 캠페인 ID, col 8 = 캠페인명,
+  //   col 16 = 청구 소진 광고비(raw), col 18 = 청구금액(VAT포함)
+  // 광고 목표 분기:
+  //   '매출 성장' → CPC(광고비, SKU 분배 대상)
+  //   '신규 구매 고객' / '인지도 상승' → BPA(상계 섹션에 합산 표기, SKU 분배 없음)
+  //   그 외 → 보수적으로 CPC로 취급
   // 반환: [sentinel, ...campaigns]
-  //   sentinel = { camp_id: '__TOTAL__', cost: 0, camp_name: '__TOTAL__', billed_raw, billed_vat }
-  //   per-campaign sum은 row 1 col 16 billed_raw보다 다소 큰 경우가 있음 (쿠팡 청구 조정).
-  //   브랜드 카드 총액은 billed_vat 기준, 비-오아/보아르 차감으로 계산.
+  //   sentinel = { camp_id: '__TOTAL__', cost: 0, camp_name: '__TOTAL__', billed_raw, billed_vat, bpa_total_raw }
+  //   per-campaign.cost 는 매출 성장(CPC) 소진액만 포함 (SKU 분배에 사용).
   const ws = wb.Sheets[wb.SheetNames[0]];
   const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
   const byCamp = {};
   let billedRaw = 0, billedVat = 0;
+  let bpaTotalRaw = 0;
   for (let i = 1; i < aoa.length; i++) {
     const r = aoa[i];
     const campId = r[7];
@@ -828,14 +832,30 @@ function parseCPC(wb) {
     }
     const cid = String(Math.round(campId));
     const campName = String(r[8] || '').trim();
+    const goal = String(r[6] || '').trim();
     const cost = Number(r[16]) || 0;
     if (!cost) continue;
+    const isBpa = goal.includes('신규 구매') || goal.includes('인지도');
+    if (isBpa) {
+      bpaTotalRaw += cost;
+      continue;  // BPA 캠페인은 SKU 분배 대상에서 제외 (상계 섹션에만 합산)
+    }
     if (!byCamp[cid]) byCamp[cid] = { cost: 0, camp_name: campName };
     byCamp[cid].cost += cost;
     if (campName && !byCamp[cid].camp_name) byCamp[cid].camp_name = campName;
   }
   const rows = Object.entries(byCamp).map(([camp_id, v]) => ({ camp_id, cost: v.cost, camp_name: v.camp_name }));
-  const sentinel = { camp_id: '__TOTAL__', cost: 0, camp_name: '__TOTAL__', billed_raw: billedRaw, billed_vat: billedVat };
+  // 파일 row 1 billed 총액은 CPC+BPA 전체 기준이라 그대로 쓸 수 없음.
+  // CPC(매출 성장)만의 raw 합을 billed_raw로 두고, VAT는 ×1.1 반올림 폴백.
+  const cpcRawSum = rows.reduce((s, r) => s + (Number(r.cost) || 0), 0);
+  const sentinel = {
+    camp_id: '__TOTAL__', cost: 0, camp_name: '__TOTAL__',
+    billed_raw: cpcRawSum,
+    billed_vat: Math.round(cpcRawSum * 1.1),
+    file_billed_raw: billedRaw,
+    file_billed_vat: billedVat,
+    bpa_total_raw: bpaTotalRaw,
+  };
   return [sentinel, ...rows];
 }
 
@@ -962,7 +982,12 @@ function distributeRound(entries, total) {
   return out;
 }
 
-/* 캠페인 광고비 → SKU별 분배. 수동 SKU 최우선, 다음 camp_viid_cost 비율, 다음 camp2viid 균등. */
+/* 캠페인 광고비 → SKU별 분배.
+ *   1) manual_camp_sku 수동 매핑 최우선
+ *   2) 파일4(pa_total_campaign) camp2viid → VIID N등분, 잔여 1원은 랜덤 VIID에 몰아넣기
+ *      → viid2sku로 SKU 매핑. 미매칭 VIID는 __viid_<id> 가상 SKU로 유지.
+ *   3) VIID 매핑 전혀 없음 → 카테별 가상 SKU 귀속
+ */
 function distributeCampCost(campId, totalRawCost, campCat) {
   const out = {};
   const manual = maps.manual_camp_sku && maps.manual_camp_sku[campId];
@@ -972,32 +997,29 @@ function distributeCampCost(campId, totalRawCost, campCat) {
     for (const s of manualSkus) out[s] = (out[s] || 0) + per;
     return out;
   }
-  // cat만 지정됐고 SKU 없으면 가상 SKU로 묶기
   if (manual && manual.cat && !manualSkus.length) {
     out[`__cat_${manual.cat}_${campId}`] = totalRawCost;
     return out;
   }
-  const costMap = maps.camp_viid_cost && maps.camp_viid_cost[campId];
-  if (costMap) {
-    const sum = Object.values(costMap).reduce((s, v) => s + v, 0);
-    if (sum > 0) {
-      for (const [viid, c] of Object.entries(costMap)) {
-        const sku = (maps.viid2sku[viid] && maps.viid2sku[viid].sku) || `__viid_${viid}`;
-        out[sku] = (out[sku] || 0) + totalRawCost * (c / sum);
-      }
-      return out;
-    }
-  }
-  const viids = maps.camp2viid[campId] || [];
-  const skus = [...new Set(viids.map(v => maps.viid2sku[v] && maps.viid2sku[v].sku).filter(Boolean))];
-  if (skus.length === 0) {
-    // 매핑 전혀 없음 → 캠페인별 가상 SKU로 카테에 귀속 (__nocamp__ 몰빵 방지)
+  // 파일 4 피벗: camp2viid VIID 리스트
+  const viids = (maps.month_camp2viid && maps.month_camp2viid[campId]) || maps.camp2viid[campId] || [];
+  if (viids.length === 0) {
     const safeCat = campCat || '기타';
     out[`__cat_${safeCat}_${campId}`] = totalRawCost;
     return out;
   }
-  const per = totalRawCost / skus.length;
-  for (const s of skus) out[s] = per;
+  // VIID N등분 — floor + 잔여 1원 랜덤 VIID에 몰아넣기
+  const n = viids.length;
+  const base = Math.floor(totalRawCost / n);
+  const rem = totalRawCost - base * n;
+  const pickIdx = rem > 0 ? Math.floor(Math.random() * n) : -1;
+  for (let i = 0; i < n; i++) {
+    const v = viids[i];
+    const share = base + (i === pickIdx ? rem : 0);
+    if (!share) continue;
+    const sku = (maps.viid2sku[v] && maps.viid2sku[v].sku) || `__viid_${v}`;
+    out[sku] = (out[sku] || 0) + share;
+  }
   return out;
 }
 
@@ -1906,7 +1928,7 @@ function renderBrands(allEntries, hasSales) {
           ${(a.tr||0) > 0 ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">-${fmtWon(a.tr)}</span>` : ''}
           ${!foldReturns && a.ret !== 0 ? `<span class="b-k">반출</span><span class="b-v" style="color:var(--neg);font-weight:600;">${fmtWon(a.ret)}</span>` : ''}
           ${a.awd > 0 ? `<span class="b-k">어워즈</span><span class="b-v" style="color:var(--neg);font-weight:600;">-${fmtWon(a.awd)}</span>` : ''}
-          ${showDeduct && a.deduct > 0 ? `<span class="b-k">상계(어워즈 제외)</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="성장·프리미엄·DA·체험·PPIR 합계">-${fmtWon(a.deduct - (a.awd||0))}</span>` : ''}
+          ${showDeduct && a.deduct > 0 ? `<span class="b-k">상계(어워즈 제외)</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="성장·프리미엄·DA·BPA·체험·PPIR 합계">-${fmtWon(a.deduct - (a.awd||0))}</span>` : ''}
           ${hasSales ? `<span class="b-k">순수익</span><span class="b-v profit${a.p<0?' neg':''}">${fmtWon(a.p)}</span>
           <span class="b-k">마진</span><span class="b-v margin">${mg}</span>` : ''}
         </div>
@@ -2132,6 +2154,8 @@ function setupDrop(id, kind) {
         const wb = XLSX.read(buf, { type: 'array' });
         cpcData = parseCPC(wb);
         lsSave(LS.cpc, cpcData); lsSave(LS.cpcName, file.name);
+        applyBpaFromCpcToActive();
+        renderDeductPanel();
       } else if (kind === 'coupon') {
         couponData = await parseCoupon(file);
         lsSave(LS.coupon, couponData); lsSave(LS.couponName, file.name);
@@ -2183,7 +2207,15 @@ setupDrop('drop-salesanalysis', 'salesanalysis');
 
 /* 단일 파일 되돌리기 — 활성 월(또는 단일 모드)에서 해당 종류 파일만 삭제 */
 function clearFileFromState(kind) {
-  if (kind === 'cpc') { cpcData = null; lsSave(LS.cpc, null); lsSave(LS.cpcName, ''); window.cpcBilled = null; }
+  if (kind === 'cpc') {
+    cpcData = null; lsSave(LS.cpc, null); lsSave(LS.cpcName, ''); window.cpcBilled = null;
+    if (activeMonth && activeMonth !== 'ALL') {
+      const store = monthsStore();
+      const entry = store[activeMonth];
+      if (entry && entry.deductions) { entry.deductions.bpa = 0; saveMonthsStore(store); }
+      renderDeductPanel();
+    }
+  }
   else if (kind === 'coupon') { couponData = null; lsSave(LS.coupon, null); lsSave(LS.couponName, ''); }
   else if (kind === 'sales') { salesData = null; returnsData = null; lsSave(LS.sales, null); lsSave(LS.salesName, ''); lsSave('settle_returns', null); }
   else if (kind === 'patotal') { paTotalData = null; lsSave(LS.patotal, null); lsSave(LS.patotalName, ''); rebuildMonthMaps(); }
@@ -2412,6 +2444,7 @@ function loadMonthDataIntoState(m) {
   lsSave(LS.salesName, d.salesName || '');
   lsSave(LS.patotalName, d.patotalName || '');
   lsSave(LS.salesanalysisName, d.salesanalysisName || '');
+  applyBpaFromCpcToActive();
   rebuildMonthMaps();
 }
 
@@ -2591,7 +2624,7 @@ async function onBatchMaps(e) {
 /* ═══════════════════════ 상계처리 (상계금액) ═══════════════════════ */
 // 성장장려금, 쿠팡체험단, 어워즈패키지, 프리미엄 데이터(×1/2), PPIR
 // activeMonth가 'YYYY-MM'이면 그 월에 저장. 'ALL'이면 모든 월 합산 표시(수정 불가).
-const DEDUCT_KEYS = ['growth', 'trial', 'awards', 'premium', 'ppir', 'da'];
+const DEDUCT_KEYS = ['growth', 'trial', 'awards', 'premium', 'ppir', 'da', 'bpa'];
 const parseWon = s => { const n = Number(String(s||'').replace(/[,\s]/g,'')); return Number.isFinite(n) ? n : 0; };
 const fmtInput = n => n ? Number(n).toLocaleString('ko-KR') : '';
 
@@ -2599,13 +2632,13 @@ function calcDeductSum(d) {
   if (!d) return 0;
   // premium은 이미 ½ 적용된 값으로 저장됨
   // trial(체험단)은 per-SKU로 각 SKU profit에서 이미 차감됨 — 중복 방지
-  return (d.growth||0) + (d.awards||0) + (d.premium||0) + (d.ppir||0) + (d.da||0);
+  return (d.growth||0) + (d.awards||0) + (d.premium||0) + (d.ppir||0) + (d.da||0) + (d.bpa||0);
 }
 
 function getActiveDeductions() {
   if (activeMonth === 'ALL') {
     const store = monthsStore();
-    const sum = { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, awardsBoarre:0 };
+    const sum = { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, bpa:0, awardsBoarre:0 };
     for (const d of Object.values(store)) {
       if (!d.deductions) continue;
       for (const k of Object.keys(sum)) sum[k] += Number(d.deductions[k]||0);
@@ -2614,7 +2647,19 @@ function getActiveDeductions() {
   }
   if (!activeMonth) return null;
   const store = monthsStore();
-  return (store[activeMonth] && store[activeMonth].deductions) || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, awardsBoarre:0 };
+  return (store[activeMonth] && store[activeMonth].deductions) || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, bpa:0, awardsBoarre:0 };
+}
+
+/* CPC 파일의 BPA 합계(신규 구매 고객 + 인지도 상승)를 활성 월의 상계 테이블에 자동 주입 */
+function applyBpaFromCpcToActive() {
+  if (!cpcData || !activeMonth || activeMonth === 'ALL') return;
+  const sentinel = cpcData.find(r => r && r.camp_id === '__TOTAL__');
+  const bpaRaw = sentinel ? (Number(sentinel.bpa_total_raw) || 0) : 0;
+  const store = monthsStore();
+  const entry = store[activeMonth] || (store[activeMonth] = {});
+  entry.deductions = entry.deductions || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, bpa:0, awardsBoarre:0 };
+  entry.deductions.bpa = bpaRaw;
+  saveMonthsStore(store);
 }
 
 function renderDeductPanel() {
@@ -2648,7 +2693,7 @@ function onDeductInput(e) {
   inp.value = fmtInput(raw);
   const store = monthsStore();
   const entry = store[activeMonth] || (store[activeMonth] = {});
-  entry.deductions = entry.deductions || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, awardsBoarre:0 };
+  entry.deductions = entry.deductions || { growth:0, trial:0, awards:0, premium:0, ppir:0, da:0, bpa:0, awardsBoarre:0 };
   entry.deductions[inp.dataset.k] = raw;
   saveMonthsStore(store);
   document.getElementById('dp-sum').textContent = fmtWon(calcDeductSum(entry.deductions));
@@ -2703,7 +2748,7 @@ function applyDeductionsToSummary() {
     <div class="dp-break">
       오아+보아르 순수익 <strong class="profit">${fmtWon(brandP)}</strong>
       − 상계 <strong class="neg">${fmtWon(extra + trialResidual)}</strong>
-      <span class="detail">= 성장 ${fmtWon(d.growth)} + 프리미엄 ${fmtWon(d.premium)} + DA ${fmtWon(d.da)} + 어워즈 ${fmtWon(d.awards)} + PPIR ${fmtWon(d.ppir)}
+      <span class="detail">= 성장 ${fmtWon(d.growth)} + 프리미엄 ${fmtWon(d.premium)} + DA ${fmtWon(d.da)} + BPA ${fmtWon(d.bpa||0)} + 어워즈 ${fmtWon(d.awards)} + PPIR ${fmtWon(d.ppir)}
       <em style="opacity:.6">· 체험단 ${fmtWon(d.trial)} (브랜드 반영 ${fmtWon(brandTrialSum)}${trialResidual?`, 미할당 ${fmtWon(trialResidual)}`:''})</em></span>
     </div>
     <div class="dp-final-v ${finalProfit<0?'neg':'ok'}">${label} ${fmtWon(finalProfit)}</div>`;
