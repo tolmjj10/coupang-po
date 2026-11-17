@@ -1632,17 +1632,37 @@ function render(byCat, stats) {
   // (쿠팡 청구 조정값 반영)
   const bill = window.cpcBilled;
   if (bill && bill.totalVat && activeBrand === '오아+보아르') {
-    const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1)) + (bill.bpaVat || 0);
+    const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1));
     const sumPre = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
     if (sumPre > 0) {
       const ratio = brandBilledVat / sumPre;
       for (const v of Object.values(brandByCat)) v.cpc = Math.round(v.cpc * ratio);
-      // 반올림 보정: 최대 cpc 카테에 차액 흡수
       const after = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
       const diff = brandBilledVat - after;
       if (diff !== 0) {
         const topCat = Object.entries(brandByCat).sort((a,b)=>b[1].cpc-a[1].cpc)[0];
         if (topCat) topCat[1].cpc += diff;
+      }
+    }
+  }
+  // BPA(VAT) 분배 — 오아+보아르 뷰에서만, 카테별 현재 cpc 비율로 가산
+  if (activeBrand === '오아+보아르') {
+    const bpaVatCat = (bill && bill.bpaVat) || (getActiveDeductions && (getActiveDeductions()?.bpa || 0)) || 0;
+    if (bpaVatCat > 0) {
+      const sumNow = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
+      if (sumNow > 0) {
+        const entries = Object.entries(brandByCat);
+        let allocated = 0;
+        entries.forEach(([k,v], i) => {
+          const share = (i === entries.length - 1)
+            ? bpaVatCat - allocated
+            : Math.round(bpaVatCat * v.cpc / sumNow);
+          v.cpc += share; allocated += share;
+        });
+      } else {
+        // 카테 없으면 '기타' 하나로
+        brandByCat['기타'] = brandByCat['기타'] || { cpc:0, coupon:0, gmv:0, cogs:0, trial:0, profit:0 };
+        brandByCat['기타'].cpc += bpaVatCat;
       }
     }
   }
@@ -1883,11 +1903,24 @@ function renderBrands(allEntries, hasSales) {
   // (per-campaign sum ≠ 파일 row 1 청구 총액이기 때문 — 쿠팡 청구 조정분)
   const bill = window.cpcBilled;
   if (bill && bill.totalVat && total.cpc > 0) {
-    const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1)) + (bill.bpaVat || 0);
+    const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1));
     const ratio = brandBilledVat / total.cpc;
     agg['오아'].cpc = Math.round(agg['오아'].cpc * ratio);
-    agg['보아르'].cpc = brandBilledVat - agg['오아'].cpc;  // 반올림 오차 보정
+    agg['보아르'].cpc = brandBilledVat - agg['오아'].cpc;
     total.cpc = brandBilledVat;
+  }
+  // BPA(VAT) — 항상 오아+보아르 광고비에 추가. bill 없으면 deductions.bpa 폴백.
+  const bpaVatBrand = (bill && bill.bpaVat) || (getActiveDeductions && (getActiveDeductions()?.bpa || 0)) || 0;
+  if (bpaVatBrand > 0) {
+    const preSum = agg['오아'].cpc + agg['보아르'].cpc;
+    if (preSum > 0) {
+      const oaShare = Math.round(bpaVatBrand * agg['오아'].cpc / preSum);
+      agg['오아'].cpc += oaShare;
+      agg['보아르'].cpc += bpaVatBrand - oaShare;
+    } else {
+      agg['오아'].cpc += bpaVatBrand;
+    }
+    total.cpc += bpaVatBrand;
   }
   const hasTrialBrand = total.tr > 0;
 
