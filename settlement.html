@@ -1631,25 +1631,8 @@ function render(byCat, stats) {
       v.profit += d.profit || 0;
     }
   }
-  // billed 기반 스케일링 — 상단 카테 집계 총합을 브랜드 카드 총합과 일치시킴
-  // (쿠팡 청구 조정값 반영)
-  const bill = window.cpcBilled;
-  if (bill && bill.totalVat && activeBrand === '오아+보아르') {
-    const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1));
-    const sumPre = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
-    if (sumPre > 0) {
-      const ratio = brandBilledVat / sumPre;
-      for (const v of Object.values(brandByCat)) v.cpc = Math.round(v.cpc * ratio);
-      const after = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
-      const diff = brandBilledVat - after;
-      if (diff !== 0) {
-        const topCat = Object.entries(brandByCat).sort((a,b)=>b[1].cpc-a[1].cpc)[0];
-        if (topCat) topCat[1].cpc += diff;
-      }
-    }
-  }
-  // BPA는 특정 카테에 귀속되지 않으므로 카테고리별 집계에는 포함하지 않음
-  // (브랜드 카드 광고비에만 가산 — renderBrands 참조)
+  // 카테고리 광고비 = SKU 상세 cpcVat 단순 합산 (스케일링 없음).
+  // BPA는 특정 카테에 귀속되지 않으므로 포함하지 않음 (브랜드 카드에만 가산).
   const cats = Object.entries(brandByCat);
   const brandFiltered = true;  // 항상 브랜드 기준 집계
   const totalCats = cats;
@@ -1883,16 +1866,8 @@ function renderBrands(allEntries, hasSales) {
   }
   const total = { cnt: agg['오아'].cnt + agg['보아르'].cnt };
   for (const k of ['gmv','cogs','cpc','cpn','tr','p','qty','ret']) total[k] = agg['오아'][k] + agg['보아르'][k];
-  // 오아+보아르 CPC는 파일 청구 총액 VAT - 비오아/보아르 캠페인 raw × 1.1 로 재계산
-  // (per-campaign sum ≠ 파일 row 1 청구 총액이기 때문 — 쿠팡 청구 조정분)
+  // 브랜드 CPC = SKU 상세 cpcVat 단순 합산 (스케일링 없음). SKU 분배가 정확하다고 신뢰.
   const bill = window.cpcBilled;
-  if (bill && bill.totalVat && total.cpc > 0) {
-    const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1));
-    const ratio = brandBilledVat / total.cpc;
-    agg['오아'].cpc = Math.round(agg['오아'].cpc * ratio);
-    agg['보아르'].cpc = brandBilledVat - agg['오아'].cpc;
-    total.cpc = brandBilledVat;
-  }
   // BPA(VAT) — 항상 오아+보아르 광고비에 추가. bill 없으면 deductions.bpa 폴백.
   const bpaVatBrand = (bill && bill.bpaVat) || (getActiveDeductions && (getActiveDeductions()?.bpa || 0)) || 0;
   if (bpaVatBrand > 0) {
