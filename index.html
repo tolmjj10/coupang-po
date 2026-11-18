@@ -277,44 +277,38 @@
     font-family: inherit;
   }
   .changelog-btn:hover { background: var(--accent-light); border-color: var(--accent); }
+  .changelog-btn.active { background: var(--accent-dark); color: #fff; border-color: var(--accent-dark); }
   .changelog-btn svg { width: 14px; height: 14px; stroke-width: 1.9; }
 
-  .changelog-overlay {
+  /* 변경 이력 뷰 (iframe 대신 content 영역 안에 직접 렌더) */
+  .changelog-view {
+    width: 100%;
+    height: 100%;
     display: none;
-    position: fixed; inset: 0;
-    background: rgba(42, 26, 21, 0.35);
-    z-index: 1000;
-    align-items: center; justify-content: center;
-    padding: 40px 20px;
+    background: var(--bg);
+    overflow: auto;
+    padding: 20px 24px 24px;
   }
-  .changelog-overlay.show { display: flex; }
-  .changelog-modal {
+  .changelog-view.active { display: block; }
+  .changelog-view-inner {
+    max-width: 1280px;
+    margin: 0 auto;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 14px;
-    width: 100%; max-width: 960px;
-    max-height: calc(100vh - 80px);
-    display: flex; flex-direction: column;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.18);
     overflow: hidden;
+    display: flex; flex-direction: column;
+    min-height: calc(100% - 4px);
   }
   .changelog-head {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: baseline; gap: 10px;
     padding: 16px 22px;
     border-bottom: 1px solid var(--border);
   }
   .changelog-title {
-    font-size: 15px; font-weight: 700; letter-spacing: -0.02em;
+    font-size: 16px; font-weight: 700; letter-spacing: -0.02em;
   }
-  .changelog-sub { font-size: 11.5px; color: var(--text-hint); margin-left: 8px; font-weight: 500; }
-  .changelog-close {
-    width: 30px; height: 30px; border: 0; background: transparent;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; border-radius: 6px; color: var(--text-hint);
-    transition: background .12s;
-  }
-  .changelog-close:hover { background: var(--accent-light); color: var(--text); }
-  .changelog-close svg { width: 16px; height: 16px; stroke-width: 2; }
+  .changelog-sub { font-size: 11.5px; color: var(--text-hint); font-weight: 500; }
 
   .changelog-filter {
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -506,27 +500,6 @@
     </button>
   </nav>
 
-  <!-- 변경 이력 모달 -->
-  <div class="changelog-overlay" id="changelog-overlay" aria-hidden="true">
-    <div class="changelog-modal" role="dialog" aria-modal="true" aria-label="변경 이력">
-      <div class="changelog-head">
-        <div>
-          <span class="changelog-title">변경 이력</span>
-          <span class="changelog-sub" id="changelog-count">—</span>
-        </div>
-        <button type="button" class="changelog-close" id="changelog-close" title="닫기">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-      <div class="changelog-filter" id="changelog-filter"></div>
-      <div class="changelog-body" id="changelog-body">
-        <div class="changelog-empty">불러오는 중…</div>
-      </div>
-    </div>
-  </div>
-
   <!-- 그룹 선택 시 나타나는 하위 서브바 -->
   <div class="subbar" id="subbar"></div>
 
@@ -605,6 +578,18 @@
     <iframe id="frame-price" data-src="price.html"></iframe>
     <iframe id="frame-sales" data-src="sales.html"></iframe>
     <iframe id="frame-settlement" data-src="settlement.html"></iframe>
+    <div id="changelog-view" class="changelog-view">
+      <div class="changelog-view-inner">
+        <div class="changelog-head">
+          <span class="changelog-title">변경 이력</span>
+          <span class="changelog-sub" id="changelog-count">—</span>
+        </div>
+        <div class="changelog-filter" id="changelog-filter"></div>
+        <div class="changelog-body" id="changelog-body">
+          <div class="changelog-empty">불러오는 중…</div>
+        </div>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -701,9 +686,15 @@
       closeSubbar();
     }
 
-    if (target) ensureLoaded(target);
+    if (target && target !== 'changelog') ensureLoaded(target);
     Object.entries(frames).forEach(([k, f]) => f.classList.toggle('active', k === target));
+    const isChangelog = target === 'changelog';
+    document.getElementById('changelog-view').classList.toggle('active', isChangelog);
+    document.getElementById('changelog-btn').classList.toggle('active', isChangelog);
     landing.classList.toggle('active', !target);
+    if (isChangelog && typeof window.__loadChangelog === 'function') {
+      window.__loadChangelog();
+    }
     if (!target && typeof window.__redrawDashChart === 'function') {
       requestAnimationFrame(() => window.__redrawDashChart());
     }
@@ -765,7 +756,7 @@
     });
   } else {
     const hash = (location.hash || '').replace('#','');
-    showTarget(frames[hash] ? hash : null);
+    showTarget(frames[hash] || hash === 'changelog' ? hash : null);
 
     // 랜딩 진입 후, 아이들 상태에서 나머지 프레임을 백그라운드로 미리 로드해 다음 클릭 시 즉시 표시
     window.addEventListener('load', () => {
@@ -1022,17 +1013,16 @@
     window.__redrawDashChart = () => drawChart(data);
   })();
 
-  /* ─────────── 변경 이력 모달 ─────────── */
+  /* ─────────── 변경 이력 뷰 ─────────── */
   (function initChangelog(){
     const btn     = document.getElementById('changelog-btn');
-    const overlay = document.getElementById('changelog-overlay');
-    const closeBtn= document.getElementById('changelog-close');
     const body    = document.getElementById('changelog-body');
     const filter  = document.getElementById('changelog-filter');
     const countEl = document.getElementById('changelog-count');
 
     let entries = [];
     let activeTab = '__all__';
+    let prevTarget = null;  // 변경 이력 진입 전 보고 있던 탭 (돌아갈 때 복원)
 
     function fmtTs(iso){
       const d = new Date(iso);
@@ -1139,21 +1129,24 @@
       render();
     }
 
-    function open(){
-      overlay.classList.add('show');
-      overlay.setAttribute('aria-hidden', 'false');
-      load();
-    }
-    function close(){
-      overlay.classList.remove('show');
-      overlay.setAttribute('aria-hidden', 'true');
-    }
+    // showTarget() 가 변경 이력 뷰로 들어올 때 호출 — 매번 새로 fetch
+    window.__loadChangelog = load;
 
-    btn.addEventListener('click', open);
-    closeBtn.addEventListener('click', close);
-    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    btn.addEventListener('click', () => {
+      const cur = (location.hash || '').replace('#','');
+      if (cur === 'changelog') {
+        // 이미 변경 이력 보고 있음 → 이전 탭으로 복원
+        showTarget(prevTarget || null);
+      } else {
+        prevTarget = cur || null;
+        showTarget('changelog');
+      }
+    });
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && overlay.classList.contains('show')) close();
+      const cur = (location.hash || '').replace('#','');
+      if (e.key === 'Escape' && cur === 'changelog') {
+        showTarget(prevTarget || null);
+      }
     });
   })();
 </script>
