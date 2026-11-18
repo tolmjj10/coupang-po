@@ -28,6 +28,14 @@ function nameOf(v) {
   for (const f of NAME_FIELDS) {
     if (v[f] != null && v[f] !== '') return String(v[f]).slice(0, 60);
   }
+  // 이름 필드가 없을 때 — 식별 가능한 필드를 조합해서 복합 라벨 만들기
+  // 프로모션: "골드박스 12345" / "2026-11-20 SKU12345"
+  const sku = v.skuId || v.sku;
+  const bits = [];
+  if (v.type) bits.push(String(v.type));
+  if (v.date) bits.push(String(v.date));
+  if (sku) bits.push(`SKU ${sku}`);
+  if (bits.length) return bits.join(' ').slice(0, 60);
   return null;
 }
 
