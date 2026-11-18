@@ -1127,8 +1127,7 @@ function aggregate() {
     billedTotalRaw = totalRawCost;
     billedTotalVat = Math.round(totalRawCost * 1.1);
   }
-  // BPA를 nonBrand로 포함 (브랜드 카드에서 제외, 기타광고로 별도 표시)
-  nonBrandRaw += bpaRawTotal;
+  // BPA는 nonBrand에 포함하지 않음 — 브랜드 카드에 포함, 기타광고로도 표시
   // 월별 추가 nonBrand raw 수동 override (쿠팡 대시보드 분류 보정)
   const extraNonBrand = (MANUAL_MONTH_EXTRA_NONBRAND_RAW || {})[activeMonth] || 0;
   if (extraNonBrand) {
@@ -1650,13 +1649,13 @@ function render(byCat, stats) {
       v.profit += d.profit || 0;
     }
   }
-  // 카테고리 광고비 = 브랜드 카드 광고(BPA 제외)에 맞춰 스케일링.
-  // 카테 합 = 브랜드 카드 광고. 기타광고(BPA)는 참조로 하단에 별도 표시 (합계 미포함).
+  // 카테고리 real cats = (브랜드 카드 광고 − BPA)에 맞춰 스케일링.
+  // 카테 하단 기타광고 행 = BPA. 합계 = real cats + BPA = 브랜드 카드 광고.
   const _bill_cat = window.cpcBilled;
   if (_bill_cat && _bill_cat.totalVat && activeBrand === '오아+보아르') {
-    // bill.nonBrandRaw 는 이미 BPA 포함 (aggregate에서 추가함)
     const brandBilledVat = Math.max(0, _bill_cat.totalVat - Math.round(_bill_cat.nonBrandRaw * 1.1));
-    const catTarget = brandBilledVat;
+    const bpaVat = _bill_cat.bpaVat || 0;
+    const catTarget = Math.max(0, brandBilledVat - bpaVat);  // real cats 목표
     const sumPre = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
     if (sumPre > 0) {
       const ratio = catTarget / sumPre;
@@ -1737,10 +1736,10 @@ function render(byCat, stats) {
       </tr>`;
   }).join('');
 
-  // '기타광고' 행 — BPA (브랜드 레벨 광고, 카테 귀속 X). 광고비만 표시, 합계 미포함(참조용).
+  // '기타광고' 행 — BPA (브랜드 레벨 광고). 광고비만 표시, 합계에 포함.
   const _bpaVatRow = (activeBrand === '오아+보아르' && window.cpcBilled && window.cpcBilled.bpaVat) ? window.cpcBilled.bpaVat : 0;
   const otherAdRow = _bpaVatRow > 0 ? `
-      <tr style="opacity:0.75;">
+      <tr>
         <td class="left" style="color:var(--text-hint);">기타광고 <small>(신규구매고객광고)</small></td>
         <td class="gmv">—</td>
         <td>—</td>
@@ -1750,6 +1749,7 @@ function render(byCat, stats) {
         <td>—</td>
         <td>—</td>
       </tr>` : '';
+  const totalCpcWithBpa = totalCpc + _bpaVatRow;
 
   const totalMarginPct = totalGmv > 0 ? (totalProfit / totalGmv * 100).toFixed(1) : '—';
   const totalProfitCls = totalProfit < 0 ? 'profit neg' : 'profit';
@@ -1758,7 +1758,7 @@ function render(byCat, stats) {
       <td class="left">합계</td>
       <td class="gmv">${fmtWon(totalGmv)}</td>
       <td>${fmtWon(totalCogs)}</td>
-      <td class="cpc">${fmtWon(totalCpc)}</td>
+      <td class="cpc">${fmtWon(totalCpcWithBpa)}</td>
       <td class="coupon">${fmtWon(totalCpn)}</td>
       <td class="trial">${fmtWon(totalTrial)}</td>
       <td class="${totalProfitCls}">${fmtWon(totalProfit)}</td>
