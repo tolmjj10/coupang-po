@@ -21,13 +21,22 @@ function scalar(v) {
   return s.length > 120 ? s.slice(0, 120) + '…' : s;
 }
 
+const NAME_FIELDS = ['name', 'realName', 'regName', 'title', 'skuName', 'productName', 'label', 'promoName', 'filename'];
+
+function nameOf(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  for (const f of NAME_FIELDS) {
+    if (v[f] != null && v[f] !== '') return String(v[f]).slice(0, 60);
+  }
+  return null;
+}
+
 function summarize(v) {
   if (v === undefined || v === null) return null;
   if (typeof v !== 'object') return scalar(v);
   if (Array.isArray(v)) return `[${v.length}개]`;
-  for (const f of ['name', 'title', 'skuName', 'productName', 'label', 'promoName']) {
-    if (v[f]) return String(v[f]).slice(0, 60);
-  }
+  const n = nameOf(v);
+  if (n) return n;
   return '{…}';
 }
 
@@ -51,7 +60,9 @@ export function diffDeep(oldVal, newVal, maxEntries = MAX_CHANGES_PER_ENTRY) {
         for (const id of ids) {
           if (out.length >= maxEntries) return;
           const va = mapA.get(id), vb = mapB.get(id);
-          const p = path ? `${path}[${id}]` : `[${id}]`;
+          // id 대신 상품명/프로모션명 등 사람이 읽을 수 있는 라벨이 있으면 그걸 사용
+          const label = nameOf(vb) || nameOf(va) || id;
+          const p = path ? `${path}[${label}]` : `[${label}]`;
           if (va === undefined) { out.push({ path: p, before: null, after: summarize(vb), op: 'add' }); continue; }
           if (vb === undefined) { out.push({ path: p, before: summarize(va), after: null, op: 'del' }); continue; }
           walk(va, vb, p);

@@ -369,11 +369,13 @@
   .changelog-change .c-row { display: flex; gap: 8px; align-items: baseline; }
   .changelog-change .c-row + .c-row { margin-top: 3px; }
   .changelog-change .c-path {
-    font-family: 'Menlo', 'Consolas', monospace;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-muted);
+    font-weight: 600;
     flex-shrink: 0;
+    letter-spacing: -0.01em;
   }
+  .changelog-change .c-path::after { content: ':'; margin-left: 2px; color: var(--text-hint); font-weight: 400; }
   .changelog-change .c-arrow { color: var(--text-hint); }
   .changelog-change .c-before { color: var(--text-hint); text-decoration: line-through; }
   .changelog-change .c-after  { color: var(--text); font-weight: 600; }
@@ -1024,6 +1026,70 @@
     let activeTab = '__all__';
     let prevTarget = null;  // 변경 이력 진입 전 보고 있던 탭 (돌아갈 때 복원)
 
+    // 영문 필드키 → 한글 라벨 (사람이 알아볼 수 있게)
+    const FIELD_LABEL = {
+      // 공통 이름/식별자
+      name: '이름', title: '이름', realName: '이름', regName: '등록명',
+      skuName: '상품명', productName: '상품명', label: '라벨', promoName: '프로모션명',
+      sku: 'SKU', skuId: 'SKU', vendorItemId: 'VIID', viid: 'VIID', pid: 'PID', productId: '상품ID',
+      id: '', // id는 라벨 생략
+      // 수량/가격
+      qty: '수량', quantity: '수량', stock: '재고', sold: '판매량',
+      price: '판매가', cost: '원가', originN: '원가',
+      supplyPrice: '공급가', consumerPrice: '소비자가',
+      oldPrice: '이전 판매가', newPrice: '새 판매가',
+      oldSupply: '이전 공급가', newSupply: '새 공급가', newSupplyManual: '새 공급가(수기)',
+      priceBase: '기준가', priceEdit: '변경가', discountRate: '할인율',
+      // 분류/상태
+      cat: '카테고리', category: '카테고리', brand: '브랜드', status: '상태', type: '유형',
+      // 날짜/시간
+      date: '날짜', startDate: '시작일', endDate: '종료일', time: '시간',
+      productionDate: '생산일', arrivalDate: '입고일', detailDueDate: '상세마감',
+      updated_at: '갱신시각', savedAt: '저장시각',
+      // 신제품 체크리스트
+      rocket: '로켓', wing: '윙', venple: '벤플', ad: '광고',
+      done: '완료', manager: '담당자',
+      // 메모/기타
+      memo: '메모', note: '메모', reviewCount: '리뷰수',
+      filename: '파일명', m: '월', d: '일', key: '키',
+      // 정산
+      cpc: 'CPC', coupon: '쿠폰', sales: '매출', returns: '반품',
+      cpcName: 'CPC 파일명', couponName: '쿠폰 파일명', salesName: '매출 파일명',
+      viid2sku: 'VIID→SKU', sku2cat: 'SKU→카테고리', camp2viid: '캠페인→VIID',
+      // 루트 래퍼 (경로에서 숨김)
+      rows: '', parsed: '', history: '이력', order: '순서',
+      invValues: '재고입력', downloadedPOs: '다운로드PO',
+      tombstones: '삭제목록', dataFingerprint: '', orderSha: '',
+      imported: '가져옴', lastExcelProducts: '최근엑셀',
+      runs: '회차', skuMap: 'SKU매핑', skuNameMap: 'SKU이름', siteMap: '사이트',
+      url: 'URL'
+    };
+
+    // 경로를 사람 읽기 좋게 변환
+    // ex) "rows[뉴트리커먼].qty"  →  "뉴트리커먼 › 수량"
+    //     "[12846215].newPrice"  →  "12846215 › 새 판매가"
+    function prettyPath(raw){
+      if (!raw) return '(전체)';
+      // "a.b[c].d" → ["a", "b", "[c]", "d"] 형태로 분리
+      const tokens = raw.split(/(?=\.|\[)/g).map(s => s.replace(/^\./, ''));
+      const parts = [];
+      for (const t of tokens) {
+        if (!t) continue;
+        if (t.startsWith('[')) {
+          const inner = t.slice(1, -1);
+          parts.push(inner);
+        } else {
+          if (t in FIELD_LABEL) {
+            const l = FIELD_LABEL[t];
+            if (l) parts.push(l);
+          } else {
+            parts.push(t);
+          }
+        }
+      }
+      return parts.length ? parts.join(' › ') : '(전체)';
+    }
+
     function fmtTs(iso){
       const d = new Date(iso);
       if (isNaN(d)) return iso;
@@ -1059,7 +1125,7 @@
       } else {
         value = `<span class="c-before">${escapeHtml(c.before)}</span><span class="c-arrow"> → </span><span class="c-after">${escapeHtml(c.after)}</span>`;
       }
-      return `<div class="c-row"><span class="c-op ${op}">${opLabel}</span><span class="c-path">${escapeHtml(c.path || '(root)')}</span>${value}</div>`;
+      return `<div class="c-row"><span class="c-op ${op}">${opLabel}</span><span class="c-path" title="${escapeHtml(c.path || '')}">${escapeHtml(prettyPath(c.path))}</span>${value}</div>`;
     }
 
     function render(){
