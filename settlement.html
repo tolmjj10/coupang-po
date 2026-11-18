@@ -900,22 +900,28 @@ async function parseSales(file) {
 }
 
 /* 매출성장광고보고서 (pa_total_campaign) → 캠페인별 VIID 목록 + 대표 prodname
- *   col 3 = 캠페인 ID, col 4 = 캠페인명, col 6 = 상품명(prodname), col 7 = 벤더아이템 ID(VIID)
+ * 헤더 기반 자동 컬럼 감지 — 월별로 '날짜' 컬럼 유무에 따라 인덱스가 밀림.
  */
 async function parsePaTotal(file) {
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array' });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-  const camp = {};   // cid → { viids: Set, prodname, name }
+  // 헤더로 각 컬럼 인덱스 탐지
+  const header = (aoa[0] || []).map(h => String(h || '').trim());
+  const idxCid = header.findIndex(h => h === '캠페인 ID' || h === '캠페인ID');
+  const idxName = header.findIndex(h => h === '캠페인명');
+  const idxProd = header.findIndex(h => h === '광고집행 상품명' || h === '상품명');
+  const idxViid = header.findIndex(h => h === '광고집행 옵션ID' || h === '벤더아이템 ID' || h === '옵션ID');
+  const camp = {};
   for (let i = 1; i < aoa.length; i++) {
     const r = aoa[i];
-    const cid = r[3];
+    const cid = idxCid >= 0 ? r[idxCid] : r[3];
     if (!cid) continue;
     const cidS = String(typeof cid === 'number' ? Math.round(cid) : cid).trim();
-    const name = String(r[4] || '').trim();
-    const prod = String(r[6] || '').trim();
-    const viid = r[7];
+    const name = String((idxName >= 0 ? r[idxName] : r[4]) || '').trim();
+    const prod = String((idxProd >= 0 ? r[idxProd] : r[6]) || '').trim();
+    const viid = idxViid >= 0 ? r[idxViid] : r[7];
     const viidS = viid ? String(typeof viid === 'number' ? Math.round(viid) : viid).trim() : '';
     if (!camp[cidS]) camp[cidS] = { viids: new Set(), prodname: '', name: '' };
     if (viidS) camp[cidS].viids.add(viidS);
