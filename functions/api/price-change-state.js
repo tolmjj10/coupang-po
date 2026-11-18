@@ -5,6 +5,8 @@
  * 마진테이블의 공급가 변경 목록 공유 상태 저장소.
  * STATE_KV binding 재사용, 키만 분리.
  */
+import { logChange } from './_changelog.js';
+
 const KEY = 'price_change_state';
 const MAX_BYTES = 2 * 1024 * 1024;
 
@@ -21,7 +23,7 @@ export async function onRequestGet({ env }) {
   });
 }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
   if (!env.STATE_KV) {
     return new Response('STATE_KV binding missing', { status: 500 });
   }
@@ -32,6 +34,8 @@ export async function onRequestPost({ request, env }) {
   try { JSON.parse(text); } catch (e) {
     return new Response('Invalid JSON', { status: 400 });
   }
+  const prev = await env.STATE_KV.get(KEY);
   await env.STATE_KV.put(KEY, text);
+  waitUntil(logChange(env, '공급가변경', prev, text));
   return new Response('ok');
 }

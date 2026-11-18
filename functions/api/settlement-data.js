@@ -6,6 +6,8 @@
  * 다른 사용자가 URL만 열어도 동일한 결과를 볼 수 있게 한다.
  * STATE_KV 재사용, 키 분리.
  */
+import { logChange } from './_changelog.js';
+
 const KEY = 'settlement_data';
 const MAX_BYTES = 5 * 1024 * 1024;  // 5MB
 
@@ -20,13 +22,15 @@ export async function onRequestGet({ env }) {
   });
 }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
   if (!env.STATE_KV) return new Response('STATE_KV binding missing', { status: 500 });
   const text = await request.text();
   if (text.length > MAX_BYTES) return new Response('Payload too large', { status: 413 });
   try { JSON.parse(text); } catch (e) {
     return new Response('Invalid JSON', { status: 400 });
   }
+  const prev = await env.STATE_KV.get(KEY);
   await env.STATE_KV.put(KEY, text);
+  waitUntil(logChange(env, '정산데이터', prev, text));
   return new Response('ok');
 }

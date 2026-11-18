@@ -5,6 +5,8 @@
  * 마이샵 판매가 이력 저장소.
  * 형식: { history: {...상품별 이력...}, order: [...최신 페이지 순서 키...] }
  */
+import { logChange } from './_changelog.js';
+
 const KEY = 'price_state';
 const MAX_BYTES = 10 * 1024 * 1024;  // 10MB (KV 값 상한 25MB, 상품 541건 ~2MB 돌파 대응)
 
@@ -21,7 +23,7 @@ export async function onRequestGet({ env }) {
   });
 }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
   if (!env.STATE_KV) {
     return new Response('STATE_KV binding missing', { status: 500 });
   }
@@ -32,6 +34,8 @@ export async function onRequestPost({ request, env }) {
   try { JSON.parse(text); } catch (e) {
     return new Response('Invalid JSON', { status: 400 });
   }
+  const prev = await env.STATE_KV.get(KEY);
   await env.STATE_KV.put(KEY, text);
+  waitUntil(logChange(env, '판매가', prev, text));
   return new Response('ok');
 }

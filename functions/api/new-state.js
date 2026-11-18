@@ -5,6 +5,8 @@
  * 신제품 관리(new.html) 공유 상태 저장소.
  * 기존 /api/state 와 동일한 KV binding(STATE_KV) 재사용, 키만 분리.
  */
+import { logChange } from './_changelog.js';
+
 const KEY = 'new_state';
 const MAX_BYTES = 1024 * 1024;
 
@@ -21,7 +23,7 @@ export async function onRequestGet({ env }) {
   });
 }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
   if (!env.STATE_KV) {
     return new Response('STATE_KV binding missing', { status: 500 });
   }
@@ -32,6 +34,8 @@ export async function onRequestPost({ request, env }) {
   try { JSON.parse(text); } catch (e) {
     return new Response('Invalid JSON', { status: 400 });
   }
+  const prev = await env.STATE_KV.get(KEY);
   await env.STATE_KV.put(KEY, text);
+  waitUntil(logChange(env, '신제품', prev, text));
   return new Response('ok');
 }

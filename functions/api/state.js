@@ -1,3 +1,5 @@
+import { logChange } from './_changelog.js';
+
 const KEY = 'state';
 
   export async function onRequestGet({ env }) {
@@ -10,14 +12,16 @@ const KEY = 'state';
     });
   }
 
-  export async function onRequestPost({ request, env }) {
+  export async function onRequestPost({ request, env, waitUntil }) {
     if (!env.STATE_KV) {
       return json({ error: 'KV not bound' }, 500);
     }
     const text = await request.text();
     try { JSON.parse(text); } catch { return json({ error: 'bad json' }, 400); }
     if (text.length > 1_000_000) return json({ error: 'too large' }, 413);
+    const prev = await env.STATE_KV.get(KEY);
     await env.STATE_KV.put(KEY, text);
+    waitUntil(logChange(env, '발주', prev, text));
     return json({ ok: true });
   }
 

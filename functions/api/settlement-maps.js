@@ -5,6 +5,8 @@
  * 정산 탭에서 쓰는 매핑 데이터 (VIID↔SKU, SKU→카테).
  * STATE_KV binding 재사용, 키만 분리.
  */
+import { logChange } from './_changelog.js';
+
 const KEY = 'settlement_maps';
 const MAX_BYTES = 2 * 1024 * 1024;
 
@@ -19,13 +21,15 @@ export async function onRequestGet({ env }) {
   });
 }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
   if (!env.STATE_KV) return new Response('STATE_KV binding missing', { status: 500 });
   const text = await request.text();
   if (text.length > MAX_BYTES) return new Response('Payload too large', { status: 413 });
   try { JSON.parse(text); } catch (e) {
     return new Response('Invalid JSON', { status: 400 });
   }
+  const prev = await env.STATE_KV.get(KEY);
   await env.STATE_KV.put(KEY, text);
+  waitUntil(logChange(env, '정산매핑', prev, text));
   return new Response('ok');
 }

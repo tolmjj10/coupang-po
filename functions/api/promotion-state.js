@@ -14,6 +14,8 @@
  * 이 머지 덕에 오래된 탭이 reviewCount 같은 신규 필드를 모른 채로 저장해도
  * 기존 값이 날아가지 않는다.
  */
+import { logChange } from './_changelog.js';
+
 const KEY = 'promotion_state';
 const MAX_BYTES = 1024 * 1024;
 
@@ -50,7 +52,7 @@ function mergeRows(existingArr, incomingArr) {
   return out;
 }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
   if (!env.STATE_KV) {
     return new Response('STATE_KV binding missing', { status: 500 });
   }
@@ -76,6 +78,8 @@ export async function onRequestPost({ request, env }) {
     } catch (_) { /* 기존이 손상돼있으면 incoming 그대로 */ }
   }
 
-  await env.STATE_KV.put(KEY, JSON.stringify(merged));
+  const mergedText = JSON.stringify(merged);
+  await env.STATE_KV.put(KEY, mergedText);
+  waitUntil(logChange(env, '프로모션', prevRaw, mergedText));
   return new Response('ok');
 }
