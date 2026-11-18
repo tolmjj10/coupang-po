@@ -453,7 +453,7 @@
     <div class="dp-grid">
       <div class="dp-cell"><label>성장장려금</label><input type="text" data-k="growth" inputmode="numeric" placeholder="0"></div>
       <div class="dp-cell"><label>프리미엄 데이터 <small>(½ 적용된 값)</small><small id="csvs-note" style="color:var(--neg); margin-left:4px; display:none;">· CSVS 포함</small></label><input type="text" data-k="premium" inputmode="numeric" placeholder="0"></div>
-      <div class="dp-cell"><label>DA / BPA <small style="color:var(--neg);">(BPA는 상계X)</small></label><div style="display:flex; align-items:center; gap:6px;"><input type="text" data-k="da" inputmode="numeric" placeholder="0" style="flex:1; min-width:0; text-align:right;"><span style="color:var(--text-hint); font-weight:600;">/</span><input type="text" data-k="bpa" inputmode="numeric" placeholder="0" readonly title="파일 1에서 신규 구매 고객 + 인지도 상승 광고비 자동 산출" style="flex:1; min-width:0; text-align:right; background:var(--bg-hint, #f2f2f2); color:var(--text-hint);"></div></div>
+      <div class="dp-cell"><label>DA <small>Display AD &amp; Rocket Insight</small></label><input type="text" data-k="da" inputmode="numeric" placeholder="0"></div>
       <div class="dp-cell"><label>쿠팡 체험단</label><input type="text" data-k="trial" inputmode="numeric" placeholder="0"></div>
       <div class="dp-cell"><label>어워즈패키지</label><input type="text" data-k="awards" inputmode="numeric" placeholder="0"></div>
       <div class="dp-cell"><label>PPIR <small>리뷰 이벤트</small></label><input type="text" data-k="ppir" inputmode="numeric" placeholder="0"></div>
@@ -814,15 +814,14 @@ function catForCamp(campId, campName) {
 /* ─────────── 엑셀 파싱 ─────────── */
 function parseCPC(wb) {
   // dailySettlement 구조 (0-indexed):
-  //   col 6 = 광고 목표, col 7 = 캠페인 ID, col 8 = 캠페인명,
+  //   col 5 = 광고 유형(PA/BPA), col 6 = 광고 목표, col 7 = 캠페인 ID, col 8 = 캠페인명,
   //   col 16 = 청구 소진 광고비(raw), col 18 = 청구금액(VAT포함)
-  // 광고 목표 분기:
-  //   '매출 성장' → CPC(광고비, SKU 분배 대상)
-  //   '신규 구매 고객' / '인지도 상승' → BPA(상계 섹션에 합산 표기, SKU 분배 없음)
-  //   그 외 → 보수적으로 CPC로 취급
+  // 광고 유형 분기 (쿠팡 대시보드 기준):
+  //   PA → CPC(광고비, SKU 분배 대상) — 매출 성장 + 신규 구매 고객 포함
+  //   BPA → BPA(기타광고로 집계, SKU 분배 없음) — 인지도 상승 등
   // 반환: [sentinel, ...campaigns]
   //   sentinel = { camp_id: '__TOTAL__', cost: 0, camp_name: '__TOTAL__', billed_raw, billed_vat, bpa_total_raw }
-  //   per-campaign.cost 는 매출 성장(CPC) 소진액만 포함 (SKU 분배에 사용).
+  //   per-campaign.cost 는 PA 소진액만 포함 (SKU 분배에 사용).
   const ws = wb.Sheets[wb.SheetNames[0]];
   const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
   const byCamp = {};
@@ -841,13 +840,12 @@ function parseCPC(wb) {
     }
     const cid = String(Math.round(campId));
     const campName = String(r[8] || '').trim();
-    const goal = String(r[6] || '').trim();
+    const adType = String(r[5] || '').trim();  // col 5: PA / BPA
     const cost = Number(r[16]) || 0;
     if (!cost) continue;
-    const isBpa = goal.includes('신규 구매') || goal.includes('인지도');
-    if (isBpa) {
+    if (adType === 'BPA') {
       bpaTotalRaw += cost;
-      continue;  // BPA 캠페인은 SKU 분배 대상에서 제외 (상계 섹션에만 합산)
+      continue;  // BPA 캠페인은 SKU 분배 대상에서 제외 (기타광고로 합산)
     }
     if (!byCamp[cid]) byCamp[cid] = { cost: 0, camp_name: campName };
     byCamp[cid].cost += cost;
@@ -1717,7 +1715,7 @@ function render(byCat, stats) {
     });
   }
 
-  const rows = sorted.map(([cat, v]) => {
+  const rowsHtml = sorted.map(([cat, v]) => {
     const vGmv = v.gmv || 0;
     const vProfit = v.profit || 0;
     const mPct = vGmv > 0 ? (vProfit / vGmv * 100).toFixed(1) : '—';
@@ -1736,6 +1734,22 @@ function render(byCat, stats) {
       </tr>`;
   }).join('');
 
+  // '기타광고' 행 — BPA (브랜드 레벨 광고, 카테 귀속 X). 광고비만 표시, 다른 필드 0.
+  // 오아+보아르 뷰에서만, bpaVat 있을 때만 하단에 추가.
+  const _bpaVatRow = (activeBrand === '오아+보아르' && window.cpcBilled && window.cpcBilled.bpaVat) ? window.cpcBilled.bpaVat : 0;
+  const otherAdRow = _bpaVatRow > 0 ? `
+      <tr>
+        <td class="left" style="color:var(--text-hint);">기타광고 <small>(BPA)</small></td>
+        <td class="gmv">—</td>
+        <td>—</td>
+        <td class="cpc">${fmtWon(_bpaVatRow)}</td>
+        <td class="coupon">—</td>
+        <td class="trial">—</td>
+        <td>—</td>
+        <td>—</td>
+      </tr>` : '';
+  const totalCpcWithBpa = totalCpc + _bpaVatRow;
+
   const totalMarginPct = totalGmv > 0 ? (totalProfit / totalGmv * 100).toFixed(1) : '—';
   const totalProfitCls = totalProfit < 0 ? 'profit neg' : 'profit';
   const sumRow = `
@@ -1743,12 +1757,13 @@ function render(byCat, stats) {
       <td class="left">합계</td>
       <td class="gmv">${fmtWon(totalGmv)}</td>
       <td>${fmtWon(totalCogs)}</td>
-      <td class="cpc">${fmtWon(totalCpc)}</td>
+      <td class="cpc">${fmtWon(totalCpcWithBpa)}</td>
       <td class="coupon">${fmtWon(totalCpn)}</td>
       <td class="trial">${fmtWon(totalTrial)}</td>
       <td class="${totalProfitCls}">${fmtWon(totalProfit)}</td>
       <td>${totalMarginPct}${totalMarginPct==='—'?'':'%'}</td>
     </tr>`;
+  const rows = rowsHtml + otherAdRow;
 
   document.getElementById('result').innerHTML = `
     <div class="result-head">
@@ -2950,10 +2965,8 @@ async function seedDeductionsIfMissing() {
  * SKU 리스트에 광고비 균등 분배 (distributeCampCost → manual_camp_sku 분기). */
 /* 월별 추가 nonBrand raw — 쿠팡 대시보드와 일치시키려는 수동 보정.
  * 뉴트리커먼 자동 분류 외에 추가로 nonBrand로 집계할 금액 (raw, VAT 제외).
- * 예: 7월 BPA 338,379 raw는 쿠팡 대시보드가 nonBrand로 집계. */
-const MANUAL_MONTH_EXTRA_NONBRAND_RAW = {
-  '2026-07': 338379,  // BPA (인지도 상승) col5='BPA' 전체 — 쿠팡 대시보드 뉴트리에 포함
-};
+ * 지금은 BPA가 "기타광고"로 카테 테이블에 별도 표시되므로 override 불필요. */
+const MANUAL_MONTH_EXTRA_NONBRAND_RAW = {};
 
 const MANUAL_CAMP_SKU = {
   // 캠페인 105178238 [오아]AI_TEST_여름가전_스퀘어미니선풍기 — 8월 pa_total 미등록
@@ -2989,7 +3002,7 @@ function migrateRemoveStaleLsPayloads() {
  * BPA를 분리 집계할 수 없음. 해당 월의 cpc를 자동 삭제하고 사용자에게 재업로드 유도.
  * 대상: 센티넬이 없거나(= 완전 구버전) 센티넬에 bpa_total_raw가 undefined인 cpcData. */
 function migrateCpcSentinelForBpa() {
-  const MARK = 'settle_migrate_cpc_bpa_v2';  // v2: cpc_raw_sum 필드 추가 요구 (file billed_vat 복귀)
+  const MARK = 'settle_migrate_cpc_bpa_v3';  // v3: BPA 분류를 col 5 (광고유형)로 변경
   if (localStorage.getItem(MARK) === 'done') return;
   const store = monthsStore();
   const cleared = [];
