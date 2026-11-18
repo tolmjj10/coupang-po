@@ -1737,10 +1737,12 @@ function render(byCat, stats) {
   }).join('');
 
   // '기타광고' 행 — BPA (브랜드 레벨 광고). 광고비만 표시, 합계에 포함.
+  // 라벨: 10월까지 = BPA+신규고객, 11월부터 = 신규고객 (쿠팡 광고 체계 변경 반영)
   const _bpaVatRow = (activeBrand === '오아+보아르' && window.cpcBilled && window.cpcBilled.bpaVat) ? window.cpcBilled.bpaVat : 0;
+  const _bpaLabel = (activeMonth && activeMonth !== 'ALL' && activeMonth <= '2026-10') ? 'BPA+신규고객' : '신규고객';
   const otherAdRow = _bpaVatRow > 0 ? `
       <tr>
-        <td class="left" style="color:var(--text-hint);">기타광고 <small>(신규구매고객광고)</small></td>
+        <td class="left" style="color:var(--text-hint);">기타광고 <small>(${_bpaLabel})</small></td>
         <td class="gmv">—</td>
         <td>—</td>
         <td class="cpc">${fmtWon(_bpaVatRow)}</td>
