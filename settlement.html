@@ -660,7 +660,7 @@ async function loadMargin() {
 
 /* ─────────── 분류 룰 ─────────── */
 /* 제외 브랜드 키워드 (오아+보아르 집계에서 제외) */
-const EXCLUDED_BRAND_KEYWORDS = ['뉴트리커먼', '삼대오백', '매시브', '엠엑시브', '온살', '루메어카이브', '루메아카이브'];
+const EXCLUDED_BRAND_KEYWORDS = ['뉴트리', '삼대오백', '매시브', '엠엑시브', 'mxssive', '바이퍼', '온살', '루메어카이브', '루메아카이브'];
 
 /* 월별 매핑 재구축: paTotalData + salesAnalysisData가 로드돼 있으면,
  * maps 위에 월별 camp2viid/viid2sku/camp_prodname을 덮어씀 (해당 월만).
@@ -1855,13 +1855,15 @@ window.setFilterBrand = (b) => {
   renderSkuTable();
 };
 function brandOf(sku, d) {
+  // SKU명에 제외 키워드(뉴트리/매시브/엠엑시브/mxssive/바이퍼/삼대오백/온살 등)가 포함되면 전부 제외
+  const raw = (d && d.name || '').trim();
+  if (EXCLUDED_BRAND_KEYWORDS.some(k => raw.includes(k))) return '';
   // 집계 시 주입된 brand (수동 매핑/캠페인명 추론 결과) 최우선
   if (d && d.brand === '오아') return '오아';
   if (d && d.brand === '보아르') return '보아르';
   // viid2sku에서 역색인한 브랜드 (SKU 이름이 오아/보아르로 시작 안 해도 인식)
   const sb = maps && maps.sku2brand && maps.sku2brand[sku];
   if (sb === '오아' || sb === '보아르') return sb;
-  const raw = (d.name || '').trim();
   // BOX_/box_ 접두사 제거 후 브랜드 판정
   const nm = raw.replace(/^(?:box|BOX)[_\s]+/i, '');
   if (nm.startsWith('오아')) return '오아';
