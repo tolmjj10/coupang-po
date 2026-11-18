@@ -36,6 +36,6 @@ export async function onRequestPost({ request, env, waitUntil }) {
   }
   const prev = await env.STATE_KV.get(KEY);
   await env.STATE_KV.put(KEY, text);
-  waitUntil(logChange(env, '신제품', prev, text));
+  waitUntil(logChange(env, '상품 > 신제품', prev, text));
   return new Response('ok');
 }

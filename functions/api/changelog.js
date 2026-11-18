@@ -19,3 +19,11 @@ export async function onRequestGet({ env }) {
     }
   });
 }
+
+export async function onRequestDelete({ env }) {
+  if (!env.STATE_KV) {
+    return new Response('STATE_KV binding missing', { status: 500 });
+  }
+  await env.STATE_KV.put(LOG_KEY, '[]');
+  return new Response('ok');
+}

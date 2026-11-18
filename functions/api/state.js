@@ -21,7 +21,7 @@ const KEY = 'state';
     if (text.length > 1_000_000) return json({ error: 'too large' }, 413);
     const prev = await env.STATE_KV.get(KEY);
     await env.STATE_KV.put(KEY, text);
-    waitUntil(logChange(env, '발주', prev, text));
+    waitUntil(logChange(env, '발주 > 발주리스트', prev, text));
     return json({ ok: true });
   }
 
