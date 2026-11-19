@@ -1590,7 +1590,8 @@ function renderAll(){
   let _prevDate=null; // 그룹 헤더에 날짜 라벨을 첫 그룹에만 표시하기 위한 추적자
   groupKeys.forEach((poNum,gi)=>{
     const rows=groups[poNum];
-    const open=allOpen;
+    const _poOpenMap=(window.__VOAR_PO_OPEN__=window.__VOAR_PO_OPEN__||{});
+    const open=(_poOpenMap[poNum]!==undefined)?_poOpenMap[poNum]:allOpen;
     const dlBtn=_dupMode?'':`<button class="po-dl-btn" data-po="${escHtml(poNum)}" onclick="event.stopPropagation();downloadPO(this.dataset.po,this)" title="발주양식 다운로드"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`;
     const amtSpan=_dupMode?'':`<span class="po-sep-amt" data-po-amt="${escHtml(poNum)}"></span>`;
     const cntAttr=_dupMode?'':` data-po-cnt="${escHtml(poNum)}"`;
@@ -1606,7 +1607,7 @@ function renderAll(){
         }
       }
     }
-    tbody+=`<tr class="po-sep-row" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${dateLabel}${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt"${cntAttr}>${rows.length}개</span>${amtSpan}<span class="po-sep-arrow ${open?'open':''}">▼</span>${dlBtn}</td></tr>`;
+    tbody+=`<tr class="po-sep-row" data-po-key="${escHtml(poNum)}" onclick="togglePORows(${gi},this,event)"><td colspan="${totalCols}">${dateLabel}${_dupMode?'SKU ':'발주번호 '}<span class="po-sep-num" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">${escHtml(poNum)}</span><span class="po-sep-cnt"${cntAttr}>${rows.length}개</span>${amtSpan}<span class="po-sep-arrow ${open?'open':''}">▼</span>${dlBtn}</td></tr>`;
     rows.forEach((r,ri)=>{
       const isUnreg=r.noMaster||r.noStock;
       let stockCell;
@@ -1675,7 +1676,7 @@ function renderAll(){
       const rowNumHtml=`<span class="row-num">${ri+1}.</span>`;
       const nameRaw=(r.stockName||r.orderName)||'—';
       const nameText=nameRaw;
-      tbody+=`<tr data-pg="${gi}" style="${allOpen?'':'display:none'}">
+      tbody+=`<tr data-pg="${gi}" style="${open?'':'display:none'}">
         <td class="mono" style="white-space:nowrap">${rowNumHtml} ${skuHtml}</td>
         <td class="col-name" title="${escHtml((r.stockName||r.orderName)+(isIssue?' — '+issueNote:'')+((isSummer||isWinter)?' — 카테고리: '+skuCat:''))}">${nameText}${issueBadge}${summerBadge}${winterBadge}</td>
         ${salesCells}
@@ -1903,10 +1904,16 @@ function togglePORows(gi,sepRow,evt){
   const arrow=sepRow.querySelector('.po-sep-arrow');
   const isNowOpen=arrow.classList.toggle('open');
   dataRows.forEach(r=>r.style.display=isNowOpen?'':'none');
+  const poKey=sepRow.getAttribute('data-po-key');
+  if(poKey){
+    const m=(window.__VOAR_PO_OPEN__=window.__VOAR_PO_OPEN__||{});
+    m[poKey]=isNowOpen;
+  }
 }
 
 function toggleAllPO(){
   allOpen=!allOpen;
+  window.__VOAR_PO_OPEN__={};
   const btn=document.getElementById('toggle-all-btn');
   btn.textContent=allOpen?'▲ 모두 접기':'▼ 모두 펼치기';
   document.querySelectorAll('.po-sep-arrow').forEach(a=>a.classList.toggle('open',allOpen));
