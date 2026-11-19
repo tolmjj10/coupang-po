@@ -2090,6 +2090,10 @@ async function fetchProductStatus() {
     }
 
     const BRANDS_ALLOWED = ['오아', '보아르'];
+    /* 자동 추가 제외: 쿠팡 미판매 상품/소모품/타채널(브랜드온) 등 */
+    const EXCLUDE_EXACT = new Set(['보아르클링워시습식청소기전용세제-1L', '오아드라이기스탠딩거치대-화이트']);
+    const EXCLUDE_SUBSTR = ['브랜드온'];
+    const isExcluded = (nm) => EXCLUDE_EXACT.has(nm) || EXCLUDE_SUBSTR.some(s => nm.includes(s));
     const picked = [];
     const seen = new Set();
     /* 제품명 → 모델명 매핑도 함께 수집. 재고 없는 행이라도 모델명은 참고용이니 전부 담음. */
@@ -2103,6 +2107,7 @@ async function fetchProductStatus() {
         if (m && !modelMap[name]) modelMap[name] = m;
       }
       if (/리테일/.test(name)) continue;
+      if (isExcluded(name)) continue;
       if (brandCol >= 0) {
         const brand = String(row[brandCol] || '').trim();
         if (!BRANDS_ALLOWED.includes(brand)) continue;
