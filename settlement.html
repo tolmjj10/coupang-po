@@ -1948,13 +1948,10 @@ function renderBrands(allEntries, hasSales) {
   }
   const hasTrialBrand = total.tr > 0;
 
-  // 상계처리 — 대부분은 합계에만 반영, '어워즈'만 브랜드별 분배 (설정: awardsBoarre)
+  // 상계처리 — 전체 합계(오아+보아르)에만 full 반영, '어워즈'만 브랜드별 분배 (설정: awardsBoarre)
   const deductD = getActiveDeductions();
-  const deductExtra = deductD ? calcDeductSum(deductD) : 0;  // trial 제외됨
-  const monthTrialTotal = deductD ? (Number(deductD.trial) || 0) : 0;
+  const deductFull = deductD ? calcDeductSum(deductD) : 0;  // 체험단·어워즈 포함 6-item 합계
   const brandTrialSum = (agg['오아'].tr || 0) + (agg['보아르'].tr || 0);
-  // per-SKU 체험단이 오아/보아르에 분배되지 않은 잔액은 합계에서 추가 차감 (한번만)
-  const trialResidual = Math.max(0, monthTrialTotal - brandTrialSum);
   const awardsTotal = deductD ? (deductD.awards || 0) : 0;
   const boarreAwards = deductD ? (deductD.awardsBoarre || 0) : 0;
   const oaAwards = Math.max(0, awardsTotal - boarreAwards);
@@ -1962,11 +1959,12 @@ function renderBrands(allEntries, hasSales) {
   agg['보아르'].awd = boarreAwards;
   agg['오아'].p -= oaAwards;
   agg['보아르'].p -= boarreAwards;
-  // 전체 합계는 전체 상계 반영 (trial은 brandTrialSum + trialResidual로 분리 반영)
-  total.deduct = deductExtra + trialResidual;
+  // 전체 합계 카드: 상계 = deductFull 전체 표시. 수식 보정은 아래 total.p에서.
+  total.deduct = deductFull;
   total.awd = awardsTotal;
-  // total.p = 브랜드 순수익 합 − (어워즈 제외 상계) − 체험단 미할당 잔액
-  total.p = agg['오아'].p + agg['보아르'].p - (deductExtra - awardsTotal) - trialResidual;
+  // agg[오아+보아르].p 는 이미 per-SKU 체험단(brandTrialSum)과 어워즈(awardsTotal) 차감 완료.
+  // deductFull에서 중복 차감되는 (brandTrialSum + awardsTotal)을 더해 상쇄 후 full 차감.
+  total.p = agg['오아'].p + agg['보아르'].p - (deductFull - brandTrialSum - awardsTotal);
 
   const card = (label, key, a, opts = {}) => {
     const showDeduct = !!opts.showDeduct;
@@ -1988,8 +1986,8 @@ function renderBrands(allEntries, hasSales) {
           <span class="b-k">쿠폰</span><span class="b-v coupon">-${fmtWon(a.cpn)}</span>
           ${(a.tr||0) > 0 ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">-${fmtWon(a.tr)}</span>` : ''}
           ${!foldReturns && a.ret !== 0 ? `<span class="b-k">반출</span><span class="b-v" style="color:var(--neg);font-weight:600;">${fmtWon(a.ret)}</span>` : ''}
-          ${a.awd > 0 ? `<span class="b-k">어워즈</span><span class="b-v" style="color:var(--neg);font-weight:600;">-${fmtWon(a.awd)}</span>` : ''}
-          ${showDeduct && a.deduct > 0 ? `<span class="b-k">상계(어워즈 제외)</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="성장·프리미엄·DA·체험·PPIR 합계">-${fmtWon(a.deduct - (a.awd||0))}</span>` : ''}
+          ${!showDeduct && a.awd > 0 ? `<span class="b-k">어워즈</span><span class="b-v" style="color:var(--neg);font-weight:600;">-${fmtWon(a.awd)}</span>` : ''}
+          ${showDeduct && a.deduct > 0 ? `<span class="b-k">상계</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="성장·프리미엄·DA·체험단·어워즈·PPIR 합계">-${fmtWon(a.deduct)}</span>` : ''}
           ${hasSales ? `<span class="b-k">순수익</span><span class="b-v profit${a.p<0?' neg':''}">${fmtWon(a.p)}</span>
           <span class="b-k">마진</span><span class="b-v margin">${mg}</span>` : ''}
         </div>
@@ -2732,10 +2730,9 @@ const fmtInput = n => n ? Number(n).toLocaleString('ko-KR') : '';
 
 function calcDeductSum(d) {
   if (!d) return 0;
-  // premium은 이미 ½ 적용된 값으로 저장됨
-  // trial(체험단)은 per-SKU로 각 SKU profit에서 이미 차감됨 — 중복 방지
-  // bpa는 상계가 아님 (오아+보아르 광고비로 별도 반영)
-  return (d.growth||0) + (d.awards||0) + (d.premium||0) + (d.ppir||0) + (d.da||0);
+  // 상계처리 = 성장장려금 + 프리미엄(½적용) + DA + 체험단 + 어워즈패키지 + PPIR
+  // bpa는 상계 아님, awardsBoarre는 보아르 별도 반영이라 제외
+  return (d.growth||0) + (d.premium||0) + (d.da||0) + (d.trial||0) + (d.awards||0) + (d.ppir||0);
 }
 
 function getActiveDeductions() {
@@ -2817,8 +2814,7 @@ function applyDeductionsToSummary() {
   const box = document.getElementById('dp-final');
   if (!box) return;
   const d = getActiveDeductions();
-  const extra = d ? calcDeductSum(d) : 0;  // trial 제외
-  const monthTrial = d ? (Number(d.trial) || 0) : 0;
+  const extra = d ? calcDeductSum(d) : 0;  // 6개 항목 전부 포함 (체험단·어워즈 포함)
   // 오아/보아르 브랜드 순수익만 합산 (반출도 반영) + 브랜드 trial 합계
   let brandP = 0;
   let brandTrialSum = 0;
@@ -2837,9 +2833,11 @@ function applyDeductionsToSummary() {
       if (b === '오아' || b === '보아르') brandP += (r.gmvCogs||0);
     }
   }
-  const trialResidual = Math.max(0, monthTrial - brandTrialSum);
-  if (!d || (extra === 0 && brandP === 0 && trialResidual === 0)) { box.hidden = true; box.innerHTML = ''; return; }
-  const finalProfit = brandP - extra - trialResidual;
+  // 체험단은 per-SKU에서 이미 차감되었으므로 다시 더해서 '상계 차감 전' 값으로 표시.
+  // 상계 = full 6-item sum (체험단 포함) 을 그대로 뺀다.
+  const brandPGross = brandP + brandTrialSum;
+  if (!d || (extra === 0 && brandPGross === 0)) { box.hidden = true; box.innerHTML = ''; return; }
+  const finalProfit = brandPGross - extra;
   // 월 라벨
   let label = '최종 순수익';
   if (activeMonth && activeMonth !== 'ALL') {
@@ -2851,10 +2849,9 @@ function applyDeductionsToSummary() {
   box.hidden = false;
   box.innerHTML = `
     <div class="dp-break">
-      오아+보아르 순수익 <strong class="profit">${fmtWon(brandP)}</strong>
-      − 상계 <strong class="neg">${fmtWon(extra + trialResidual)}</strong>
-      <span class="detail">= 성장 ${fmtWon(d.growth)} + 프리미엄 ${fmtWon(d.premium)} + DA ${fmtWon(d.da)} + 어워즈 ${fmtWon(d.awards)} + PPIR ${fmtWon(d.ppir)}
-      <em style="opacity:.6">· 체험단 ${fmtWon(d.trial)} (브랜드 반영 ${fmtWon(brandTrialSum)}${trialResidual?`, 미할당 ${fmtWon(trialResidual)}`:''})</em></span>
+      오아+보아르 순수익 <strong class="profit">${fmtWon(brandPGross)}</strong>
+      − 상계 <strong class="neg">${fmtWon(extra)}</strong>
+      <span class="detail">= 성장 ${fmtWon(d.growth)} + 프리미엄 ${fmtWon(d.premium)} + DA ${fmtWon(d.da)} + 체험단 ${fmtWon(d.trial)} + 어워즈 ${fmtWon(d.awards)} + PPIR ${fmtWon(d.ppir)}</span>
     </div>
     <div class="dp-final-v ${finalProfit<0?'neg':'ok'}">${label} ${fmtWon(finalProfit)}</div>`;
 }
