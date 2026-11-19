@@ -2863,11 +2863,14 @@ function applyDeductionsToSummary() {
       if (b === '오아' || b === '보아르') brandP += (r.gmvCogs||0);
     }
   }
-  // 체험단은 per-SKU에서 이미 차감되었으므로 다시 더해서 '상계 차감 전' 값으로 표시.
-  // 상계 = full 6-item sum (체험단 포함) 을 그대로 뺀다.
-  const brandPGross = brandP + brandTrialSum;
-  if (!d || (extra === 0 && brandPGross === 0)) { box.hidden = true; box.innerHTML = ''; return; }
-  const finalProfit = brandPGross - extra;
+  // 체험단·어워즈는 브랜드 카드에서 이미 차감됐으므로, 여기서는 아직 안 뺀 항목만 추가 차감.
+  // top 순수익 = 오아 카드 순수익 + 보아르 카드 순수익 (브랜드 카드 합과 일치)
+  const awardsTotal = d ? (Number(d.awards) || 0) : 0;
+  const brandCardsSum = brandP - awardsTotal;  // = agg.오아.p + agg.보아르.p
+  // 추가 상계 = full 6-item − 브랜드카드에 이미 반영된 (체험단+어워즈)
+  const extraRemaining = Math.max(0, extra - brandTrialSum - awardsTotal);
+  if (!d || (extra === 0 && brandCardsSum === 0)) { box.hidden = true; box.innerHTML = ''; return; }
+  const finalProfit = brandCardsSum - extraRemaining;
   // 월 라벨
   let label = '최종 순수익';
   if (activeMonth && activeMonth !== 'ALL') {
@@ -2876,12 +2879,15 @@ function applyDeductionsToSummary() {
   } else if (activeMonth === 'ALL') {
     label = '전체 순수익';
   }
+  // 미할당 체험단(= 월 전산 − 브랜드SKU 합)만 있으면 안내
+  const trialResidual = Math.max(0, (Number(d.trial) || 0) - brandTrialSum);
   box.hidden = false;
   box.innerHTML = `
     <div class="dp-break">
-      오아+보아르 순수익 <strong class="profit">${fmtWon(brandPGross)}</strong>
-      − 상계 <strong class="neg">${fmtWon(extra)}</strong>
-      <span class="detail">= 성장 ${fmtWon(d.growth)} + 프리미엄 ${fmtWon(d.premium)} + DA ${fmtWon(d.da)} + 체험단 ${fmtWon(d.trial)} + 어워즈 ${fmtWon(d.awards)} + PPIR ${fmtWon(d.ppir)}</span>
+      오아+보아르 순수익 <strong class="profit">${fmtWon(brandCardsSum)}</strong>
+      − 상계(추가) <strong class="neg">${fmtWon(extraRemaining)}</strong>
+      <span class="detail">= 성장 ${fmtWon(d.growth)} + 프리미엄 ${fmtWon(d.premium)} + DA ${fmtWon(d.da)} + PPIR ${fmtWon(d.ppir)}${trialResidual?` + 미할당 체험단 ${fmtWon(trialResidual)}`:''}
+      <em style="opacity:.6">· 체험단 ${fmtWon(d.trial)}·어워즈 ${fmtWon(awardsTotal)}는 브랜드 카드에 이미 반영</em></span>
     </div>
     <div class="dp-final-v ${finalProfit<0?'neg':'ok'}">${label} ${fmtWon(finalProfit)}</div>`;
 }
