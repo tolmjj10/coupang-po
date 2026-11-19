@@ -16,7 +16,9 @@
 const OWNER = 'tolmjj10';
 const REPO = 'coupang-po';
 const CACHE_TTL_SECONDS = 60;
+const STALE_TTL_SECONDS = 7 * 24 * 60 * 60; // 7일: GitHub 장애/rate-limit 시 fallback 용
 const KV_KEY_PREFIX = 'repo_files:';
+const STALE_KEY_PREFIX = 'repo_files_stale:';
 
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
@@ -32,6 +34,7 @@ export async function onRequestGet({ request, env }) {
   }
 
   const cacheKey = KV_KEY_PREFIX + ref + ':' + path;
+  const staleKey = STALE_KEY_PREFIX + ref + ':' + path;
 
   // 60초 KV 캐시 (여러 팀원이 동시에 열어도 GitHub API는 1분에 한 번만)
   if (env.STATE_KV) {
@@ -59,13 +62,40 @@ export async function onRequestGet({ request, env }) {
     headers['Authorization'] = 'Bearer ' + env.GITHUB_TOKEN;
   }
 
-  const ghRes = await fetch(ghUrl, { headers });
-  const body = await ghRes.text();
-
-  if (ghRes.ok && env.STATE_KV) {
-    try { await env.STATE_KV.put(cacheKey, body, { expirationTtl: CACHE_TTL_SECONDS }); } catch (e) {}
+  let ghRes, body;
+  try {
+    ghRes = await fetch(ghUrl, { headers });
+    body = await ghRes.text();
+  } catch (e) {
+    // 네트워크 장애 → stale fallback
+    return serveStale(env, staleKey, 'NETWORK_ERROR');
   }
 
+  if (ghRes.ok) {
+    if (env.STATE_KV) {
+      try {
+        await env.STATE_KV.put(cacheKey, body, { expirationTtl: CACHE_TTL_SECONDS });
+        // stale 장기 백업 (GitHub rate-limit/장애 대비)
+        await env.STATE_KV.put(staleKey, body, { expirationTtl: STALE_TTL_SECONDS });
+      } catch (e) {}
+    }
+    return new Response(body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Cache': 'MISS'
+      }
+    });
+  }
+
+  // GitHub 403(rate limit) / 5xx / 429 → stale 캐시 서빙 (404는 정당한 "없음" 응답이라 패스스루)
+  if (ghRes.status === 403 || ghRes.status === 429 || ghRes.status >= 500) {
+    const stale = await serveStale(env, staleKey, 'GITHUB_' + ghRes.status);
+    if (stale) return stale;
+  }
+
+  // stale 없거나 404 → 원본 응답 패스스루
   return new Response(body, {
     status: ghRes.status,
     headers: {
@@ -74,6 +104,25 @@ export async function onRequestGet({ request, env }) {
       'X-Cache': 'MISS'
     }
   });
+}
+
+async function serveStale(env, staleKey, reason) {
+  if (!env.STATE_KV) return null;
+  try {
+    const stale = await env.STATE_KV.get(staleKey);
+    if (stale) {
+      return new Response(stale, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'X-Cache': 'STALE',
+          'X-Stale-Reason': reason
+        }
+      });
+    }
+  } catch (e) {}
+  return null;
 }
 
 function jsonErr(status, message) {
