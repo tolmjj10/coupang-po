@@ -2972,6 +2972,30 @@ async function seedDeductionsIfMissing() {
   } catch (e) { console.warn('seed 로딩 실패:', e); }
 }
 
+// 1회 마이그: premium 필드를 deductions.json 값으로 재동기화
+// (과거 시드/오입력으로 localStorage에 잘못된 premium이 박혀 있던 경우 복구)
+async function migrateResyncPremiumFromJson() {
+  const MARK = 'settle_migrate_resync_premium_v1';
+  if (localStorage.getItem(MARK) === 'done') return;
+  try {
+    const res = await fetch('/settlement/deductions.json', { cache: 'no-cache' });
+    if (!res.ok) return;
+    const seed = await res.json();
+    const store = monthsStore();
+    let changed = false;
+    for (const [ym, d] of Object.entries(seed.deductions || {})) {
+      const entry = store[ym];
+      if (entry && entry.deductions && entry.deductions.premium !== d.premium) {
+        console.log(`[migrate] ${ym} premium ${entry.deductions.premium} → ${d.premium}`);
+        entry.deductions.premium = d.premium;
+        changed = true;
+      }
+    }
+    if (changed) saveMonthsStore(store);
+    localStorage.setItem(MARK, 'done');
+  } catch (e) { console.warn('premium resync 실패:', e); }
+}
+
 /* 수동 캠페인→SKU 매핑 — 매출성장광고보고서(pa_total)에 누락된 캠페인용.
  * SKU 리스트에 광고비 균등 분배 (distributeCampCost → manual_camp_sku 분기). */
 /* 월별 추가 nonBrand raw — 쿠팡 대시보드와 일치시키려는 수동 보정.
@@ -3069,6 +3093,7 @@ function augmentSkuMapFromMargin() {
   await restoreMonthsFromServer();
   // 3) 매핑/마진/프로모션/시드 로드 — 패치는 seed 후에 돌아야 값 기반 조건이 성립
   await Promise.all([loadMaps(), loadMargin(), loadPromotion(), loadTrialOverride(), seedDeductionsIfMissing()]);
+  await migrateResyncPremiumFromJson();
   // 월별 매핑 + sku2brand 재구축 (LS에서 복원한 patotal/salesanalysis 반영)
   rebuildMonthMaps();
   // 4) 마이그/패치 (seed 로드 후)
