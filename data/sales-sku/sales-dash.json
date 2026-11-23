@@ -3,8 +3,8 @@
   "source": "oa_ops.mart_sales_daily · partner_name=쿠팡",
   "current_month": "2026-11",
   "kpi": {
-    "sales_this": 1430615915,
-    "cost_this": 917991850,
+    "sales_this": 1430669098,
+    "cost_this": 918016406,
     "sales_ly": 1358595942,
     "cost_ly": 800256521
   },
@@ -31,7 +31,7 @@
     },
     {
       "ym": "2026-11",
-      "cost": 917991850
+      "cost": 918016406
     }
   ]
 }
