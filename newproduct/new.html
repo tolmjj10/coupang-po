@@ -796,6 +796,7 @@ function isUrgentRow(r) {
 }
 let importedNames = {}; // (구버전 호환용, 더 이상 dedup에 사용하지 않음)
 let lastExcelProducts = null; // 마지막으로 처리한 엑셀의 제품명 배열. 이 목록과 diff로 신규 판별
+let tombstones = []; // 사용자가 삭제한 이름(제품명). 자동 재유입 방지용 블랙리스트
 let data = loadLocal();
 /* 제품명 → 모델명 매핑 (제품 현황 조회 xlsx 에서 추출). 툴팁·복사에 사용 */
 try { window.__productModelMap = JSON.parse(localStorage.getItem('coupang_new_product_models') || '{}'); }
@@ -946,15 +947,16 @@ function _showToast(msg, isError){
 
 /* 저장 페이로드 파싱 — 구버전(array), {rows,imported}, {rows,imported,lastExcelProducts} 모두 지원 */
 function _parsePayload(parsed) {
-  if (Array.isArray(parsed)) return { rows: parsed, imported: null, lastExcelProducts: null };
+  if (Array.isArray(parsed)) return { rows: parsed, imported: null, lastExcelProducts: null, tombstones: null };
   if (parsed && Array.isArray(parsed.rows)) {
     return {
       rows: parsed.rows,
       imported: parsed.imported || null,
-      lastExcelProducts: Array.isArray(parsed.lastExcelProducts) ? parsed.lastExcelProducts : null
+      lastExcelProducts: Array.isArray(parsed.lastExcelProducts) ? parsed.lastExcelProducts : null,
+      tombstones: Array.isArray(parsed.tombstones) ? parsed.tombstones : null
     };
   }
-  return { rows: [], imported: null, lastExcelProducts: null };
+  return { rows: [], imported: null, lastExcelProducts: null, tombstones: null };
 }
 
 function loadLocal() {
@@ -964,6 +966,7 @@ function loadLocal() {
       const p = _parsePayload(JSON.parse(raw));
       if (p.imported) importedNames = p.imported;
       if (p.lastExcelProducts) lastExcelProducts = p.lastExcelProducts;
+      if (p.tombstones) tombstones = p.tombstones;
       return p.rows.length ? p.rows : sampleData();
     }
   } catch(e) {}
@@ -987,6 +990,8 @@ async function loadRemote() {
       if (newSnap === _prevSnapshot) {
         if (p.imported) Object.keys(p.imported).forEach(k => { importedNames[k] = true; });
         if (p.lastExcelProducts) lastExcelProducts = p.lastExcelProducts;
+        if (p.tombstones) tombstones = p.tombstones;
+        _seedTombstonesIfEmpty();
         return;
       }
       data = p.rows;
@@ -994,8 +999,10 @@ async function loadRemote() {
         Object.keys(p.imported).forEach(k => { importedNames[k] = true; });
       }
       if (p.lastExcelProducts) lastExcelProducts = p.lastExcelProducts;
+      if (p.tombstones) tombstones = p.tombstones;
       migrateImportedToRealName();
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts })); } catch(e) {}
+      _seedTombstonesIfEmpty();
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts, tombstones })); } catch(e) {}
       _prevSnapshot = JSON.stringify(data);
       /* 원격 동기화는 사용자 액션이 아니므로 undo 히스토리 초기화 */
       undoStack.length = 0;
@@ -1064,7 +1071,7 @@ function save() {
   /* 새로운 변경이 발생하면 redo 히스토리는 무효화 */
   redoStack.length = 0;
   _prevSnapshot = JSON.stringify(data);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts, tombstones }));
   _isDirty = true;
   /* 편집 직후 진행 중이거나 곧 시작할 원격 로드가 로컬을 덮지 않도록 억제 (다음 자동저장 주기 + 여유) */
   _suppressRemoteLoadUntil = Date.now() + 90 * 1000;
@@ -1076,7 +1083,7 @@ function _applySnapshot(snap, statusText) {
   try {
     data = JSON.parse(snap);
     _prevSnapshot = snap;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts, tombstones }));
     _isDirty = true;
     const el = document.getElementById('saveStatus');
     if (el) el.textContent = statusText;
@@ -1118,7 +1125,7 @@ async function saveRemote() {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts })
+      body: JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts, tombstones })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     _isDirty = false;
@@ -1983,15 +1990,43 @@ function addRow() {
 }
 
 let _suppressRemoteLoadUntil = 0;
+function _addTombstone(name) {
+  const n = String(name || '').trim();
+  if (!n) return;
+  if (!tombstones.includes(n)) tombstones.push(n);
+}
+/* 과거에 삭제된 상품명을 tombstones에 소급 반영.
+   lastExcelProducts에 있는데 현재 data.realName/regName 어디에도 없는 이름은
+   사용자가 삭제한 것으로 간주. 한 번만 시드되도록 tombstones.length 체크. */
+let _tombstoneSeeded = false;
+function _seedTombstonesIfEmpty() {
+  if (_tombstoneSeeded) return;
+  if (!Array.isArray(lastExcelProducts) || lastExcelProducts.length === 0) return;
+  _tombstoneSeeded = true;
+  if (tombstones.length > 0) return; // 이미 저장된 tombstone이 있으면 시드 생략
+  const present = new Set();
+  data.forEach(r => {
+    const a = String(r.realName || '').trim();
+    const b = String(r.regName || '').trim();
+    if (a) present.add(a);
+    if (b) present.add(b);
+  });
+  lastExcelProducts.forEach(n => { if (!present.has(n)) _addTombstone(n); });
+  if (tombstones.length > 0) {
+    console.log('[new] tombstones 소급 시드 ' + tombstones.length + '건');
+  }
+}
 function delRow(id) {
   const row = data.find(r => r.id === id);
   if (!row) return;
   const label = row.regName || row.realName || '(이름 없음)';
   if (!confirm('"' + label + '" 삭제하시겠습니까?')) return;
+  _addTombstone(row.realName);
+  _addTombstone(row.regName);
   data = data.filter(r => r.id !== id);
   /* 원격 loadRemote가 방금 삭제한 행을 되돌리지 못하도록 잠깐 억제 */
   _suppressRemoteLoadUntil = Date.now() + 5000;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts, tombstones }));
   render();
   /* 디바운스 우회하고 즉시 원격 반영 */
   clearTimeout(_saveTimer);
@@ -2017,7 +2052,7 @@ setInterval(() => { if (_isDirty) saveRemote(); }, 60000);
 window.addEventListener('beforeunload', () => {
   if (!_isDirty) return;
   try {
-    const payload = JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts });
+    const payload = JSON.stringify({ rows: data, imported: importedNames, lastExcelProducts, tombstones });
     navigator.sendBeacon(API_URL, new Blob([payload], { type: 'application/json' }));
   } catch(_) {}
 });
@@ -2137,6 +2172,15 @@ async function fetchProductStatus() {
 
     const prevSet = new Set(lastExcelProducts);
     let toAdd = picked.filter(name => !prevSet.has(name));
+
+    /* tombstones(사용자가 삭제한 이름)에 있는 상품은 재유입 금지 */
+    if (tombstones.length > 0) {
+      const tombSet = new Set(tombstones);
+      const before = toAdd.length;
+      toAdd = toAdd.filter(name => !tombSet.has(name));
+      const skipped = before - toAdd.length;
+      if (skipped > 0) console.log('[new] tombstone ' + skipped + '건 스킵');
+    }
 
     /* 현재 엑셀을 다음 실행의 기준으로 갱신 */
     lastExcelProducts = picked;
