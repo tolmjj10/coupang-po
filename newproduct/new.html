@@ -2133,14 +2133,24 @@ async function fetchProductStatus() {
     const seen = new Set();
     /* 제품명 → 모델명 매핑도 함께 수집. 재고 없는 행이라도 모델명은 참고용이니 전부 담음. */
     const modelMap = {};
+    /* 제품명 뒤에 모델명이 공백 구분으로 붙어 있는 경우 제거.
+       1) 같은 행 모델명 컬럼 값과 정확히 일치하면 그 길이만큼 잘라냄
+       2) 그래도 남은 "공백+영숫자/하이픈" 꼬리는 모델코드로 간주해 제거 */
+    const stripModelTail = (rawName, modelVal) => {
+      let s = String(rawName || '').trim();
+      const mv = String(modelVal || '').trim();
+      if (mv && s.endsWith(mv)) s = s.slice(0, -mv.length).trim();
+      s = s.replace(/\s+[A-Za-z0-9][A-Za-z0-9-]*$/, '').trim();
+      return s;
+    };
     for (let r = hIdx + 1; r < aoa.length; r++) {
       const row = aoa[r] || [];
-      const name = String(row[nameCol] || '').trim();
+      const rawName = String(row[nameCol] || '').trim();
+      if (!rawName) continue;
+      const modelVal = modelCol >= 0 ? String(row[modelCol] || '').trim() : '';
+      const name = stripModelTail(rawName, modelVal);
       if (!name) continue;
-      if (modelCol >= 0) {
-        const m = String(row[modelCol] || '').trim();
-        if (m && !modelMap[name]) modelMap[name] = m;
-      }
+      if (modelVal && !modelMap[name]) modelMap[name] = modelVal;
       if (/리테일/.test(name)) continue;
       if (isExcluded(name)) continue;
       if (brandCol >= 0) {
