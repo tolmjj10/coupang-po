@@ -2046,11 +2046,20 @@ function voarToast(msg, color){
 window.__VOAR_DOWNLOADED_POS__=window.__VOAR_DOWNLOADED_POS__||{};
 async function saveSharedState(){
   try{
+    /* 변경이력에 상품명으로 노출되도록 r_<idx> → 상품명 매핑 동봉 */
+    const invLabels={};
+    if(Array.isArray(matchedRows)){
+      matchedRows.forEach(function(r){
+        const nm=(r.stockName||r.orderName||'').trim();
+        if(nm) invLabels['r_'+r.idx]=nm;
+      });
+    }
     const res=await fetch('/api/state',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         invValues:invValues,
+        invLabels:invLabels,
         downloadedPOs:window.__VOAR_DOWNLOADED_POS__||{},
         dataFingerprint:window.__VOAR_FINGERPRINT__||'',
         orderSha:window.__VOAR_ORDER_SHA__||'',

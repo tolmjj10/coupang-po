@@ -108,11 +108,30 @@ export function diffDeep(oldVal, newVal, maxEntries = MAX_CHANGES_PER_ENTRY) {
   return out;
 }
 
+/* 발주리스트의 invValues(r_<idx> 키)는 그대로 diff하면 "r_40" 같은 식별자만 노출된다.
+ * state에 함께 저장된 invLabels(r_<idx> → 상품명)로 키를 상품명으로 치환하고
+ * invLabels 자체의 변동은 이력에서 제외한다. (다른 탭 state에는 영향 없음)
+ */
+function rewriteInvValues(state) {
+  if (!state || typeof state !== 'object') return state;
+  if (!state.invValues && !state.invLabels) return state;
+  const labels = state.invLabels || {};
+  const src = state.invValues || {};
+  const relabeled = {};
+  for (const k of Object.keys(src)) {
+    const nm = labels[k];
+    const key = nm ? `${nm} (${k})` : k;
+    relabeled[key] = src[k];
+  }
+  const { invLabels, ...rest } = state;
+  return { ...rest, invValues: relabeled };
+}
+
 export async function logChange(env, tab, oldText, newText) {
   if (!env.STATE_KV) return;
   try {
-    const oldVal = safeParse(oldText, null);
-    const newVal = safeParse(newText, null);
+    const oldVal = rewriteInvValues(safeParse(oldText, null));
+    const newVal = rewriteInvValues(safeParse(newText, null));
     const changes = diffDeep(oldVal, newVal, MAX_CHANGES_PER_ENTRY);
     if (changes.length === 0) return;
     const entry = {
