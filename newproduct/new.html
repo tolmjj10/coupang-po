@@ -2148,6 +2148,8 @@ async function fetchProductStatus() {
       const rawName = String(row[nameCol] || '').trim();
       if (!rawName) continue;
       const modelVal = modelCol >= 0 ? String(row[modelCol] || '').trim() : '';
+      /* '브랜드온' 포함은 가공 전 rawName에도 적용해 무조건 제외 */
+      if (rawName.includes('브랜드온')) continue;
       const name = stripModelTail(rawName, modelVal);
       if (!name) continue;
       if (modelVal && !modelMap[name]) modelMap[name] = modelVal;
