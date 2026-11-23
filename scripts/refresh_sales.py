@@ -441,16 +441,16 @@ def main():
     mcp = McpSession(MCP_URL, AUTH)
 
     if mode == "inbound":
-        refresh_inbound(mcp)
-        git_push()
+        # 입고리스트는 GW 그룹웨어 엑셀 다운로드 방식(refresh_inbound_xlsx.py)으로 이관됨.
+        # 이 모드는 더 이상 쓰이지 않음 — 과거 작업 호환을 위해 no-op로 남겨둠.
+        print("[inbound] skipped — refresh_inbound_xlsx.py를 사용하세요")
         print("=== 완료 ===")
         return
 
     # 1) 대시보드 — 항상 갱신
     refresh_sales_dash(mcp)
 
-    # 2) 입고리스트 — mart_purchase_incoming
-    refresh_inbound(mcp)
+    # 입고리스트 KV 갱신은 refresh_inbound_xlsx.py(09:20 작업)에서 처리 — 여기서 덮어쓰지 않음
 
     # 3) sales-sku — 당월 + (전월 지연 보고 백필)
     today = dt.date.today()

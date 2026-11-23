@@ -2,5 +2,5 @@
 chcp 65001 >nul
 cd /d "C:\Users\admin\Desktop\17. claude\po"
 echo. >> scripts\refresh_sales.log
-echo === %date% %time% [inbound only] === >> scripts\refresh_sales.log
-python scripts\refresh_sales.py --mode=inbound >> scripts\refresh_sales.log 2>&1
+echo === %date% %time% [inbound xlsx] === >> scripts\refresh_sales.log
+python scripts\refresh_inbound_xlsx.py >> scripts\refresh_sales.log 2>&1
