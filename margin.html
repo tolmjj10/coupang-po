@@ -866,27 +866,31 @@ function addRow(){
   document.querySelectorAll('#thead-row th').forEach(th=>th.classList.remove('asc','desc'));
   render();
   // 새 행으로 스크롤 + 첫 편집 셀 포커스
-  requestAnimationFrame(()=>{
-    requestAnimationFrame(()=>{
-      const tr=document.querySelector(`tr[data-id="${r._id}"]`);
-      if(!tr) return;
-      // marginView 의 table-wrap (priceChangeView 것과 겹치지 않도록 범위 한정)
-      tr.scrollIntoView({block:'center', inline:'nearest'});
-      const wrap=document.querySelector('#marginView .table-wrap');
-      if(wrap){
-        const thead=wrap.querySelector('thead');
-        const headH=thead ? thead.getBoundingClientRect().height : 0;
-        const wrapRect=wrap.getBoundingClientRect();
-        const trRect=tr.getBoundingClientRect();
-        // 스티키 헤더에 가려졌으면 추가 보정
-        if(trRect.top < wrapRect.top + headH){
-          wrap.scrollTop += (trRect.top - wrapRect.top - headH - 8);
-        }
-      }
-      const cell=tr.querySelector('.editable');
-      if(cell) cell.click();
-    });
-  });
+  const scrollToNew = () => {
+    const tr=document.querySelector(`tr[data-id="${r._id}"]`);
+    if(!tr){ console.warn('[margin] addRow: tr not found'); return; }
+    // 실제 스크롤 컨테이너 탐색: tr 의 부모 중 overflow 가 scrollable 인 첫 요소
+    let scroller = tr.parentElement;
+    while(scroller && scroller !== document.body){
+      const cs = getComputedStyle(scroller);
+      if(/(auto|scroll)/.test(cs.overflowY) && scroller.scrollHeight > scroller.clientHeight) break;
+      scroller = scroller.parentElement;
+    }
+    if(!scroller || scroller === document.body){
+      // fallback: window
+      tr.scrollIntoView({block:'center'});
+    } else {
+      const thead=scroller.querySelector('thead');
+      const headH=thead ? thead.getBoundingClientRect().height : 0;
+      const trRect=tr.getBoundingClientRect();
+      const scRect=scroller.getBoundingClientRect();
+      const target = scroller.scrollTop + (trRect.top - scRect.top) - headH - 12;
+      scroller.scrollTop = Math.max(0, target);
+    }
+    const cell=tr.querySelector('.editable');
+    if(cell) cell.click();
+  };
+  requestAnimationFrame(()=>requestAnimationFrame(scrollToNew));
 }
 
 function duplicateRow(id){
