@@ -869,26 +869,34 @@ function addRow(){
   const scrollToNew = () => {
     const tr=document.querySelector(`tr[data-id="${r._id}"]`);
     if(!tr){ console.warn('[margin] addRow: tr not found'); return; }
-    // 실제 스크롤 컨테이너 탐색: tr 의 부모 중 overflow 가 scrollable 인 첫 요소
-    let scroller = tr.parentElement;
-    while(scroller && scroller !== document.body){
-      const cs = getComputedStyle(scroller);
-      if(/(auto|scroll)/.test(cs.overflowY) && scroller.scrollHeight > scroller.clientHeight) break;
-      scroller = scroller.parentElement;
-    }
-    if(!scroller || scroller === document.body){
-      // fallback: window
-      tr.scrollIntoView({block:'center'});
-    } else {
-      const thead=scroller.querySelector('thead');
-      const headH=thead ? thead.getBoundingClientRect().height : 0;
-      const trRect=tr.getBoundingClientRect();
-      const scRect=scroller.getBoundingClientRect();
-      const target = scroller.scrollTop + (trRect.top - scRect.top) - headH - 12;
-      scroller.scrollTop = Math.max(0, target);
-    }
     const cell=tr.querySelector('.editable');
     if(cell) cell.click();
+    // 편집 포커스 후 한 번 더 프레임 넘겨서 스크롤 (포커스-자동스크롤이 먼저 걸리는 걸 덮어씀)
+    requestAnimationFrame(()=>{
+      // 1) 모든 가능한 스크롤 컨테이너를 순회하며 overflow 가 발생한 것들 전부 스크롤
+      let el = tr.parentElement;
+      let scrolled=false;
+      while(el && el !== document.body){
+        if(el.scrollHeight > el.clientHeight + 2){
+          const cs=getComputedStyle(el);
+          if(/(auto|scroll)/.test(cs.overflowY)){
+            const thead=el.querySelector('thead');
+            const headH=thead ? thead.getBoundingClientRect().height : 0;
+            const trRect=tr.getBoundingClientRect();
+            const scRect=el.getBoundingClientRect();
+            el.scrollTop = Math.max(0, el.scrollTop + (trRect.top - scRect.top) - headH - 12);
+            scrolled=true;
+            console.log('[margin] addRow scrolled container:', el.id||el.className, 'to', el.scrollTop);
+          }
+        }
+        el = el.parentElement;
+      }
+      // 2) fallback: window
+      if(!scrolled){
+        console.log('[margin] addRow fallback scrollIntoView');
+        tr.scrollIntoView({block:'center'});
+      }
+    });
   };
   requestAnimationFrame(()=>requestAnimationFrame(scrollToNew));
 }
