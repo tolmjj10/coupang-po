@@ -259,7 +259,7 @@
   .empty{padding:64px 20px;text-align:center;color:var(--muted);font-size:14px;}
   .err{padding:64px 20px;text-align:center;color:var(--up);font-size:14px;}
 
-  th.sortable{cursor:pointer;user-select:none;transition:color .1s;}
+  th.sortable{cursor:pointer;user-select:text;transition:color .1s;}
   th.sortable:hover{color:var(--text);}
   th.sortable .arrow{display:inline-block;width:12px;margin-left:2px;opacity:0.35;font-size:9px;}
   th.sortable.asc .arrow::after{content:'▲';opacity:1;color:var(--text);}
@@ -562,8 +562,22 @@ function buildHead(){
     return `<th class="${cls.trim()}" data-k="${c.k}" style="min-width:${c.w}px;width:${c.w}px;">${esc(c.label).replace(/\n/g,'<br>')}${sortable?'<span class="arrow"></span>':''}${resizable?'<span class="resize" data-k="'+c.k+'"></span>':''}</th>`;
   }).join('');
   tr.querySelectorAll('th.sortable').forEach(th=>{
-    th.addEventListener('click',(e)=>{
+    // 드래그-복사와 정렬 클릭 구분: mousedown 위치에서 4px 이상 움직였거나 텍스트 선택이 있으면 정렬 억제
+    let downX=null, downY=null, dragged=false;
+    th.addEventListener('mousedown',(e)=>{
       if(e.target.classList.contains('resize')) return;
+      downX=e.clientX; downY=e.clientY; dragged=false;
+    });
+    th.addEventListener('mousemove',(e)=>{
+      if(downX==null) return;
+      if(Math.abs(e.clientX-downX)>4 || Math.abs(e.clientY-downY)>4) dragged=true;
+    });
+    th.addEventListener('click',(e)=>{
+      const wasDragged=dragged; downX=downY=null; dragged=false;
+      if(e.target.classList.contains('resize')) return;
+      if(wasDragged) return;
+      const selText=(window.getSelection()?.toString()||'').trim();
+      if(selText && th.contains(window.getSelection().anchorNode)) return;
       const k=th.dataset.k;
       if(sortKey===k){ sortDir=-sortDir; } else { sortKey=k; sortDir=1; }
       tr.querySelectorAll('th').forEach(t=>t.classList.remove('asc','desc'));
