@@ -562,28 +562,35 @@ function buildHead(){
     return `<th class="${cls.trim()}" data-k="${c.k}" style="min-width:${c.w}px;width:${c.w}px;">${esc(c.label).replace(/\n/g,'<br>')}${sortable?'<span class="arrow"></span>':''}${resizable?'<span class="resize" data-k="'+c.k+'"></span>':''}</th>`;
   }).join('');
   tr.querySelectorAll('th.sortable').forEach(th=>{
-    // 드래그-복사와 정렬 클릭 구분: mousedown 위치에서 4px 이상 움직였거나 텍스트 선택이 있으면 정렬 억제
-    let downX=null, downY=null, dragged=false;
+    // 드래그-복사 / 더블클릭 선택 시 정렬 억제. click 시점엔 selection 이 아직
+    // 반영 안 되는 경우가 있어 setTimeout 으로 한 턴 지연 후 selection/dragged 재확인.
+    let downX=null, downY=null, dragged=false, suppressClick=false;
     th.addEventListener('mousedown',(e)=>{
       if(e.target.classList.contains('resize')) return;
       downX=e.clientX; downY=e.clientY; dragged=false;
     });
-    th.addEventListener('mousemove',(e)=>{
+    document.addEventListener('mousemove',(e)=>{
       if(downX==null) return;
       if(Math.abs(e.clientX-downX)>4 || Math.abs(e.clientY-downY)>4) dragged=true;
     });
+    document.addEventListener('mouseup',()=>{ if(dragged) suppressClick=true; downX=downY=null; });
     th.addEventListener('click',(e)=>{
-      const wasDragged=dragged; downX=downY=null; dragged=false;
       if(e.target.classList.contains('resize')) return;
-      if(wasDragged) return;
-      const selText=(window.getSelection()?.toString()||'').trim();
-      if(selText && th.contains(window.getSelection().anchorNode)) return;
-      const k=th.dataset.k;
-      if(sortKey===k){ sortDir=-sortDir; } else { sortKey=k; sortDir=1; }
-      tr.querySelectorAll('th').forEach(t=>t.classList.remove('asc','desc'));
-      th.classList.add(sortDir===1?'asc':'desc');
-      pushHistory();
-      render();
+      if(suppressClick){ suppressClick=false; dragged=false; return; }
+      // selection 반영 지연 대비: 다음 턴에서 확인
+      setTimeout(()=>{
+        const sel=window.getSelection();
+        if(sel && !sel.isCollapsed){
+          const r=sel.getRangeAt(0);
+          if(r.intersectsNode(th)) return; // 헤더 영역 선택 중 → 정렬 안 함
+        }
+        const k=th.dataset.k;
+        if(sortKey===k){ sortDir=-sortDir; } else { sortKey=k; sortDir=1; }
+        tr.querySelectorAll('th').forEach(t=>t.classList.remove('asc','desc'));
+        th.classList.add(sortDir===1?'asc':'desc');
+        pushHistory();
+        render();
+      }, 0);
     });
   });
   // 컬럼 리사이즈
