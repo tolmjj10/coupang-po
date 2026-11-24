@@ -1925,9 +1925,17 @@ document.addEventListener('copy', ev=>{
   if(!tbl) return;
   const range = sel.getRangeAt(0);
   const anchor = range.commonAncestorContainer;
-  const inPcTable = tbl.contains(anchor) || (anchor.nodeType===1 && anchor.contains && anchor.contains(tbl));
+  const inPcTable = tbl.contains(anchor);
   if(!inPcTable) return;
-  // 선택 범위에 걸치는 tr 수집
+  // 선택이 단일 td(또는 그 하위) 안에만 있으면 TSV 재구성 없이 선택된 텍스트만 복사
+  const anchorEl = anchor.nodeType===1 ? anchor : anchor.parentElement;
+  const singleTd = anchorEl && anchorEl.closest && anchorEl.closest('td');
+  if(singleTd){
+    const text = sel.toString();
+    if(text){ ev.clipboardData.setData('text/plain', text); ev.preventDefault(); }
+    return;
+  }
+  // 선택 범위에 걸치는 tr 수집 (여러 셀/행을 가로지를 때만)
   const trs = Array.from(tbl.querySelectorAll('tbody tr')).filter(tr=>range.intersectsNode(tr));
   if(!trs.length) return;
   const tsv = trs.map(tr=>{
