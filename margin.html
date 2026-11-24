@@ -864,13 +864,17 @@ function addRow(){
       const tr=document.querySelector(`tr[data-id="${r._id}"]`);
       if(!tr) return;
       // marginView 의 table-wrap (priceChangeView 것과 겹치지 않도록 범위 한정)
+      tr.scrollIntoView({block:'center', inline:'nearest'});
       const wrap=document.querySelector('#marginView .table-wrap');
       if(wrap){
         const thead=wrap.querySelector('thead');
         const headH=thead ? thead.getBoundingClientRect().height : 0;
-        wrap.scrollTop = Math.max(0, tr.offsetTop - headH - 8);
-      } else {
-        tr.scrollIntoView({block:'center'});
+        const wrapRect=wrap.getBoundingClientRect();
+        const trRect=tr.getBoundingClientRect();
+        // 스티키 헤더에 가려졌으면 추가 보정
+        if(trRect.top < wrapRect.top + headH){
+          wrap.scrollTop += (trRect.top - wrapRect.top - headH - 8);
+        }
       }
       const cell=tr.querySelector('.editable');
       if(cell) cell.click();
