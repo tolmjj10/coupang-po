@@ -367,7 +367,7 @@
       <div class="table-wrap">
         <table id="pcTbl" style="width:100%;border-collapse:separate;border-spacing:0;font-size:12px;white-space:nowrap;table-layout:fixed;">
           <thead>
-            <tr style="user-select:none;-webkit-user-select:none;">
+            <tr>
               <th style="width:128px;text-align:center;">날짜</th>
               <th style="width:96px;text-align:center;">SKU#</th>
               <th style="text-align:left;">상품명</th>
@@ -2014,6 +2014,43 @@ document.addEventListener('keydown', ev=>{
     pcCloseFn();
   }
 });
+/* 헤더 드래그-복사 시 sticky thead 가 범위 바깥에 있으면 Chrome 이 자동 스크롤을
+   끝까지 끌어올리는데, 이게 "스크롤이 올라가는" 현상이다. 드래그가 시작된 시점의
+   scrollTop 을 기억해두고 mouseup 전까지는 그 값으로 되돌려 자동 스크롤을 차단한다.
+   (선택 자체는 그대로 허용 → 복사는 정상 동작) */
+(function lockPcHeaderScroll(){
+  const pcTbl = document.getElementById('pcTbl');
+  if(!pcTbl) return;
+  const thead = pcTbl.querySelector('thead');
+  if(!thead) return;
+  let locked = false;
+  let lockedTop = 0;
+  let scroller = null;
+  const findScroller = () => {
+    let el = pcTbl.parentElement;
+    while(el && el !== document.body){
+      const cs = getComputedStyle(el);
+      if(/(auto|scroll)/.test(cs.overflowY) && el.scrollHeight > el.clientHeight) return el;
+      el = el.parentElement;
+    }
+    return null;
+  };
+  thead.addEventListener('mousedown', ev=>{
+    scroller = findScroller();
+    if(!scroller) return;
+    locked = true;
+    lockedTop = scroller.scrollTop;
+  });
+  // scroll 이벤트가 발생하면 즉시 되돌림
+  document.addEventListener('scroll', ev=>{
+    if(!locked || !scroller) return;
+    if(ev.target === scroller || (ev.target.contains && ev.target.contains(scroller))){
+      if(scroller.scrollTop !== lockedTop) scroller.scrollTop = lockedTop;
+    }
+  }, true);
+  document.addEventListener('mouseup', ()=>{ locked = false; scroller = null; });
+})();
+
 pcLoadLocal();
 pcLoadRemote().then(hadRemote => { if(hadRemote){ pcUpdateSaveInfo(); if(document.getElementById('priceChangeView').style.display!=='none') pcRender(); } });
 pcStartAutosave();
