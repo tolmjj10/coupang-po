@@ -2018,7 +2018,7 @@ function renderBrands(allEntries, hasSales) {
       <div class="brand-card${activeCls}" ${onclick}>
         <div class="b-title">${esc(label)} <span class="b-count">${a.cnt} SKU${a.qty?` · ${a.qty.toLocaleString()}개`:''}</span></div>
         <div class="b-rows">
-          ${hasSales ? `<span class="b-k">${gmvLabel}</span><span class="b-v gmv">${fmtWon(gmvNet)}</span>
+          ${hasSales ? `<span class="b-k" style="color:var(--text);font-weight:600;">${gmvLabel}</span><span class="b-v gmv">${fmtWon(gmvNet)}</span>
           <span class="b-k">원가</span><span class="b-v" style="color:var(--neg);">-${fmtWon(a.cogs)}</span>` : ''}
           <span class="b-k">광고</span><span class="b-v cpc">-${fmtWon(a.cpc)}</span>
           <span class="b-k">쿠폰</span><span class="b-v coupon">-${fmtWon(a.cpn)}</span>
@@ -2039,8 +2039,8 @@ function renderBrands(allEntries, hasSales) {
               + row('· 체험단', a.dTrial)
               + row(daLabel, a.dDA);
           })() : ''}
-          ${hasSales ? `<span class="b-k">순수익</span><span class="b-v profit${a.p<0?' neg':''}">${fmtWon(a.p)}</span>
-          <span class="b-k">마진</span><span class="b-v margin">${mg}</span>` : ''}
+          ${hasSales ? `<span class="b-k" style="color:var(--text);font-weight:600;">순수익</span><span class="b-v profit${a.p<0?' neg':''}">${fmtWon(a.p)}</span>
+          <span class="b-k" style="color:var(--text);font-weight:600;">마진</span><span class="b-v margin">${mg}</span>` : ''}
         </div>
       </div>`;
   };
