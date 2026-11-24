@@ -1834,8 +1834,34 @@ function pcRevertOnMargin(r){
 document.getElementById('btnPriceChange').addEventListener('click', pcOpen);
 document.getElementById('btnBackToMargin').addEventListener('click', pcCloseFn);
 document.getElementById('pcAdd').addEventListener('click', ()=>{
-  pcRows.push(pcBlankRow());
+  const nr = pcBlankRow();
+  pcRows.push(nr);
   pcMarkDirty(); pcRender();
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const tr = document.querySelector(`#pcTbody tr[data-id="${nr._id}"]`);
+    if(!tr){ console.warn('[pc] addRow: tr not found'); return; }
+    let el = tr.parentElement, scrolled=false;
+    while(el && el !== document.body){
+      if(el.scrollHeight > el.clientHeight + 2){
+        const cs = getComputedStyle(el);
+        if(/(auto|scroll)/.test(cs.overflowY)){
+          const thead = el.querySelector('thead');
+          const headH = thead ? thead.getBoundingClientRect().height : 0;
+          const trRect = tr.getBoundingClientRect();
+          const scRect = el.getBoundingClientRect();
+          el.scrollTop = Math.max(0, el.scrollTop + (trRect.top - scRect.top) - headH - 12);
+          scrolled = true;
+          console.log('[pc] addRow scrolled container:', el.id||el.className, 'to', el.scrollTop);
+          break;
+        }
+      }
+      el = el.parentElement;
+    }
+    if(!scrolled){ tr.scrollIntoView({block:'center'}); console.log('[pc] addRow fallback scrollIntoView'); }
+    // 첫 입력(SKU) 포커스
+    const skuInp = tr.querySelector('.pc-inp[data-k="sku"]');
+    if(skuInp) skuInp.focus();
+  }));
 });
 document.getElementById('pcTbody').addEventListener('input', ev=>{
   const inp = ev.target.closest('.pc-inp');
