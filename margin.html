@@ -691,10 +691,13 @@ function render(){
     return true;
   });
 
-  /* SKU 그룹 분리: SKU 있는 행 → 신제품(아직 SKU 미입력) 행 순서. 섞이지 않도록. */
-  const _isNew = r => String(r.sku||'').trim() === '신제품';
-  let _skuList = list.filter(r => !_isNew(r));
-  let _newList = list.filter(r =>  _isNew(r));
+  /* 그룹 분리: SKU 있는 행 → 신제품(아직 SKU 미입력) → 방금 추가한 빈 행(_new) 순서.
+     사용자가 행 추가 버튼으로 만든 빈 행은 항상 맨 하단. */
+  const _isNew   = r => String(r.sku||'').trim() === '신제품';
+  const _isFresh = r => r._new === true;
+  let _skuList   = list.filter(r => !_isNew(r) && !_isFresh(r));
+  let _newList   = list.filter(r =>  _isNew(r) && !_isFresh(r));
+  let _freshList = list.filter(r =>  _isFresh(r));
   if(sortKey){
     const col=COLS.find(c=>c.k===sortKey);
     const cmpFn=(a,b)=>{
@@ -708,8 +711,9 @@ function render(){
     };
     _skuList.sort(cmpFn);
     _newList.sort(cmpFn);
+    // _freshList 는 정렬에서도 맨 하단 유지
   }
-  list = _skuList.concat(_newList);
+  list = _skuList.concat(_newList).concat(_freshList);
 
   const tbody=document.getElementById('tbody');
   if(list.length===0){
@@ -855,7 +859,6 @@ function startEdit(el, id){
 function setValue(r,k,v){ r[k]=v; delete r._new; }
 
 function addRow(){
-  console.log('[margin] addRow 호출됨 ver=2026-11-24');
   const r={_id:uid(),_new:true,owner:'',cat:'',sku:'',name:'',status:'',cost:null,price:null,origin:null,originN:null};
   rows.push(r);
   markDirty();
@@ -867,39 +870,15 @@ function addRow(){
   document.querySelectorAll('#thead-row th').forEach(th=>th.classList.remove('asc','desc'));
   render();
   // 새 행으로 스크롤 + 첫 편집 셀 포커스
-  const scrollToNew = () => {
+  requestAnimationFrame(()=>{
+    const wrap=document.querySelector('.table-wrap');
+    if(wrap) wrap.scrollTop = wrap.scrollHeight;
     const tr=document.querySelector(`tr[data-id="${r._id}"]`);
-    if(!tr){ console.warn('[margin] addRow: tr not found'); return; }
-    const cell=tr.querySelector('.editable');
-    if(cell) cell.click();
-    // 편집 포커스 후 한 번 더 프레임 넘겨서 스크롤 (포커스-자동스크롤이 먼저 걸리는 걸 덮어씀)
-    requestAnimationFrame(()=>{
-      // 1) 모든 가능한 스크롤 컨테이너를 순회하며 overflow 가 발생한 것들 전부 스크롤
-      let el = tr.parentElement;
-      let scrolled=false;
-      while(el && el !== document.body){
-        if(el.scrollHeight > el.clientHeight + 2){
-          const cs=getComputedStyle(el);
-          if(/(auto|scroll)/.test(cs.overflowY)){
-            const thead=el.querySelector('thead');
-            const headH=thead ? thead.getBoundingClientRect().height : 0;
-            const trRect=tr.getBoundingClientRect();
-            const scRect=el.getBoundingClientRect();
-            el.scrollTop = Math.max(0, el.scrollTop + (trRect.top - scRect.top) - headH - 12);
-            scrolled=true;
-            console.log('[margin] addRow scrolled container:', el.id||el.className, 'to', el.scrollTop);
-          }
-        }
-        el = el.parentElement;
-      }
-      // 2) fallback: window
-      if(!scrolled){
-        console.log('[margin] addRow fallback scrollIntoView');
-        tr.scrollIntoView({block:'center'});
-      }
-    });
-  };
-  requestAnimationFrame(()=>requestAnimationFrame(scrollToNew));
+    if(tr){
+      const cell=tr.querySelector('.editable');
+      if(cell) cell.click();
+    }
+  });
 }
 
 function duplicateRow(id){
@@ -1254,10 +1233,13 @@ function currentFilteredRows(){
     }
     return true;
   });
-  /* SKU 그룹 분리: SKU 있는 행 → 신제품(아직 SKU 미입력) 행 순서. 섞이지 않도록. */
-  const _isNew = r => String(r.sku||'').trim() === '신제품';
-  let _skuList = list.filter(r => !_isNew(r));
-  let _newList = list.filter(r =>  _isNew(r));
+  /* 그룹 분리: SKU 있는 행 → 신제품(아직 SKU 미입력) → 방금 추가한 빈 행(_new) 순서.
+     사용자가 행 추가 버튼으로 만든 빈 행은 항상 맨 하단. */
+  const _isNew   = r => String(r.sku||'').trim() === '신제품';
+  const _isFresh = r => r._new === true;
+  let _skuList   = list.filter(r => !_isNew(r) && !_isFresh(r));
+  let _newList   = list.filter(r =>  _isNew(r) && !_isFresh(r));
+  let _freshList = list.filter(r =>  _isFresh(r));
   if(sortKey){
     const col=COLS.find(c=>c.k===sortKey);
     const cmpFn=(a,b)=>{
@@ -1271,8 +1253,9 @@ function currentFilteredRows(){
     };
     _skuList.sort(cmpFn);
     _newList.sort(cmpFn);
+    // _freshList 는 정렬에서도 맨 하단 유지
   }
-  list = _skuList.concat(_newList);
+  list = _skuList.concat(_newList).concat(_freshList);
   return list;
 }
 
