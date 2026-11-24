@@ -3130,8 +3130,13 @@ function migrateCpcSentinelForBpa() {
     saveMonthsStore(store);
     console.warn('[migrate] 구버전 cpcData 삭제 (재업로드 필요):', cleared);
     try {
-      const msg = `신규고객 광고 분리 집계를 위해 CPC 파일 재업로드가 필요합니다.\n\n대상 월: ${cleared.join(', ')}\n\n파일 1에 각 월의 dailySettlement xlsx 다시 올려주세요.\n(📁 전체 파일 일괄 처리 재실행 권장)`;
-      setTimeout(() => alert(msg), 300);
+      const msg = `신규고객 광고 분리 집계를 위해 CPC 파일 재업로드가 필요합니다.\n\n대상 월: ${cleared.join(', ')}\n\n확인을 누르면 폴더 선택창이 자동으로 열립니다.\nsettlement_files 폴더를 선택하세요.`;
+      setTimeout(() => {
+        alert(msg);
+        // user activation 유지된 상태에서 즉시 폴더 선택 트리거
+        const inp = document.getElementById('batch-maps-input');
+        if (inp) inp.click();
+      }, 300);
     } catch(_) {}
   }
   localStorage.setItem(MARK, 'done');
