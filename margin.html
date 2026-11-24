@@ -1894,6 +1894,26 @@ document.getElementById('pcTbody').addEventListener('keydown', ev=>{
   try { target.select(); } catch(_) {}
 });
 
+/* 메인 마진 테이블 드래그-복사: 사용자가 긁은 텍스트만 plain text 로 복사.
+   기본 브라우저 copy 는 테이블 cell 을 가로지르면 HTML/TSV 로 전체 cell 내용을
+   함께 집어가서, Excel 등에 붙여넣을 때 "같은 행 전체가 붙는" 현상이 발생함. */
+document.addEventListener('copy', ev=>{
+  const sel = window.getSelection();
+  if(!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+  const mainTbl = document.getElementById('tbl');
+  if(!mainTbl) return;
+  const anchor = sel.getRangeAt(0).commonAncestorContainer;
+  const inMain = mainTbl.contains(anchor);
+  if(!inMain) return;
+  // 편집중인 contenteditable 내부는 브라우저 기본 동작 유지(캐럿/부분 선택)
+  const editingEl = (anchor.nodeType===1 ? anchor : anchor.parentElement)?.closest('[contenteditable="true"]');
+  if(editingEl) return;
+  const text = sel.toString();
+  if(!text) return;
+  ev.clipboardData.setData('text/plain', text);
+  ev.preventDefault();
+});
+
 /* 드래그-복사: input 셀 값까지 포함한 TSV 로 클립보드 반영.
    브라우저 기본 selection 은 <input> 내부 값을 못 집어가므로, 선택 범위가
    공급가 변경 테이블을 가로지르면 각 셀의 input.value / checkbox 상태 / td 텍스트를
