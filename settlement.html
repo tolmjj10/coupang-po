@@ -1849,7 +1849,7 @@ window.setFilterSearch = (q, ev) => {
   searchDebounceTimer = setTimeout(() => {
     filterSearch = q || '';
     renderSkuTable();
-  }, 180);
+  }, 60);
 };
 window.onSearchCompositionStart = () => { searchIsComposing = true; };
 window.onSearchCompositionEnd = (el) => {
@@ -2203,44 +2203,45 @@ function renderSkuTable(bySku) {
     .concat(chipCats.map(c => `<button class="chip ${filterCat === c ? 'active' : ''}" onclick="setFilterCat('${c}')">${esc(c)} <span style="opacity:.6">${allCats[c]}</span></button>`))
     .join('');
 
-  const searchVal = esc(filterSearch);
-  box.innerHTML = `
-    <div class="result-head">
-      <div class="title">SKU 상세</div>
-      <div class="sub">
-        ${hasSales
-          ? `매출 ${fmtWon(TG)} · 원가 ${fmtWon(TC)} · 광고 ${fmtWon(TCPC)} · 쿠폰 ${fmtWon(TCPN)} → <strong style="color:var(--profit)">순수익 ${fmtWon(TP)} (${totalMargin}%)</strong>`
-          : `SALES_ANALYSIS를 올리면 매출/순수익이 추가로 계산됩니다.`}
-      </div>
-      <div class="search-wrap">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" id="sku-search" placeholder="SKU/상품명/브랜드 검색" value="${searchVal}" oninput="setFilterSearch(this.value, event)" oncompositionstart="onSearchCompositionStart()" oncompositionend="onSearchCompositionEnd(this)">
-        ${filterSearch ? '<button class="clear" onclick="clearSearch()" title="지우기">×</button>' : ''}
-      </div>
-      <button class="btn-reset-data" onclick="toggleAllCats()" title="모두 접기/펼치기 (기타 제외)">${(() => {
-        const allCats = new Set();
-        for (const d of Object.values(currentBySku || {})) allCats.add(d.cat || '기타');
-        const nonEtc = [...allCats].filter(c => c !== '기타');
-        const anyExpanded = nonEtc.some(c => !collapsedCats.has(c));
-        return anyExpanded ? '모두 접기' : '모두 펼치기';
-      })()}</button>
-    </div>
-    <div class="sku-toolbar">
-      <div class="chips">${chipHtml}</div>
-    </div>
-    <div style="max-height: calc(100vh - 180px); overflow-y: auto;">
-      <table class="sku">
-        <thead>${header}</thead>
-        <tbody>${bodyParts.join('')}${emptyMsg}${sumRow}</tbody>
-      </table>
-    </div>`;
-  renderBrands(allEntries, hasSales);
+  const subHtml = hasSales
+    ? `매출 ${fmtWon(TG)} · 원가 ${fmtWon(TC)} · 광고 ${fmtWon(TCPC)} · 쿠폰 ${fmtWon(TCPN)} → <strong style="color:var(--profit)">순수익 ${fmtWon(TP)} (${totalMargin}%)</strong>`
+    : `SALES_ANALYSIS를 올리면 매출/순수익이 추가로 계산됩니다.`;
+  const toggleAllText = (() => {
+    const _allCats = new Set();
+    for (const d of Object.values(currentBySku || {})) _allCats.add(d.cat || '기타');
+    const nonEtc = [..._allCats].filter(c => c !== '기타');
+    const anyExpanded = nonEtc.some(c => !collapsedCats.has(c));
+    return anyExpanded ? '모두 접기' : '모두 펼치기';
+  })();
+  const tableHtml = `<table class="sku"><thead>${header}</thead><tbody>${bodyParts.join('')}${emptyMsg}${sumRow}</tbody></table>`;
 
-  // 포커스 유지 (타이핑 중 리렌더로 blur 되는 것 방지)
-  if (filterSearch) {
-    const inp = document.getElementById('sku-search');
-    if (inp) { inp.focus(); inp.setSelectionRange(filterSearch.length, filterSearch.length); }
+  // 검색 input을 재렌더링 대상에서 분리 — shell은 한 번만 그리고, dynamic 부분만 교체
+  if (!box.querySelector('#sku-search')) {
+    box.innerHTML = `
+      <div class="result-head">
+        <div class="title">SKU 상세</div>
+        <div class="sub"></div>
+        <div class="search-wrap">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="sku-search" placeholder="SKU/상품명/브랜드 검색" oninput="setFilterSearch(this.value, event)" oncompositionstart="onSearchCompositionStart()" oncompositionend="onSearchCompositionEnd(this)">
+          <button class="clear" id="sku-clear-btn" onclick="clearSearch()" title="지우기" style="display:none;">×</button>
+        </div>
+        <button class="btn-reset-data" id="sku-toggle-all" onclick="toggleAllCats()" title="모두 접기/펼치기 (기타 제외)"></button>
+      </div>
+      <div class="sku-toolbar"><div class="chips"></div></div>
+      <div id="sku-table-wrap" style="max-height: calc(100vh - 180px); overflow-y: auto;"></div>`;
+    const inp0 = box.querySelector('#sku-search');
+    if (inp0) inp0.value = filterSearch;
   }
+  box.querySelector('.result-head .sub').innerHTML = subHtml;
+  box.querySelector('.sku-toolbar .chips').innerHTML = chipHtml;
+  box.querySelector('#sku-table-wrap').innerHTML = tableHtml;
+  box.querySelector('#sku-clear-btn').style.display = filterSearch ? '' : 'none';
+  box.querySelector('#sku-toggle-all').textContent = toggleAllText;
+  // 외부에서 filterSearch가 바뀐 경우(clearSearch 등)에만 동기화 — 입력 중에는 건드리지 않음
+  const inp = box.querySelector('#sku-search');
+  if (inp && document.activeElement !== inp && inp.value !== filterSearch) inp.value = filterSearch;
+  renderBrands(allEntries, hasSales);
 }
 
 /* ─────────── 드롭존 핸들러 ─────────── */
