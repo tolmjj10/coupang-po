@@ -3110,7 +3110,7 @@ function migrateRemoveStaleLsPayloads() {
  * BPA를 분리 집계할 수 없음. 해당 월의 cpc를 자동 삭제하고 사용자에게 재업로드 유도.
  * 대상: 센티넬이 없거나(= 완전 구버전) 센티넬에 bpa_total_raw가 undefined인 cpcData. */
 function migrateCpcSentinelForBpa() {
-  const MARK = 'settle_migrate_cpc_bpa_v4';  // v4-nc는 캠페인명 추정으로 폴백 — 강제 재업로드 안 함
+  const MARK = 'settle_migrate_cpc_nc_v1';  // nc_total_raw 없는 월 재업로드 유도 (캠페인명 폴백은 '신규' 미포함 캠페인 누락)
   if (localStorage.getItem(MARK) === 'done') return;
   const store = monthsStore();
   const cleared = [];
@@ -3118,8 +3118,8 @@ function migrateCpcSentinelForBpa() {
     const cpc = d && d.cpc;
     if (!Array.isArray(cpc) || cpc.length === 0) continue;
     const sentinel = cpc.find(r => r && r.camp_id === '__TOTAL__');
-    // bpa_total_raw 조차 없는 완전 구버전만 재업로드 유도
-    if (!sentinel || sentinel.bpa_total_raw === undefined || sentinel.cpc_raw_sum === undefined) {
+    // nc_total_raw 없으면 신규고객 광고 분리 불가 → 재업로드 유도
+    if (!sentinel || sentinel.bpa_total_raw === undefined || sentinel.cpc_raw_sum === undefined || sentinel.nc_total_raw === undefined) {
       delete d.cpc; delete d.cpcName;
       cleared.push(ym);
     }
@@ -3127,7 +3127,7 @@ function migrateCpcSentinelForBpa() {
   const liveCpc = lsLoad(LS.cpc);
   if (Array.isArray(liveCpc)) {
     const s = liveCpc.find(r => r && r.camp_id === '__TOTAL__');
-    if (!s || s.bpa_total_raw === undefined) {
+    if (!s || s.bpa_total_raw === undefined || s.nc_total_raw === undefined) {
       lsSave(LS.cpc, null); lsSave(LS.cpcName, '');
       cpcData = null;
     }
@@ -3136,7 +3136,7 @@ function migrateCpcSentinelForBpa() {
     saveMonthsStore(store);
     console.warn('[migrate] 구버전 cpcData 삭제 (재업로드 필요):', cleared);
     try {
-      const msg = `신규고객 광고 분리 집계를 위해 CPC 파일 재업로드가 필요합니다.\n\n대상 월: ${cleared.join(', ')}\n\n파일 1에 각 월의 dailySettlement xlsx 다시 올려주세요.`;
+      const msg = `신규고객 광고 분리 집계를 위해 CPC 파일 재업로드가 필요합니다.\n\n대상 월: ${cleared.join(', ')}\n\n파일 1에 각 월의 dailySettlement xlsx 다시 올려주세요.\n(📁 전체 파일 일괄 처리 재실행 권장)`;
       setTimeout(() => alert(msg), 300);
     } catch(_) {}
   }
