@@ -855,6 +855,7 @@ function startEdit(el, id){
 function setValue(r,k,v){ r[k]=v; delete r._new; }
 
 function addRow(){
+  console.log('[margin] addRow 호출됨 ver=2026-11-24');
   const r={_id:uid(),_new:true,owner:'',cat:'',sku:'',name:'',status:'',cost:null,price:null,origin:null,originN:null};
   rows.push(r);
   markDirty();
