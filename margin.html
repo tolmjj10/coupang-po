@@ -860,17 +860,21 @@ function addRow(){
   render();
   // 새 행으로 스크롤 + 첫 편집 셀 포커스
   requestAnimationFrame(()=>{
-    const tr=document.querySelector(`tr[data-id="${r._id}"]`);
-    if(!tr) return;
-    const wrap=document.querySelector('.table-wrap');
-    if(wrap){
-      const thead=wrap.querySelector('thead');
-      const headH=thead ? thead.getBoundingClientRect().height : 0;
-      const trTop=tr.offsetTop;
-      wrap.scrollTo({ top: Math.max(0, trTop - headH - 8), behavior: 'smooth' });
-    }
-    const cell=tr.querySelector('.editable');
-    if(cell) cell.click();
+    requestAnimationFrame(()=>{
+      const tr=document.querySelector(`tr[data-id="${r._id}"]`);
+      if(!tr) return;
+      // marginView 의 table-wrap (priceChangeView 것과 겹치지 않도록 범위 한정)
+      const wrap=document.querySelector('#marginView .table-wrap');
+      if(wrap){
+        const thead=wrap.querySelector('thead');
+        const headH=thead ? thead.getBoundingClientRect().height : 0;
+        wrap.scrollTop = Math.max(0, tr.offsetTop - headH - 8);
+      } else {
+        tr.scrollIntoView({block:'center'});
+      }
+      const cell=tr.querySelector('.editable');
+      if(cell) cell.click();
+    });
   });
 }
 
