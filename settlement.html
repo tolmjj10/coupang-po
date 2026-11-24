@@ -3104,8 +3104,7 @@ function migrateRemoveStaleLsPayloads() {
  * BPA를 분리 집계할 수 없음. 해당 월의 cpc를 자동 삭제하고 사용자에게 재업로드 유도.
  * 대상: 센티넬이 없거나(= 완전 구버전) 센티넬에 bpa_total_raw가 undefined인 cpcData. */
 function migrateCpcSentinelForBpa() {
-  const MARK = 'settle_migrate_cpc_nc_v1';  // nc_total_raw 없는 월 재업로드 유도 (캠페인명 폴백은 '신규' 미포함 캠페인 누락)
-  if (localStorage.getItem(MARK) === 'done') return;
+  // MARK 체크 제거 — nc_total_raw 없는 월이 남아있는 한 매번 재업로드 유도
   const store = monthsStore();
   const cleared = [];
   for (const [ym, d] of Object.entries(store)) {
@@ -3139,7 +3138,8 @@ function migrateCpcSentinelForBpa() {
       }, 300);
     } catch(_) {}
   }
-  localStorage.setItem(MARK, 'done');
+  // 이전 MARK 정리
+  try { localStorage.removeItem('settle_migrate_cpc_nc_v1'); localStorage.removeItem('settle_migrate_cpc_bpa_v4'); } catch(_) {}
 }
 
 // sku2cat에 없는 SKU는 마진테이블에서 보강 → '오아/보아르 미매칭' 최소화
