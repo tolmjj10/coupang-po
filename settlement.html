@@ -2024,7 +2024,7 @@ function renderBrands(allEntries, hasSales) {
           ${!showDeduct && a.awd > 0 ? `<span class="b-k">어워즈</span><span class="b-v" style="color:var(--neg);font-weight:600;">-${fmtWon(a.awd)}</span>` : ''}
           ${showDeduct && a.deduct > 0 ? (() => {
             const row = (label, val) => (val||0) > 0
-              ? `<span class="b-k" style="padding-left:10px;color:var(--text);font-weight:600;">${label}</span><span class="b-v" style="color:var(--neg);font-weight:600;">-${fmtWon(val)}</span>`
+              ? `<span class="b-k" style="padding-left:10px;color:var(--text);font-weight:600;">${label}</span><span class="b-v" style="color:var(--text-hint);font-weight:500;">${fmtWon(val)}</span>`
               : '';
             return `<span class="b-k" style="color:var(--text);font-weight:700;">상계</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="DA = DA + 어워즈 + PPIR">-${fmtWon(a.deduct)}</span>`
               + row('· 성장장려금', a.dGrowth)
