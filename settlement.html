@@ -848,6 +848,7 @@ function parseCPC(wb) {
   const byCamp = {};
   let billedRaw = 0, billedVat = 0;
   let bpaTotalRaw = 0;
+  let ncTotalRaw = 0;  // PA 중 광고목표에 '신규' 포함 (신규 구매 고객) — SKU 분배 제외, 기타광고로 합산
   for (let i = 1; i < aoa.length; i++) {
     const r = aoa[i];
     const campId = r[7];
@@ -862,11 +863,16 @@ function parseCPC(wb) {
     const cid = String(Math.round(campId));
     const campName = String(r[8] || '').trim();
     const adType = String(r[5] || '').trim();  // col 5: PA / BPA
+    const adGoal = String(r[6] || '').trim();  // col 6: 광고 목표
     const cost = Number(r[16]) || 0;
     if (!cost) continue;
     if (adType === 'BPA') {
       bpaTotalRaw += cost;
       continue;  // BPA 캠페인은 SKU 분배 대상에서 제외 (기타광고로 합산)
+    }
+    if (adGoal.includes('신규')) {
+      ncTotalRaw += cost;
+      continue;  // 신규 구매 고객 광고 — SKU/카테 분배 제외, 기타광고로 합산
     }
     if (!byCamp[cid]) byCamp[cid] = { cost: 0, camp_name: campName };
     byCamp[cid].cost += cost;
@@ -876,8 +882,8 @@ function parseCPC(wb) {
   // billed_vat = 파일 row 1 col 18 (쿠팡 실제 청구금액, 청구조정 반영, CPC+BPA 전체)
   // 대시보드 스케일링과 일치하도록 file 값 그대로 사용. 폴백은 캠페인 raw × 1.1.
   const cpcRawSum = rows.reduce((s, r) => s + (Number(r.cost) || 0), 0);
-  const useBilledVat = billedVat || Math.round((cpcRawSum + bpaTotalRaw) * 1.1);
-  const useBilledRaw = billedRaw || (cpcRawSum + bpaTotalRaw);
+  const useBilledVat = billedVat || Math.round((cpcRawSum + bpaTotalRaw + ncTotalRaw) * 1.1);
+  const useBilledRaw = billedRaw || (cpcRawSum + bpaTotalRaw + ncTotalRaw);
   const sentinel = {
     camp_id: '__TOTAL__', cost: 0, camp_name: '__TOTAL__',
     billed_raw: useBilledRaw,
@@ -886,7 +892,8 @@ function parseCPC(wb) {
     file_billed_vat: billedVat,
     cpc_raw_sum: cpcRawSum,
     bpa_total_raw: bpaTotalRaw,
-    parser_version: 'v3-adtype',  // BPA 분류 기준 (col 5 광고유형)
+    nc_total_raw: ncTotalRaw,
+    parser_version: 'v4-nc',  // BPA(col5) + 신규(col6) 분류
   };
   return [sentinel, ...rows];
 }
@@ -1122,7 +1129,8 @@ function aggregate() {
   // CPC: 카테별 + SKU별 동시 집계
   let cpcMatched = 0, cpcUnmatched = 0, totalRawCost = 0;
   let billedTotalRaw = 0, billedTotalVat = 0;
-  let bpaRawTotal = 0;  // 파일1 BPA(신규구매+인지도) raw 합 — 오아+보아르 광고비에 합산
+  let bpaRawTotal = 0;  // 파일1 BPA(인지도 등) raw 합 — 오아+보아르 광고비에 합산
+  let ncRawTotal = 0;  // 신규 구매 고객 광고(PA) raw 합 — 기타광고로 합산
   let nonBrandRaw = 0;  // brandOf='' 캠페인 raw 합 (브랜드 카드 총액 차감용)
   const _dbgNonBrand = [];  // 디버그: 비-브랜드 캠페인 내역
   for (const row of cpcData) {
@@ -1131,6 +1139,7 @@ function aggregate() {
       billedTotalRaw += Number(row.billed_raw) || 0;
       billedTotalVat += Number(row.billed_vat) || 0;
       bpaRawTotal += Number(row.bpa_total_raw) || 0;
+      ncRawTotal += Number(row.nc_total_raw) || 0;
       continue;
     }
     const cat = catForCamp(row.camp_id, row.camp_name);
@@ -1163,7 +1172,8 @@ function aggregate() {
   }
   // BPA(VAT 포함)는 오아+보아르 브랜드 광고비에 합산
   const bpaVat = Math.round(bpaRawTotal * 1.1);
-  window.cpcBilled = { totalRaw: billedTotalRaw, totalVat: billedTotalVat, nonBrandRaw, bpaRaw: bpaRawTotal, bpaVat };
+  const ncVat = Math.round(ncRawTotal * 1.1);
+  window.cpcBilled = { totalRaw: billedTotalRaw, totalVat: billedTotalVat, nonBrandRaw, bpaRaw: bpaRawTotal, bpaVat, ncRaw: ncRawTotal, ncVat };
   window.settlementDebug = {
     billedTotalRaw, billedTotalVat, nonBrandRaw, bpaRaw: bpaRawTotal, bpaVat,
     brandBilledVat: Math.max(0, billedTotalVat - Math.round(nonBrandRaw * 1.1)) + bpaVat,
@@ -1691,7 +1701,8 @@ function render(byCat, stats) {
   if (_bill_cat && _bill_cat.totalVat && activeBrand === '오아+보아르') {
     const brandBilledVat = Math.max(0, _bill_cat.totalVat - Math.round(_bill_cat.nonBrandRaw * 1.1));
     const bpaVat = _bill_cat.bpaVat || 0;
-    const catTarget = Math.max(0, brandBilledVat - bpaVat);  // real cats 목표
+    const ncVat = _bill_cat.ncVat || 0;
+    const catTarget = Math.max(0, brandBilledVat - bpaVat - ncVat);  // real cats 목표 (기타광고 제외)
     const sumPre = Object.values(brandByCat).reduce((s,v) => s + v.cpc, 0);
     if (sumPre > 0) {
       const ratio = catTarget / sumPre;
@@ -1774,7 +1785,9 @@ function render(byCat, stats) {
 
   // '기타광고' 행 — BPA (브랜드 레벨 광고). 광고비만 표시, 합계에 포함.
   // 라벨: 10월까지 = BPA+신규고객, 11월부터 = 신규고객 (쿠팡 광고 체계 변경 반영)
-  const _bpaVatRow = (activeBrand === '오아+보아르' && window.cpcBilled && window.cpcBilled.bpaVat) ? window.cpcBilled.bpaVat : 0;
+  const _bpaVatOnly = (activeBrand === '오아+보아르' && window.cpcBilled && window.cpcBilled.bpaVat) ? window.cpcBilled.bpaVat : 0;
+  const _ncVatOnly = (activeBrand === '오아+보아르' && window.cpcBilled && window.cpcBilled.ncVat) ? window.cpcBilled.ncVat : 0;
+  const _bpaVatRow = _bpaVatOnly + _ncVatOnly;
   const _bpaLabel = (activeMonth && activeMonth !== 'ALL' && activeMonth <= '2026-10') ? 'BPA+신규고객' : '신규고객';
   const otherAdRow = _bpaVatRow > 0 ? `
       <tr>
@@ -3089,7 +3102,7 @@ function migrateRemoveStaleLsPayloads() {
  * BPA를 분리 집계할 수 없음. 해당 월의 cpc를 자동 삭제하고 사용자에게 재업로드 유도.
  * 대상: 센티넬이 없거나(= 완전 구버전) 센티넬에 bpa_total_raw가 undefined인 cpcData. */
 function migrateCpcSentinelForBpa() {
-  const MARK = 'settle_migrate_cpc_bpa_v4';  // v4: parser_version 'v3-adtype' 체크
+  const MARK = 'settle_migrate_cpc_bpa_v5';  // v5: parser_version 'v4-nc' 체크 (신규고객 분리)
   if (localStorage.getItem(MARK) === 'done') return;
   const store = monthsStore();
   const cleared = [];
@@ -3097,7 +3110,7 @@ function migrateCpcSentinelForBpa() {
     const cpc = d && d.cpc;
     if (!Array.isArray(cpc) || cpc.length === 0) continue;
     const sentinel = cpc.find(r => r && r.camp_id === '__TOTAL__');
-    if (!sentinel || sentinel.bpa_total_raw === undefined || sentinel.cpc_raw_sum === undefined || sentinel.parser_version !== 'v3-adtype') {
+    if (!sentinel || sentinel.bpa_total_raw === undefined || sentinel.cpc_raw_sum === undefined || sentinel.parser_version !== 'v4-nc') {
       delete d.cpc; delete d.cpcName;
       cleared.push(ym);
     }
@@ -3106,7 +3119,7 @@ function migrateCpcSentinelForBpa() {
   const liveCpc = lsLoad(LS.cpc);
   if (Array.isArray(liveCpc)) {
     const s = liveCpc.find(r => r && r.camp_id === '__TOTAL__');
-    if (!s || s.bpa_total_raw === undefined) {
+    if (!s || s.parser_version !== 'v4-nc') {
       lsSave(LS.cpc, null); lsSave(LS.cpcName, '');
       cpcData = null;
     }
@@ -3115,7 +3128,7 @@ function migrateCpcSentinelForBpa() {
     saveMonthsStore(store);
     console.warn('[migrate] 구버전 cpcData 삭제 (재업로드 필요):', cleared);
     try {
-      const msg = `광고목표(G열) 분기가 새 포맷으로 바뀌어 CPC 파일 재업로드가 필요합니다.\n\n대상 월: ${cleared.join(', ')}\n\n파일 1에 8월 dailySettlement xlsx 다시 올려주세요.`;
+      const msg = `신규고객 광고 분리 집계를 위해 CPC 파일 재업로드가 필요합니다.\n\n대상 월: ${cleared.join(', ')}\n\n파일 1에 각 월의 dailySettlement xlsx 다시 올려주세요.`;
       setTimeout(() => alert(msg), 300);
     } catch(_) {}
   }
