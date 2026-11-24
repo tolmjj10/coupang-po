@@ -17,6 +17,7 @@
     --text: #2a1a15; --text-hint: #7a706a;
     --accent: #aa9791; --accent-dark: #8b756c; --accent-light: #f2ede9;
     --neg: #b05858; --ok: #6e8a6a;
+    --deduct: #8c6aa8;      /* 상계 색 (뮤트 퍼플) */
     --cpc: #8b756c;         /* 광고비 색 (어스브라운) */
     --coupon: #c4875c;      /* 쿠폰 색 (테라코타) */
     --sales: #6e8a6a;       /* 매출 색 (올리브) */
@@ -1996,6 +1997,8 @@ function renderBrands(allEntries, hasSales) {
   total.dPremium = deductD ? (deductD.premium || 0) : 0;
   total.dTrial   = deductD ? (deductD.trial   || 0) : 0;
   total.dDA      = deductD ? ((deductD.da||0) + (deductD.awards||0) + (deductD.ppir||0)) : 0;
+  total.dAwards  = deductD ? (deductD.awards  || 0) : 0;
+  total.dPpir    = deductD ? (deductD.ppir    || 0) : 0;
   // agg[오아+보아르].p 는 이미 per-SKU 체험단(brandTrialSum)과 어워즈(awardsTotal) 차감 완료.
   // deductFull에서 중복 차감되는 (brandTrialSum + awardsTotal)을 더해 상쇄 후 full 차감.
   total.p = agg['오아'].p + agg['보아르'].p - (deductFull - brandTrialSum - awardsTotal);
@@ -2026,11 +2029,15 @@ function renderBrands(allEntries, hasSales) {
             const row = (label, val) => (val||0) > 0
               ? `<span class="b-k" style="padding-left:10px;color:var(--text);font-weight:600;">${label}</span><span class="b-v" style="color:var(--text-hint);font-weight:500;">${fmtWon(val)}</span>`
               : '';
-            return `<span class="b-k" style="color:var(--text);font-weight:700;">상계</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="DA = DA + 어워즈 + PPIR">-${fmtWon(a.deduct)}</span>`
+            const daExtras = [];
+            if ((a.dAwards||0) > 0) daExtras.push('어워즈');
+            if ((a.dPpir||0)   > 0) daExtras.push('PPIR');
+            const daLabel = '· DA' + (daExtras.length === 1 ? ` (${daExtras[0]} 포함)` : daExtras.length === 2 ? ` (${daExtras.join('+')})` : '');
+            return `<span class="b-k" style="color:var(--text);font-weight:700;">상계</span><span class="b-v" style="color:var(--deduct);font-weight:600;">-${fmtWon(a.deduct)}</span>`
               + row('· 성장장려금', a.dGrowth)
               + row('· 프리미엄 데이터', a.dPremium)
               + row('· 체험단', a.dTrial)
-              + row('· DA', a.dDA);
+              + row(daLabel, a.dDA);
           })() : ''}
           ${hasSales ? `<span class="b-k">순수익</span><span class="b-v profit${a.p<0?' neg':''}">${fmtWon(a.p)}</span>
           <span class="b-k">마진</span><span class="b-v margin">${mg}</span>` : ''}
