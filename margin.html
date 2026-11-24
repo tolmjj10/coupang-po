@@ -1939,7 +1939,8 @@ document.addEventListener('copy', ev=>{
   const trs = Array.from(tbl.querySelectorAll('tbody tr')).filter(tr=>range.intersectsNode(tr));
   if(!trs.length) return;
   const tsv = trs.map(tr=>{
-    return Array.from(tr.cells).map(td=>{
+    // 선택 범위에 실제로 걸친 셀만 포함 (전체 행이 아니라)
+    return Array.from(tr.cells).filter(td=>range.intersectsNode(td)).map(td=>{
       const cb = td.querySelector('input[type="checkbox"]');
       if(cb) return cb.checked ? '완료' : '';
       const inp = td.querySelector('input');
