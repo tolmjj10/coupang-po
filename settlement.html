@@ -1991,6 +1991,11 @@ function renderBrands(allEntries, hasSales) {
   // 전체 합계 카드: 상계 = deductFull 전체 표시. 수식 보정은 아래 total.p에서.
   total.deduct = deductFull;
   total.awd = awardsTotal;
+  // 상계 breakdown (4그룹): 성장장려금 / 프리미엄 데이터 / 체험단 / DA(DA+어워즈+PPIR)
+  total.dGrowth  = deductD ? (deductD.growth  || 0) : 0;
+  total.dPremium = deductD ? (deductD.premium || 0) : 0;
+  total.dTrial   = deductD ? (deductD.trial   || 0) : 0;
+  total.dDA      = deductD ? ((deductD.da||0) + (deductD.awards||0) + (deductD.ppir||0)) : 0;
   // agg[오아+보아르].p 는 이미 per-SKU 체험단(brandTrialSum)과 어워즈(awardsTotal) 차감 완료.
   // deductFull에서 중복 차감되는 (brandTrialSum + awardsTotal)을 더해 상쇄 후 full 차감.
   total.p = agg['오아'].p + agg['보아르'].p - (deductFull - brandTrialSum - awardsTotal);
@@ -2017,7 +2022,15 @@ function renderBrands(allEntries, hasSales) {
           ${!showDeduct && (a.tr||0) > 0 ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">-${fmtWon(a.tr)}</span>` : ''}
           ${!foldReturns && a.ret !== 0 ? `<span class="b-k">반출</span><span class="b-v" style="color:var(--neg);font-weight:600;">${fmtWon(a.ret)}</span>` : ''}
           ${!showDeduct && a.awd > 0 ? `<span class="b-k">어워즈</span><span class="b-v" style="color:var(--neg);font-weight:600;">-${fmtWon(a.awd)}</span>` : ''}
-          ${showDeduct && a.deduct > 0 ? `<span class="b-k">상계</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="성장·프리미엄·DA·체험단·어워즈·PPIR 합계">-${fmtWon(a.deduct)}</span>` : ''}
+          ${showDeduct && a.deduct > 0 ? (() => {
+            const parts = [];
+            if ((a.dGrowth  || 0) > 0) parts.push(`성장장려금 ${fmtWon(a.dGrowth)}`);
+            if ((a.dPremium || 0) > 0) parts.push(`프리미엄 데이터 ${fmtWon(a.dPremium)}`);
+            if ((a.dTrial   || 0) > 0) parts.push(`체험단 ${fmtWon(a.dTrial)}`);
+            if ((a.dDA      || 0) > 0) parts.push(`DA ${fmtWon(a.dDA)}`);
+            const detail = parts.length ? ` <small style="color:var(--text-hint);font-weight:500;">(${parts.join(' · ')})</small>` : '';
+            return `<span class="b-k">상계</span><span class="b-v" style="color:var(--neg);font-weight:600;" title="DA = DA + 어워즈 + PPIR">-${fmtWon(a.deduct)}${detail}</span>`;
+          })() : ''}
           ${hasSales ? `<span class="b-k">순수익</span><span class="b-v profit${a.p<0?' neg':''}">${fmtWon(a.p)}</span>
           <span class="b-k">마진</span><span class="b-v margin">${mg}</span>` : ''}
         </div>
