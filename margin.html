@@ -860,13 +860,17 @@ function addRow(){
   render();
   // 새 행으로 스크롤 + 첫 편집 셀 포커스
   requestAnimationFrame(()=>{
-    const wrap=document.querySelector('.table-wrap');
-    if(wrap) wrap.scrollTop = wrap.scrollHeight;
     const tr=document.querySelector(`tr[data-id="${r._id}"]`);
-    if(tr){
-      const cell=tr.querySelector('.editable');
-      if(cell) cell.click();
+    if(!tr) return;
+    const wrap=document.querySelector('.table-wrap');
+    if(wrap){
+      const thead=wrap.querySelector('thead');
+      const headH=thead ? thead.getBoundingClientRect().height : 0;
+      const trTop=tr.offsetTop;
+      wrap.scrollTo({ top: Math.max(0, trTop - headH - 8), behavior: 'smooth' });
     }
+    const cell=tr.querySelector('.editable');
+    if(cell) cell.click();
   });
 }
 
