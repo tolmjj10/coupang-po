@@ -1,7 +1,10 @@
 # 로컬 전용 파이프라인 (git에 올리지 않음)
 price/
+price-matrix/
 rocket-metrics/
 settlement_files/
+settlement/_*
+*.lnk
 
 # 로컬 데이터 파일
 *.xlsx
