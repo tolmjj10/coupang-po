@@ -1133,6 +1133,9 @@ function aggregate() {
   let ncRawTotal = 0;  // 신규 구매 고객 광고(PA) raw 합 — 기타광고로 합산
   let nonBrandRaw = 0;  // brandOf='' 캠페인 raw 합 (브랜드 카드 총액 차감용)
   const _dbgNonBrand = [];  // 디버그: 비-브랜드 캠페인 내역
+  // 구버전(v3-adtype) 캐시 폴백: sentinel에 nc_total_raw 없으면 캠페인명에 '신규' 포함된 PA를 nc로 간주
+  const _sentinelPeek = cpcData.find(r => r && r.camp_id === '__TOTAL__');
+  const _ncFallbackByName = _sentinelPeek && _sentinelPeek.nc_total_raw === undefined;
   for (const row of cpcData) {
     // 센티넬 — 파일 row 1 청구 총액
     if (row.camp_id === '__TOTAL__') {
@@ -1140,6 +1143,11 @@ function aggregate() {
       billedTotalVat += Number(row.billed_vat) || 0;
       bpaRawTotal += Number(row.bpa_total_raw) || 0;
       ncRawTotal += Number(row.nc_total_raw) || 0;
+      continue;
+    }
+    // 폴백: 캠페인명에 '신규' 포함되면 nc 버킷으로 분리 (SKU/카테 분배 제외)
+    if (_ncFallbackByName && typeof row.camp_name === 'string' && row.camp_name.includes('신규')) {
+      ncRawTotal += Number(row.cost) || 0;
       continue;
     }
     const cat = catForCamp(row.camp_id, row.camp_name);
@@ -3102,7 +3110,7 @@ function migrateRemoveStaleLsPayloads() {
  * BPA를 분리 집계할 수 없음. 해당 월의 cpc를 자동 삭제하고 사용자에게 재업로드 유도.
  * 대상: 센티넬이 없거나(= 완전 구버전) 센티넬에 bpa_total_raw가 undefined인 cpcData. */
 function migrateCpcSentinelForBpa() {
-  const MARK = 'settle_migrate_cpc_bpa_v5';  // v5: parser_version 'v4-nc' 체크 (신규고객 분리)
+  const MARK = 'settle_migrate_cpc_bpa_v4';  // v4-nc는 캠페인명 추정으로 폴백 — 강제 재업로드 안 함
   if (localStorage.getItem(MARK) === 'done') return;
   const store = monthsStore();
   const cleared = [];
@@ -3110,16 +3118,16 @@ function migrateCpcSentinelForBpa() {
     const cpc = d && d.cpc;
     if (!Array.isArray(cpc) || cpc.length === 0) continue;
     const sentinel = cpc.find(r => r && r.camp_id === '__TOTAL__');
-    if (!sentinel || sentinel.bpa_total_raw === undefined || sentinel.cpc_raw_sum === undefined || sentinel.parser_version !== 'v4-nc') {
+    // bpa_total_raw 조차 없는 완전 구버전만 재업로드 유도
+    if (!sentinel || sentinel.bpa_total_raw === undefined || sentinel.cpc_raw_sum === undefined) {
       delete d.cpc; delete d.cpcName;
       cleared.push(ym);
     }
   }
-  // 활성 단일 LS 도 동일 처리
   const liveCpc = lsLoad(LS.cpc);
   if (Array.isArray(liveCpc)) {
     const s = liveCpc.find(r => r && r.camp_id === '__TOTAL__');
-    if (!s || s.parser_version !== 'v4-nc') {
+    if (!s || s.bpa_total_raw === undefined) {
       lsSave(LS.cpc, null); lsSave(LS.cpcName, '');
       cpcData = null;
     }
