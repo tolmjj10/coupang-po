@@ -374,6 +374,7 @@ td { padding: 9px 11px; vertical-align: middle; }
 /* 이슈 SKU: 빨간 글씨 + 확인필요 배지 */
 .sku-issue { color: #dc2626; font-weight: 700; }
 .issue-badge { display:inline-block; margin-left:6px; padding:1px 6px; background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:10px; font-size:10.5px; font-weight:700; vertical-align:middle; }
+.today-inbound-badge { display:inline-block; margin-left:6px; padding:1px 6px; background:#dcfce7; color:#15803d; border:1px solid #86efac; border-radius:10px; font-size:10.5px; font-weight:700; vertical-align:middle; }
 .summer-badge { display:inline-block; margin-left:6px; padding:1px 6px; background:#dbeafe; color:#1e40af; border:1px solid #bfdbfe; border-radius:10px; font-size:10.5px; font-weight:700; vertical-align:middle; }
 .winter-badge { display:inline-block; margin-left:6px; padding:1px 6px; background:#ede9fe; color:#6d28d9; border:1px solid #ddd6fe; border-radius:10px; font-size:10.5px; font-weight:700; vertical-align:middle; }
 
@@ -527,6 +528,7 @@ let orderData=null, masterData=null, stockData=null, salesData=null;
 let transitMap={}; // norm(상품코드) → 운송 중 수량
 let issueMap={}; // norm(SKU ID) → 특이사항 문구
 let categoryMap={}; // norm(SKU#) → 카테고리 (마진테이블 API 에서 로드)
+let todayInboundMap={}; // norm(상품명) → qty (오늘 입고예정)
 let matchedRows=[], activeFilter='all', allOpen=true;
 const fileState={order:false,master:false,stock:false};
 
@@ -1661,6 +1663,9 @@ function renderAll(){
 
       const issueNote=r.orderSku?(issueMap[norm(r.orderSku)]||''):'';
       const isIssue=!!issueNote;
+      const nameForInbound=norm(r.stockName||r.orderName||'');
+      const todayQty=nameForInbound?(todayInboundMap[nameForInbound]||0):0;
+      const isTodayInbound=todayQty>0;
       const skuCat=(r.procode?categoryMap[norm(r.procode)]:'')||(r.orderSku?categoryMap[norm(r.orderSku)]:'')||'';
       const isSummer=(skuCat==='여름가전'||skuCat==='제습기');
       const isWinter=(skuCat==='겨울가전');
@@ -1670,7 +1675,9 @@ function renderAll(){
         else if(isIssue) skuHtml=`<span class="sku-issue">${r.orderSku}</span>`;
         else skuHtml=r.orderSku;
       } else skuHtml='—';
-      const issueBadge=isIssue?`<span class="issue-badge" title="${escHtml(issueNote)}">⚠ 확인필요</span>`:'';
+      const issueBadge=isTodayInbound
+        ?`<span class="today-inbound-badge" title="오늘 ${todayQty.toLocaleString()}개 입고예정">📦 오늘입고</span>`
+        :(isIssue?`<span class="issue-badge" title="${escHtml(issueNote)}">⚠ 확인필요</span>`:'');
       const summerBadge=isSummer?`<span class="summer-badge" title="${escHtml(skuCat)}">여름가전</span>`:'';
       const winterBadge=isWinter?`<span class="winter-badge" title="${escHtml(skuCat)}">겨울가전</span>`:'';
       const rowNumHtml=`<span class="row-num">${ri+1}.</span>`;
@@ -2775,6 +2782,25 @@ window.__VOAR_REPO__={owner:"tolmjj10",repo:"coupang-po",branch:"main",dir:"data
           console.log('[VOAR] issue loaded: '+Object.keys(issueMap).length+'건');
         } catch(e){ console.warn('[VOAR] issue parse err:', e.message); }
       }));
+      /* 오늘 입고예정 맵: /api/inbound-state에서 오늘 날짜 품목 추출 */
+      jobs.push(fetch('/api/inbound-state', { cache: 'no-store' }).then(function(res){
+        if(!res.ok) return;
+        return res.json();
+      }).then(function(parsed){
+        if(!parsed||!parsed.parsed||!parsed.parsed.dates) return;
+        var now=new Date();
+        var todayKey=String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+        todayInboundMap={};
+        parsed.parsed.dates.forEach(function(d){
+          if(d.key!==todayKey) return;
+          (d.items||[]).forEach(function(it){
+            var k=norm(it.name);
+            if(!k) return;
+            todayInboundMap[k]=(todayInboundMap[k]||0)+(it.qty||0);
+          });
+        });
+        console.log('[VOAR] today inbound loaded: '+Object.keys(todayInboundMap).length+'건 (date='+todayKey+')');
+      }).catch(function(e){ console.warn('[VOAR] inbound-state err:', e.message); }));
       /* 카테고리 맵: 마진테이블 API에서 SKU# → 카테고리 로드 (여름가전/제습기 배지용) */
       jobs.push(fetch('/api/margin-state', { cache: 'no-store' }).then(function(res){
         if(!res.ok) return;

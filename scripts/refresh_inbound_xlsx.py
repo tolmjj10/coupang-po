@@ -208,6 +208,64 @@ def post_kv(parsed, filename):
     print(f"[kv] {len(parsed['dates'])}일, {tot_items}품목, 총 {tot_qty:,}개 → KV 저장")
 
 
+# ───────── 이슈제품 메모 자동 삭제 ─────────
+
+def clear_issue_memos(parsed, min_qty=500):
+    """오늘 날짜에 min_qty 이상 입고된 상품은 이슈제품.xlsx 특이사항에서 메모 삭제.
+    조건: 상품명 매치 + 특이사항에 오늘 M/D 문자열 포함."""
+    today = dt.date.today()
+    today_key = f"{today.month:02d}-{today.day:02d}"
+    today_md = f"{today.month}/{today.day}"
+
+    today_names = set()
+    for d in parsed["dates"]:
+        if d["key"] != today_key: continue
+        for it in d["items"]:
+            if it["qty"] >= min_qty:
+                today_names.add(norm(it["name"]))
+    if not today_names:
+        print(f"[issue] 오늘({today_md}) {min_qty}개 이상 입고 없음 — 스킵")
+        return 0
+
+    xlsx_path = REPO / "data" / "이슈제품.xlsx"
+    if not xlsx_path.exists():
+        print(f"[issue] 파일 없음: {xlsx_path}")
+        return 0
+
+    wb = openpyxl.load_workbook(xlsx_path)
+    ws = wb["Sheet1"]
+    cleared = []
+    for row in ws.iter_rows(min_row=2):
+        name_cell = row[1].value if len(row) > 1 else None
+        note_cell = row[2].value if len(row) > 2 else None
+        if not name_cell or not note_cell: continue
+        if norm(str(name_cell)) not in today_names: continue
+        if today_md not in str(note_cell): continue
+        cleared.append((row[0].value, name_cell, note_cell))
+        row[2].value = None
+
+    if not cleared:
+        print(f"[issue] 매치되는 이슈 메모 없음 (후보 {len(today_names)}개)")
+        return 0
+
+    wb.save(xlsx_path)
+    for c in cleared:
+        print(f"[issue] 삭제: {c[0]} {c[1]} | {c[2]}")
+    print(f"[issue] 총 {len(cleared)}건 삭제 → {xlsx_path.name}")
+    return len(cleared)
+
+
+def git_push_issue(n):
+    try:
+        subprocess.run(["git", "add", "data/이슈제품.xlsx"], cwd=REPO, check=True)
+        msg = f"이슈제품 입고완료 메모 {n}건 자동 삭제"
+        subprocess.run(["git", "commit", "-m", msg], cwd=REPO, check=True)
+        subprocess.run(["git", "push"], cwd=REPO, check=True)
+        print(f"[issue] git push 완료")
+    except subprocess.CalledProcessError as e:
+        print(f"[issue] git 실패: {e}")
+
+
 def main():
     print(f"=== refresh_inbound_xlsx {dt.datetime.now().isoformat(timespec='seconds')} ===")
     info = download_xlsx()
@@ -216,6 +274,9 @@ def main():
     allowed = load_allowed()
     parsed = filter_parsed(parsed, allowed)
     post_kv(parsed, info["filename"])
+    n = clear_issue_memos(parsed)
+    if n:
+        git_push_issue(n)
     print("=== 완료 ===")
 
 
