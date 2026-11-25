@@ -2997,12 +2997,6 @@ function applyDeductionsToSummary() {
   const trialResidual = Math.max(0, (Number(d.trial) || 0) - brandTrialSum);
   box.hidden = false;
   box.innerHTML = `
-    <div class="dp-break">
-      오아+보아르 순수익 <strong class="profit">${fmtWon(brandCardsSum)}</strong>
-      − 상계(추가) <strong class="neg">${fmtWon(extraRemaining)}</strong>
-      <span class="detail">= 성장 ${fmtWon(d.growth)} + 프리미엄 ${fmtWon(d.premium)} + DA ${fmtWon(d.da)} + PPIR ${fmtWon(d.ppir)}${trialResidual?` + 미할당 체험단 ${fmtWon(trialResidual)}`:''}
-      <em style="opacity:.6">· 체험단 ${fmtWon(d.trial)}·어워즈 ${fmtWon(awardsTotal)}는 브랜드 카드에 이미 반영</em></span>
-    </div>
     <div class="dp-final-v ${finalProfit<0?'neg':'ok'}">${label} ${fmtWon(finalProfit)}</div>`;
 }
 
