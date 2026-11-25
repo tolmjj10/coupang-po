@@ -644,6 +644,18 @@ async function loadRosterFallback() {
   } catch (e) { console.warn('roster-fallback 실패:', e); }
 }
 
+// 쿠팡카테고리='가전디지털' SKU 목록 (일일판매량 xlsx 숨김 C열에서 추출)
+let ceSkuSet = new Set();
+async function loadCeSkus() {
+  try {
+    const res = await fetch('/data/ce_skus.json', { cache: 'no-cache' });
+    if (!res.ok) return;
+    const arr = await res.json();
+    ceSkuSet = new Set(arr.map(s => String(s)));
+    console.log(`[CE] ${ceSkuSet.size} SKU loaded`);
+  } catch (e) { console.warn('ce_skus.json 로드 실패:', e); }
+}
+
 async function loadTrialOverride() {
   try {
     const res = await fetch('/settlement/trial-by-sku.json', { cache: 'no-cache' });
@@ -1989,13 +2001,20 @@ function renderBrands(allEntries, hasSales) {
   if (!allEntries || !allEntries.length) { box.innerHTML = ''; return; }
 
   // 발주 기준 집계
-  const agg = { '오아': {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,tr:0,p:0,qty:0,ret:0}, '보아르': {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,tr:0,p:0,qty:0,ret:0} };
+  const agg = {
+    '오아':   {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,tr:0,p:0,qty:0,ret:0, ceGmv:0, ceCpc:0},
+    '보아르': {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,tr:0,p:0,qty:0,ret:0, ceGmv:0, ceCpc:0},
+  };
   for (const [sku, d] of allEntries) {
     const b = brandOf(sku, d);
     if (!b) continue;
     const a = agg[b];
     a.cnt++; a.gmv += d.gmv; a.cogs += d.cogs; a.cpc += d.cpcVat;
     a.cpn += d.coupon; a.tr += (d.trial||0); a.p += d.profit; a.qty += d.qty;
+    if (ceSkuSet.has(String(sku))) {
+      a.ceGmv += d.gmv;
+      a.ceCpc += d.cpcVat;  // 스케일링 전 raw, 아래서 ratio 적용
+    }
   }
   // 반출 (브랜드별) — 반출 금액(음수)과 수량 가산
   const hasReturns = returnsData && Object.keys(returnsData).length > 0;
@@ -2008,7 +2027,7 @@ function renderBrands(allEntries, hasSales) {
     }
   }
   const total = { cnt: agg['오아'].cnt + agg['보아르'].cnt };
-  for (const k of ['gmv','cogs','cpc','cpn','tr','p','qty','ret']) total[k] = agg['오아'][k] + agg['보아르'][k];
+  for (const k of ['gmv','cogs','cpc','cpn','tr','p','qty','ret','ceGmv','ceCpc']) total[k] = agg['오아'][k] + agg['보아르'][k];
   // 브랜드 카드 광고비 = 파일 row 1 청구금액(+VAT) − 비브랜드 캠페인 raw × 1.1
   //   bill.totalVat 는 이미 CPC+BPA 전체이고 쿠팡 청구조정 반영됨.
   //   별도 + BPA 하지 않음 (이미 포함).
@@ -2020,11 +2039,17 @@ function renderBrands(allEntries, hasSales) {
       const ratio = brandBilledVat / preSum;
       agg['오아'].cpc = Math.round(agg['오아'].cpc * ratio);
       agg['보아르'].cpc = brandBilledVat - agg['오아'].cpc;
+      // CE 광고비도 동일 ratio 적용
+      agg['오아'].ceCpc = Math.round(agg['오아'].ceCpc * ratio);
+      agg['보아르'].ceCpc = Math.round(agg['보아르'].ceCpc * ratio);
     } else {
       agg['오아'].cpc = brandBilledVat;
       agg['보아르'].cpc = 0;
+      agg['오아'].ceCpc = 0;
+      agg['보아르'].ceCpc = 0;
     }
     total.cpc = brandBilledVat;
+    total.ceCpc = agg['오아'].ceCpc + agg['보아르'].ceCpc;
   }
   const hasTrialBrand = total.tr > 0;
 
@@ -2069,8 +2094,10 @@ function renderBrands(allEntries, hasSales) {
         <div class="b-title">${esc(label)} <span class="b-count">${a.cnt} SKU${a.qty?` · ${a.qty.toLocaleString()}개`:''}</span></div>
         <div class="b-rows">
           ${hasSales ? `<span class="b-k" style="color:var(--text);font-weight:600;">${gmvLabel}</span><span class="b-v gmv">${fmtWon(gmvNet)}</span>
+          ${(a.ceGmv||0) > 0 ? `<span class="b-k" style="padding-left:10px;">· CE</span><span class="b-v gmv" style="font-weight:500;opacity:0.75;">${fmtWon(a.ceGmv)}</span>` : ''}
           <span class="b-k">원가</span><span class="b-v" style="color:var(--neg);">-${fmtWon(a.cogs)}</span>` : ''}
           <span class="b-k">광고</span><span class="b-v cpc">-${fmtWon(a.cpc)}</span>
+          ${(a.ceCpc||0) > 0 ? `<span class="b-k" style="padding-left:10px;">· CE</span><span class="b-v cpc" style="font-weight:500;opacity:0.75;">-${fmtWon(a.ceCpc)}</span>` : ''}
           <span class="b-k">쿠폰</span><span class="b-v coupon">-${fmtWon(a.cpn)}</span>
           ${!showDeduct && (a.tr||0) > 0 ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">-${fmtWon(a.tr)}</span>` : ''}
           ${!foldReturns && a.ret !== 0 ? `<span class="b-k">반출</span><span class="b-v" style="color:var(--neg);font-weight:600;">${fmtWon(a.ret)}</span>` : ''}
@@ -3199,7 +3226,7 @@ function augmentSkuMapFromMargin() {
   // 2) KV의 월별 전체 스토어를 머지 (다른 PC에서 올린 값 받기)
   await restoreMonthsFromServer();
   // 3) 매핑/마진/프로모션/시드 로드 — 패치는 seed 후에 돌아야 값 기반 조건이 성립
-  await Promise.all([loadMaps(), loadMargin(), loadPromotion(), loadTrialOverride(), seedDeductionsIfMissing()]);
+  await Promise.all([loadMaps(), loadMargin(), loadPromotion(), loadTrialOverride(), loadCeSkus(), seedDeductionsIfMissing()]);
   await loadRosterFallback();  // maps 로드 완료 후 roster로 sku2cat 보강
   await forceSyncPremiumFromJson();
   // 월별 매핑 + sku2brand 재구축 (LS에서 복원한 patotal/salesanalysis 반영)
