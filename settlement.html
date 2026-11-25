@@ -2002,8 +2002,8 @@ function renderBrands(allEntries, hasSales) {
 
   // 발주 기준 집계
   const agg = {
-    '오아':   {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,tr:0,p:0,qty:0,ret:0, ceGmv:0, ceCpc:0, ceRet:0},
-    '보아르': {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,tr:0,p:0,qty:0,ret:0, ceGmv:0, ceCpc:0, ceRet:0},
+    '오아':   {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,tr:0,p:0,qty:0,ret:0, ceGmv:0, ceCogs:0, ceCpc:0, ceRet:0},
+    '보아르': {cnt:0,gmv:0,cogs:0,cpc:0,cpn:0,tr:0,p:0,qty:0,ret:0, ceGmv:0, ceCogs:0, ceCpc:0, ceRet:0},
   };
   for (const [sku, d] of allEntries) {
     const b = brandOf(sku, d);
@@ -2013,6 +2013,7 @@ function renderBrands(allEntries, hasSales) {
     a.cpn += d.coupon; a.tr += (d.trial||0); a.p += d.profit; a.qty += d.qty;
     if (ceSkuSet.has(String(sku))) {
       a.ceGmv += d.gmv;
+      a.ceCogs += d.cogs;
       a.ceCpc += d.cpcVat;  // 스케일링 전 raw, 아래서 ratio 적용
     }
   }
@@ -2028,7 +2029,7 @@ function renderBrands(allEntries, hasSales) {
     }
   }
   const total = { cnt: agg['오아'].cnt + agg['보아르'].cnt };
-  for (const k of ['gmv','cogs','cpc','cpn','tr','p','qty','ret','ceGmv','ceCpc','ceRet']) total[k] = agg['오아'][k] + agg['보아르'][k];
+  for (const k of ['gmv','cogs','cpc','cpn','tr','p','qty','ret','ceGmv','ceCogs','ceCpc','ceRet']) total[k] = agg['오아'][k] + agg['보아르'][k];
   // 브랜드 카드 광고비 = 파일 row 1 청구금액(+VAT) − 비브랜드 캠페인 raw × 1.1
   //   bill.totalVat 는 이미 CPC+BPA 전체이고 쿠팡 청구조정 반영됨.
   //   별도 + BPA 하지 않음 (이미 포함).
@@ -2104,12 +2105,13 @@ function renderBrands(allEntries, hasSales) {
             const ceNet = foldReturns ? (a.ceGmv + (a.ceRet||0)) : a.ceGmv;
             return `<span class="b-k" style="padding-left:10px;">· CE</span><span class="b-v" style="color:var(--text);font-weight:500;opacity:0.75;padding-right:12px;">(${fmtWon(ceNet)})</span>`;
           })() : ''}
-          <span class="b-k">원가</span><span class="b-v" style="color:var(--neg);">-${fmtWon(a.cogs)}</span>` : ''}
+          <span class="b-k">원가</span><span class="b-v" style="color:var(--neg);">-${fmtWon(a.cogs)}</span>
+          ${(a.ceCogs||0) > 0 ? `<span class="b-k" style="padding-left:10px;">· CE</span><span class="b-v" style="color:var(--text);font-weight:500;opacity:0.75;padding-right:12px;">(${fmtWon(a.ceCogs)})</span>` : ''}` : ''}
           <span class="b-k">광고</span><span class="b-v cpc">-${fmtWon(a.cpc)}</span>
           ${(a.ceCpc||0) > 0 ? (() => {
             const ceGmvBase = foldReturns ? (a.ceGmv + (a.ceRet||0)) : a.ceGmv;
             const pct = ceGmvBase > 0 ? Math.round(a.ceCpc / ceGmvBase * 100) + '%' : '—';
-            return `<span class="b-k" style="padding-left:10px;">· CE (${pct})</span><span class="b-v" style="color:var(--text);font-weight:500;opacity:0.75;padding-right:12px;">(${fmtWon(a.ceCpc)})</span>`;
+            return `<span class="b-k" style="padding-left:10px;">· CE (매출대비광고 ${pct})</span><span class="b-v" style="color:var(--text);font-weight:500;opacity:0.75;padding-right:12px;">(${fmtWon(a.ceCpc)})</span>`;
           })() : ''}
           <span class="b-k">쿠폰</span><span class="b-v coupon">-${fmtWon(a.cpn)}</span>
           ${!showDeduct && (a.tr||0) > 0 ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">-${fmtWon(a.tr)}</span>` : ''}
