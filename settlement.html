@@ -647,7 +647,7 @@ async function loadRosterFallback() {
 let ceSkuSet = new Set();
 async function loadCeSkus() {
   try {
-    const res = await fetch('/data/ce_skus.json', { cache: 'no-cache' });
+    const res = await fetch('/settlement/ce_skus.json', { cache: 'no-cache' });
     if (!res.ok) return;
     const arr = await res.json();
     ceSkuSet = new Set(arr.map(s => String(s)));
