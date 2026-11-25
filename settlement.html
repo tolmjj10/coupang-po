@@ -1133,15 +1133,24 @@ function aggregate() {
   let ncRawTotal = 0;  // 신규 구매 고객 광고(PA) raw 합 — 기타광고로 합산
   let nonBrandRaw = 0;  // brandOf='' 캠페인 raw 합 (브랜드 카드 총액 차감용)
   const _dbgNonBrand = [];  // 디버그: 비-브랜드 캠페인 내역
-  // 신규고객 광고는 파싱 단계에서 col 6(광고목표)='신규' 기준으로 분리됨.
-  // 구버전 캐시에 nc_total_raw가 없으면 재업로드 필요 (migrateCpcSentinelForBpa가 유도).
+  // 신규고객 광고(PA + col 6='신규')는 파싱 단계에서 센티넬 nc_total_raw에 저장.
+  // 구버전 캐시에 nc_total_raw 없을 때를 위한 월별 하드코딩 폴백 (settlement_files 재분석 결과):
+  const NC_RAW_FALLBACK = {
+    '2026-01': 0, '2026-02': 0, '2026-03': 0, '2026-04': 0, '2026-05': 0,
+    '2026-06': 219503, '2026-07': 1736484, '2026-08': 2180929,
+    '2026-09': 2039150, '2026-10': 9330552,
+  };
+  let _ncFromSentinel = false;
   for (const row of cpcData) {
     // 센티넬 — 파일 row 1 청구 총액
     if (row.camp_id === '__TOTAL__') {
       billedTotalRaw += Number(row.billed_raw) || 0;
       billedTotalVat += Number(row.billed_vat) || 0;
       bpaRawTotal += Number(row.bpa_total_raw) || 0;
-      ncRawTotal += Number(row.nc_total_raw) || 0;
+      if (row.nc_total_raw !== undefined) {
+        ncRawTotal += Number(row.nc_total_raw) || 0;
+        _ncFromSentinel = true;
+      }
       continue;
     }
     const cat = catForCamp(row.camp_id, row.camp_name);
@@ -1174,6 +1183,10 @@ function aggregate() {
   }
   // BPA(VAT 포함)는 오아+보아르 브랜드 광고비에 합산
   const bpaVat = Math.round(bpaRawTotal * 1.1);
+  // 센티넬에 nc_total_raw 없으면 월별 폴백 테이블 사용
+  if (!_ncFromSentinel && activeMonth && NC_RAW_FALLBACK[activeMonth] !== undefined) {
+    ncRawTotal = NC_RAW_FALLBACK[activeMonth];
+  }
   const ncVat = Math.round(ncRawTotal * 1.1);
   window.cpcBilled = { totalRaw: billedTotalRaw, totalVat: billedTotalVat, nonBrandRaw, bpaRaw: bpaRawTotal, bpaVat, ncRaw: ncRawTotal, ncVat };
   window.settlementDebug = {
@@ -3174,7 +3187,6 @@ function augmentSkuMapFromMargin() {
   patch2026_04_DA();
   patchAwardsRevertAndBrandSplit();
   patch2026_10_trial();
-  migrateCpcSentinelForBpa();
   migrateRemoveStaleLsPayloads();
   applyManualCampViidOverrides();
   augmentSkuMapFromMargin();
