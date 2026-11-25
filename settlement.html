@@ -2085,14 +2085,13 @@ function renderBrands(allEntries, hasSales) {
   // deductFull에서 중복 차감되는 (brandTrialSum + awardsTotal)을 더해 상쇄 후 full 차감.
   total.p = agg['오아'].p + agg['보아르'].p - (deductFull - brandTrialSum - awardsTotal);
 
-  // CE 순수익 = CE매출(반출반영) - CE원가 - CE광고 - CE쿠폰 - CE상계
-  // 브랜드별 CE 순수익 (상계 제외)
-  agg['오아'].ceP   = agg['오아'].ceGmv   - agg['오아'].ceCogs   - agg['오아'].ceCpc   - agg['오아'].ceCpn;
-  agg['보아르'].ceP = agg['보아르'].ceGmv - agg['보아르'].ceCogs - agg['보아르'].ceCpc - agg['보아르'].ceCpn;
-  // 합계: 반출 반영 + 상계 매출비율 할당
+  // CE 순수익 = CE매출(반출반영) - CE원가 - CE광고 - 쿠폰전체 - CE상계
+  // (쿠폰은 전액 CE에 귀속 — 쿠폰 쓰는 건 전부 CE 제품)
+  agg['오아'].ceP   = agg['오아'].ceGmv   - agg['오아'].ceCogs   - agg['오아'].ceCpc   - agg['오아'].cpn;
+  agg['보아르'].ceP = agg['보아르'].ceGmv - agg['보아르'].ceCogs - agg['보아르'].ceCpc - agg['보아르'].cpn;
   const _ceGmvNet = total.ceGmv + (total.ceRet || 0);
   const _ceDeductShare = (total.gmv > 0) ? Math.round(deductFull * _ceGmvNet / total.gmv) : 0;
-  total.ceP = _ceGmvNet - total.ceCogs - total.ceCpc - total.ceCpn - _ceDeductShare;
+  total.ceP = _ceGmvNet - total.ceCogs - total.ceCpc - total.cpn - _ceDeductShare;
   total.ceDeduct = _ceDeductShare;
 
   const card = (label, key, a, opts = {}) => {
@@ -2124,7 +2123,6 @@ function renderBrands(allEntries, hasSales) {
             return `<span class="b-k" style="padding-left:10px;">· CE (매출대비광고 ${pct})</span><span class="b-v" style="color:var(--text);font-weight:500;opacity:0.75;padding-right:12px;">(${fmtWon(a.ceCpc)})</span>`;
           })() : ''}
           <span class="b-k">쿠폰</span><span class="b-v coupon">-${fmtWon(a.cpn)}</span>
-          ${(a.ceCpn||0) > 0 ? `<span class="b-k" style="padding-left:10px;">· CE</span><span class="b-v" style="color:var(--text);font-weight:500;opacity:0.75;padding-right:12px;">(${fmtWon(a.ceCpn)})</span>` : ''}
           ${!showDeduct && (a.tr||0) > 0 ? `<span class="b-k">체험단</span><span class="b-v" style="color:#556b7a;font-weight:600;">-${fmtWon(a.tr)}</span>` : ''}
           ${!foldReturns && a.ret !== 0 ? `<span class="b-k">반출</span><span class="b-v" style="color:var(--neg);font-weight:600;">${fmtWon(a.ret)}</span>` : ''}
           ${!showDeduct && a.awd > 0 ? `<span class="b-k">어워즈</span><span class="b-v" style="color:var(--neg);font-weight:600;">-${fmtWon(a.awd)}</span>` : ''}
