@@ -2085,10 +2085,12 @@ function renderBrands(allEntries, hasSales) {
   // deductFull에서 중복 차감되는 (brandTrialSum + awardsTotal)을 더해 상쇄 후 full 차감.
   total.p = agg['오아'].p + agg['보아르'].p - (deductFull - brandTrialSum - awardsTotal);
 
-  // CE 순수익 = CE매출(반출반영) - CE원가 - CE광고 - 쿠폰전체 - 상계전체
-  // (쿠폰·상계 모두 전액 CE에 귀속)
-  agg['오아'].ceP   = agg['오아'].ceGmv   - agg['오아'].ceCogs   - agg['오아'].ceCpc   - agg['오아'].cpn;
-  agg['보아르'].ceP = agg['보아르'].ceGmv - agg['보아르'].ceCogs - agg['보아르'].ceCpc - agg['보아르'].cpn;
+  // CE 순수익 = CE매출 - CE원가 - CE광고 - 쿠폰 - 체험단 - 반출 - 어워즈 - (합계 카드만: 상계)
+  // 브랜드 카드: 쿠폰·체험단·반출·어워즈 전액 CE에 귀속
+  for (const b of ['오아', '보아르']) {
+    const a = agg[b];
+    a.ceP = a.ceGmv - a.ceCogs - a.ceCpc - a.cpn - (a.tr||0) + (a.ret||0) - (a.awd||0);
+  }
   const _ceGmvNet = total.ceGmv + (total.ceRet || 0);
   total.ceP = _ceGmvNet - total.ceCogs - total.ceCpc - total.cpn - deductFull;
 
