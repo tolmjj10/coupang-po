@@ -2141,7 +2141,11 @@ function renderBrands(allEntries, hasSales) {
               + row(daLabel, a.dDA);
           })() : ''}
           ${hasSales ? `<span class="b-k" style="color:var(--text);font-weight:600;">순수익</span><span class="b-v profit${a.p<0?' neg':''}">${fmtWon(a.p)}</span>
-          ${(a.ceGmv||0) > 0 ? `<span class="b-k" style="padding-left:10px;">· CE</span><span class="b-v" style="color:var(--text);font-weight:500;opacity:0.75;padding-right:12px;">(${fmtWon(a.ceP)})</span>` : ''}
+          ${(a.ceGmv||0) > 0 ? (() => {
+            const ceGmvBase = foldReturns ? (a.ceGmv + (a.ceRet||0)) : a.ceGmv;
+            const ceMg = ceGmvBase > 0 ? (a.ceP / ceGmvBase * 100).toFixed(1) + '%' : '—';
+            return `<span class="b-k" style="padding-left:10px;">· CE (마진 ${ceMg})</span><span class="b-v" style="color:var(--text);font-weight:500;opacity:0.75;padding-right:12px;">(${fmtWon(a.ceP)})</span>`;
+          })() : ''}
           <span class="b-k" style="color:var(--text);font-weight:600;">마진</span><span class="b-v margin">${mg}</span>` : ''}
         </div>
       </div>`;
