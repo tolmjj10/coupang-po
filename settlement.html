@@ -1154,6 +1154,7 @@ function aggregate() {
     '2026-10': { nc: 9330552, ncNonBrand: 2477815 },
   };
   let _ncFromSentinel = false;
+  let _ncNonBrandFromSentinel = false;
   let ncNonBrandRaw = 0;
   for (const row of cpcData) {
     // 센티넬 — 파일 row 1 청구 총액
@@ -1167,6 +1168,7 @@ function aggregate() {
       }
       if (row.nc_nonbrand_raw !== undefined) {
         ncNonBrandRaw += Number(row.nc_nonbrand_raw) || 0;
+        _ncNonBrandFromSentinel = true;
       }
       continue;
     }
@@ -1200,10 +1202,10 @@ function aggregate() {
   }
   // BPA(VAT 포함)는 오아+보아르 브랜드 광고비에 합산
   const bpaVat = Math.round(bpaRawTotal * 1.1);
-  // 센티넬에 nc_total_raw 없으면 월별 폴백 테이블 사용
-  if (!_ncFromSentinel && activeMonth && NC_RAW_FALLBACK[activeMonth]) {
-    ncRawTotal = NC_RAW_FALLBACK[activeMonth].nc;
-    ncNonBrandRaw = NC_RAW_FALLBACK[activeMonth].ncNonBrand;
+  // 센티넬에 nc_total_raw / nc_nonbrand_raw 없으면 월별 폴백 테이블 사용 (독립 적용)
+  if (activeMonth && NC_RAW_FALLBACK[activeMonth]) {
+    if (!_ncFromSentinel) ncRawTotal = NC_RAW_FALLBACK[activeMonth].nc;
+    if (!_ncNonBrandFromSentinel) ncNonBrandRaw = NC_RAW_FALLBACK[activeMonth].ncNonBrand;
   }
   // 신규 중 nonBrand 키워드 매칭분을 nonBrandRaw에 합산 (브랜드 카드에서 제외)
   if (ncNonBrandRaw > 0) nonBrandRaw += ncNonBrandRaw;
