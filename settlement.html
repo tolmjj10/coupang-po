@@ -849,6 +849,7 @@ function parseCPC(wb) {
   let billedRaw = 0, billedVat = 0;
   let bpaTotalRaw = 0;
   let ncTotalRaw = 0;  // PA 중 광고목표에 '신규' 포함 (신규 구매 고객) — SKU 분배 제외, 기타광고로 합산
+  let ncNonBrandRaw = 0;  // 신규 캠페인 중 nonBrand 키워드 매칭분 (브랜드 카드 제외)
   for (let i = 1; i < aoa.length; i++) {
     const r = aoa[i];
     const campId = r[7];
@@ -872,6 +873,10 @@ function parseCPC(wb) {
     }
     if (adGoal.includes('신규')) {
       ncTotalRaw += cost;
+      // 신규 중 뉴트리/매시브 등 nonBrand 키워드 매칭 분리 (브랜드 카드에서 제외해야 함)
+      if (EXCLUDED_BRAND_KEYWORDS.some(k => campName.includes(k))) {
+        ncNonBrandRaw += cost;
+      }
       continue;  // 신규 구매 고객 광고 — SKU/카테 분배 제외, 기타광고로 합산
     }
     if (!byCamp[cid]) byCamp[cid] = { cost: 0, camp_name: campName };
@@ -893,7 +898,8 @@ function parseCPC(wb) {
     cpc_raw_sum: cpcRawSum,
     bpa_total_raw: bpaTotalRaw,
     nc_total_raw: ncTotalRaw,
-    parser_version: 'v4-nc',  // BPA(col5) + 신규(col6) 분류
+    nc_nonbrand_raw: ncNonBrandRaw,
+    parser_version: 'v5-nc-nonbrand',  // nc nonBrand 분리
   };
   return [sentinel, ...rows];
 }
@@ -1134,13 +1140,21 @@ function aggregate() {
   let nonBrandRaw = 0;  // brandOf='' 캠페인 raw 합 (브랜드 카드 총액 차감용)
   const _dbgNonBrand = [];  // 디버그: 비-브랜드 캠페인 내역
   // 신규고객 광고(PA + col 6='신규')는 파싱 단계에서 센티넬 nc_total_raw에 저장.
-  // 구버전 캐시에 nc_total_raw 없을 때를 위한 월별 하드코딩 폴백 (settlement_files 재분석 결과):
+  // 구버전 캐시 폴백 (settlement_files 재분석):
   const NC_RAW_FALLBACK = {
-    '2026-01': 0, '2026-02': 0, '2026-03': 0, '2026-04': 0, '2026-05': 0,
-    '2026-06': 219503, '2026-07': 1736484, '2026-08': 2180929,
-    '2026-09': 2039150, '2026-10': 9330552,
+    '2026-01': { nc: 0, ncNonBrand: 0 },
+    '2026-02': { nc: 0, ncNonBrand: 0 },
+    '2026-03': { nc: 0, ncNonBrand: 0 },
+    '2026-04': { nc: 0, ncNonBrand: 0 },
+    '2026-05': { nc: 0, ncNonBrand: 0 },
+    '2026-06': { nc: 219503, ncNonBrand: 0 },
+    '2026-07': { nc: 1736484, ncNonBrand: 0 },
+    '2026-08': { nc: 2180929, ncNonBrand: 0 },
+    '2026-09': { nc: 2039150, ncNonBrand: 0 },
+    '2026-10': { nc: 9330552, ncNonBrand: 2477815 },
   };
   let _ncFromSentinel = false;
+  let ncNonBrandRaw = 0;
   for (const row of cpcData) {
     // 센티넬 — 파일 row 1 청구 총액
     if (row.camp_id === '__TOTAL__') {
@@ -1150,6 +1164,9 @@ function aggregate() {
       if (row.nc_total_raw !== undefined) {
         ncRawTotal += Number(row.nc_total_raw) || 0;
         _ncFromSentinel = true;
+      }
+      if (row.nc_nonbrand_raw !== undefined) {
+        ncNonBrandRaw += Number(row.nc_nonbrand_raw) || 0;
       }
       continue;
     }
@@ -1184,9 +1201,12 @@ function aggregate() {
   // BPA(VAT 포함)는 오아+보아르 브랜드 광고비에 합산
   const bpaVat = Math.round(bpaRawTotal * 1.1);
   // 센티넬에 nc_total_raw 없으면 월별 폴백 테이블 사용
-  if (!_ncFromSentinel && activeMonth && NC_RAW_FALLBACK[activeMonth] !== undefined) {
-    ncRawTotal = NC_RAW_FALLBACK[activeMonth];
+  if (!_ncFromSentinel && activeMonth && NC_RAW_FALLBACK[activeMonth]) {
+    ncRawTotal = NC_RAW_FALLBACK[activeMonth].nc;
+    ncNonBrandRaw = NC_RAW_FALLBACK[activeMonth].ncNonBrand;
   }
+  // 신규 중 nonBrand 키워드 매칭분을 nonBrandRaw에 합산 (브랜드 카드에서 제외)
+  if (ncNonBrandRaw > 0) nonBrandRaw += ncNonBrandRaw;
   const ncVat = Math.round(ncRawTotal * 1.1);
   window.cpcBilled = { totalRaw: billedTotalRaw, totalVat: billedTotalVat, nonBrandRaw, bpaRaw: bpaRawTotal, bpaVat, ncRaw: ncRawTotal, ncVat };
   window.settlementDebug = {
