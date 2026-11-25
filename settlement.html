@@ -2036,9 +2036,11 @@ function renderBrands(allEntries, hasSales) {
   if (bill && bill.totalVat) {
     const brandBilledVat = Math.max(0, bill.totalVat - Math.round(bill.nonBrandRaw * 1.1));
     const preSum = agg['오아'].cpc + agg['보아르'].cpc;
+    const oaOldCpc = agg['오아'].cpc;
+    const boOldCpc = agg['보아르'].cpc;
     if (preSum > 0) {
       const ratio = brandBilledVat / preSum;
-      agg['오아'].cpc = Math.round(agg['오아'].cpc * ratio);
+      agg['오아'].cpc = Math.round(oaOldCpc * ratio);
       agg['보아르'].cpc = brandBilledVat - agg['오아'].cpc;
       // CE 광고비도 동일 ratio 적용
       agg['오아'].ceCpc = Math.round(agg['오아'].ceCpc * ratio);
@@ -2049,6 +2051,9 @@ function renderBrands(allEntries, hasSales) {
       agg['오아'].ceCpc = 0;
       agg['보아르'].ceCpc = 0;
     }
+    // scaling 반영 — 스케일링된 광고비와 순수익이 시각적으로 일치하도록 p 조정
+    agg['오아'].p -= (agg['오아'].cpc - oaOldCpc);
+    agg['보아르'].p -= (agg['보아르'].cpc - boOldCpc);
     total.cpc = brandBilledVat;
     total.ceCpc = agg['오아'].ceCpc + agg['보아르'].ceCpc;
   }
