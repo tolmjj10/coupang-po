@@ -1236,7 +1236,9 @@ function aggregate() {
   let cpnMatched = 0, cpnUnmatched = 0;
   for (const row of couponData) {
     const nm = row.name || '';
-    if (!nm.startsWith('오아') && !nm.startsWith('보아르')) continue;
+    const isOa = nm.startsWith('오아') || nm.startsWith('BOX_오아');
+    const isBoar = nm.startsWith('보아르') || nm.startsWith('BOX_보아르');
+    if (!isOa && !isBoar) continue;
     const skuMeta = maps.sku2cat[row.sku];
     let cat;
     if (skuMeta) {
@@ -1244,7 +1246,7 @@ function aggregate() {
       cpnMatched++;
     } else {
       // SKU명 fallback (sku2cat에 없을 때 쿠폰명에서 브랜드 추론)
-      if (nm.startsWith('오아')) { cat = '오아 미매칭'; cpnUnmatched++; }
+      if (isOa) { cat = '오아 미매칭'; cpnUnmatched++; }
       else { cat = '보아르 미매칭'; cpnUnmatched++; }
     }
     bump(cat, 'coupon', row.amount);
