@@ -1232,9 +1232,11 @@ function aggregate() {
     ' nonBrand 캠페인 수=', _dbgNonBrand.length,
     ' → window.settlementDebug.nonBrandCamps 에서 전체 확인');
 
-  // 쿠폰 — sku2cat 없을 때는 쿠폰 파일의 SKU명에서 브랜드 추론
+  // 쿠폰 — SKU명이 '오아' 또는 '보아르'로 시작하는 것만 포함 (삼대오백 등 타 브랜드 제외)
   let cpnMatched = 0, cpnUnmatched = 0;
   for (const row of couponData) {
+    const nm = row.name || '';
+    if (!nm.startsWith('오아') && !nm.startsWith('보아르')) continue;
     const skuMeta = maps.sku2cat[row.sku];
     let cat;
     if (skuMeta) {
@@ -1242,11 +1244,8 @@ function aggregate() {
       cpnMatched++;
     } else {
       // SKU명 fallback (sku2cat에 없을 때 쿠폰명에서 브랜드 추론)
-      const nm = row.name || '';
-      if (nm.includes('올리미') || nm.includes('히팅뷰러') || nm.includes('히팅마스크')) { cat = '뷰티'; cpnMatched++; }
-      else if (nm.startsWith('오아')) { cat = '오아 미매칭'; cpnUnmatched++; }
-      else if (nm.startsWith('보아르')) { cat = '보아르 미매칭'; cpnUnmatched++; }
-      else { cat = '기타'; cpnMatched++; }
+      if (nm.startsWith('오아')) { cat = '오아 미매칭'; cpnUnmatched++; }
+      else { cat = '보아르 미매칭'; cpnUnmatched++; }
     }
     bump(cat, 'coupon', row.amount);
     skuEnsure(row.sku, { name: row.name }).coupon += row.amount;
