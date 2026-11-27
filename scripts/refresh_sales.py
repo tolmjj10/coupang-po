@@ -138,24 +138,15 @@ class McpSession:
 # ──────────────────────────────── 비즈니스 로직 ────────────────────────────────
 
 def refresh_sales_dash(mcp):
-    """매출/원가 집계 → data/sales-sku/sales-dash.json"""
+    """매출/원가 집계 → data/sales-sku/sales-dash.json
+
+    - 실매출(sales_*): mart_sales_daily.sales_amount (판매일 기준)
+    - 입고매출(cost_*): Σ(margin.cost × crawl_coupang_daily.inbound_qty) (입고일 기준, VAT 포함)
+      → sales.html 월합계 매출과 동일 공식
+    """
     today = dt.date.today()
     cm = today.strftime("%Y-%m")
     ly = f"{today.year - 1}-{today.month:02d}"
-
-    # 최근 6개월 + 작년동월 — 쿼리 하나로
-    first_needed = f"{today.year - 1}-{today.month:02d}-01"
-    sql = (
-        "SELECT DATE_FORMAT(stat_date,'%Y-%m') ym, "
-        "       SUM(sales_amount) sales_amt, "
-        "       SUM(cost_amount)  cost_amt "
-        "FROM mart_sales_daily "
-        f"WHERE partner_name='쿠팡' AND stat_date >= '{first_needed}' "
-        "GROUP BY ym ORDER BY ym"
-    )
-    result = mcp.run_query(sql)
-    by_ym = {r["ym"]: {"sales": float(r["sales_amt"] or 0),
-                       "cost":  float(r["cost_amt"]  or 0)} for r in result["rows"]}
 
     # 최근 6개월 (오래된→최신)
     trend = []
@@ -167,26 +158,78 @@ def refresh_sales_dash(mcp):
             m = 12
             y -= 1
     trend.reverse()
+    all_months = sorted(set(trend + [ly]))
+
+    # 실매출은 mart_sales_daily
+    first_needed = all_months[0] + "-01"
+    sales_sql = (
+        "SELECT DATE_FORMAT(stat_date,'%Y-%m') ym, SUM(sales_amount) sales_amt "
+        "FROM mart_sales_daily "
+        f"WHERE partner_name='쿠팡' AND stat_date >= '{first_needed}' "
+        "GROUP BY ym"
+    )
+    sales_by_ym = {r["ym"]: float(r["sales_amt"] or 0)
+                   for r in mcp.run_query(sales_sql)["rows"]}
+
+    # 매입가 맵 (margin-state KV · cost = 매입가 VAT 포함)
+    try:
+        mg = requests.get("https://coupang-po.pages.dev/api/margin-state", timeout=15).json()
+        mg_rows = mg if isinstance(mg, list) else mg.get("rows", [])
+    except Exception as e:
+        print(f"[dash] margin-state 로드 실패: {e}")
+        mg_rows = []
+    cost_map = {}
+    for r in mg_rows:
+        sku = str(r.get("sku") or "").strip()
+        if sku.isdigit():
+            cost_map[sku] = float(r.get("cost") or 0)
+
+    # 월별 입고기준 매출 = Σ(매입가 × 입고수량)
+    cost_by_ym = {}
+    for ym in all_months:
+        y2, m2 = map(int, ym.split("-"))
+        first = dt.date(y2, m2, 1)
+        last = (dt.date(y2 + 1, 1, 1) if m2 == 12 else dt.date(y2, m2 + 1, 1)) - dt.timedelta(days=1)
+        offset = 0
+        total = 0.0
+        while True:
+            sql = (
+                "SELECT sku_id, SUM(COALESCE(inbound_qty,0)) in_q "
+                "FROM crawl_coupang_daily "
+                f"WHERE channel_code='coupang' AND stat_date BETWEEN '{first}' AND '{last}' "
+                "GROUP BY sku_id ORDER BY sku_id "
+                f"LIMIT 1000 OFFSET {offset}"
+            )
+            rows = mcp.run_query(sql, limit=1000)["rows"]
+            for r in rows:
+                qty = int(r["in_q"] or 0)
+                if qty <= 0:
+                    continue
+                total += cost_map.get(str(r["sku_id"]), 0) * qty
+            if len(rows) < 1000:
+                break
+            offset += 1000
+        cost_by_ym[ym] = total
 
     dash = {
         "updated_at":   today.isoformat(),
-        "source":       "oa_ops.mart_sales_daily · partner_name=쿠팡",
+        "source":       "mart_sales_daily (실매출) + crawl_coupang_daily.inbound × margin.cost (입고기준 VAT 포함)",
         "current_month": cm,
         "kpi": {
-            "sales_this": int(by_ym.get(cm, {}).get("sales", 0)),
-            "cost_this":  int(by_ym.get(cm, {}).get("cost",  0)),
-            "sales_ly":   int(by_ym.get(ly, {}).get("sales", 0)),
-            "cost_ly":    int(by_ym.get(ly, {}).get("cost",  0)),
+            "sales_this": int(sales_by_ym.get(cm, 0)),
+            "cost_this":  int(cost_by_ym.get(cm, 0)),
+            "sales_ly":   int(sales_by_ym.get(ly, 0)),
+            "cost_ly":    int(cost_by_ym.get(ly, 0)),
         },
         "trend_6m": [
-            {"ym": ym, "cost": int(by_ym.get(ym, {}).get("cost", 0))}
+            {"ym": ym, "cost": int(cost_by_ym.get(ym, 0))}
             for ym in trend
         ],
     }
     out = REPO / "data" / "sales-sku" / "sales-dash.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(dash, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[dash] 당월 매출 {dash['kpi']['sales_this']:,}원  입고 {dash['kpi']['cost_this']:,}원  (작년 동월 {dash['kpi']['sales_ly']:,} / {dash['kpi']['cost_ly']:,})")
+    print(f"[dash] 당월 매출 {dash['kpi']['sales_this']:,}원  입고기준 {dash['kpi']['cost_this']:,}원  (작년 동월 {dash['kpi']['sales_ly']:,} / {dash['kpi']['cost_ly']:,})")
 
 
 def db_latest_coupang_date(mcp):
