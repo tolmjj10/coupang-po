@@ -198,17 +198,17 @@ def refresh_sales_dash(mcp):
                 "FROM crawl_coupang_daily "
                 f"WHERE channel_code='coupang' AND stat_date BETWEEN '{first}' AND '{last}' "
                 "GROUP BY sku_id ORDER BY sku_id "
-                f"LIMIT 1000 OFFSET {offset}"
+                f"LIMIT 500 OFFSET {offset}"
             )
-            rows = mcp.run_query(sql, limit=1000)["rows"]
+            rows = mcp.run_query(sql, limit=500)["rows"]
             for r in rows:
                 qty = int(r["in_q"] or 0)
                 if qty <= 0:
                     continue
                 total += cost_map.get(str(r["sku_id"]), 0) * qty
-            if len(rows) < 1000:
+            if len(rows) < 500:
                 break
-            offset += 1000
+            offset += 500
         cost_by_ym[ym] = total
 
     dash = {
