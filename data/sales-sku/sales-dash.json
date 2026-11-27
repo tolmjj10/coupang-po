@@ -1,37 +1,37 @@
 {
   "updated_at": "2026-11-27",
-  "source": "oa_ops.mart_sales_daily · partner_name=쿠팡",
+  "source": "mart_sales_daily (실매출) + crawl_coupang_daily.inbound × margin.cost (입고기준 VAT 포함)",
   "current_month": "2026-11",
   "kpi": {
-    "sales_this": 1797695068,
-    "cost_this": 1154227169,
+    "sales_this": 1810345312,
+    "cost_this": 1399447499,
     "sales_ly": 1358595942,
-    "cost_ly": 800256521
+    "cost_ly": 1085891183
   },
   "trend_6m": [
     {
       "ym": "2026-06",
-      "cost": 943531278
+      "cost": 1038262083
     },
     {
       "ym": "2026-07",
-      "cost": 1070443213
+      "cost": 1279494373
     },
     {
       "ym": "2026-08",
-      "cost": 1208535884
+      "cost": 1382320575
     },
     {
       "ym": "2026-09",
-      "cost": 1180166290
+      "cost": 1486872468
     },
     {
       "ym": "2026-10",
-      "cost": 1173591660
+      "cost": 1539318963
     },
     {
       "ym": "2026-11",
-      "cost": 1154227169
+      "cost": 1399447499
     }
   ]
 }
